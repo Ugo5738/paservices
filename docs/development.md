@@ -98,10 +98,10 @@ Before deployment, create necessary Kubernetes secrets:
 ```bash
 # Create auth service secrets
 kubectl create secret generic paauth-secrets \
-  --from-literal=SUPABASE_URL=your-supabase-url \
-  --from-literal=SUPABASE_ANON_KEY=your-anon-key \
-  --from-literal=SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
-  --from-literal=M2M_JWT_SECRET_KEY=your-jwt-secret \
+  --from-literal=AUTH_SERVICE_SUPABASE_URL=your-supabase-url \
+  --from-literal=AUTH_SERVICE_SUPABASE_ANON_KEY=your-anon-key \
+  --from-literal=AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY=your-service-role-key \
+  --from-literal=AUTH_SERVICE_M2M_JWT_SECRET_KEY=your-jwt-secret \
   --from-literal=AUTH_SERVICE_DATABASE_URL=your-db-url \
   --from-literal=USE_PGBOUNCER=false
 ```

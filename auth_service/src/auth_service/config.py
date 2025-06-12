@@ -14,39 +14,45 @@ class Environment(str, Enum):
 
 
 class Settings(BaseSettings):
-    supabase_url: str = Field(..., json_schema_extra={"env": "SUPABASE_URL"})
-    supabase_anon_key: str = Field(..., json_schema_extra={"env": "SUPABASE_ANON_KEY"})
+    supabase_url: str = Field(
+        ..., json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_URL"}
+    )
+    supabase_anon_key: str = Field(
+        ..., json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_ANON_KEY"}
+    )
     supabase_service_role_key: str = Field(
-        ..., json_schema_extra={"env": "SUPABASE_SERVICE_ROLE_KEY"}
+        ..., json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY"}
     )
     supabase_email_confirmation_required: bool = Field(
-        default=True, json_schema_extra={"env": "SUPABASE_EMAIL_CONFIRMATION_REQUIRED"}
+        default=True,
+        json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED"},
     )
     supabase_auto_confirm_new_users: bool = Field(
-        default=False, json_schema_extra={"env": "SUPABASE_AUTO_CONFIRM_NEW_USERS"}
+        default=False,
+        json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_AUTO_CONFIRM_NEW_USERS"},
     )
 
     # Self-hosted Supabase configuration
     supabase_self_hosted: bool = Field(
-        default=False, json_schema_extra={"env": "SUPABASE_SELF_HOSTED"}
+        default=False, json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_SELF_HOSTED"}
     )
     supabase_db_host: str | None = Field(
-        default=None, json_schema_extra={"env": "SUPABASE_DB_HOST"}
+        default=None, json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_DB_HOST"}
     )
     supabase_db_port: int = Field(
-        default=5432, json_schema_extra={"env": "SUPABASE_DB_PORT"}
+        default=5432, json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_DB_PORT"}
     )
     supabase_db_name: str = Field(
-        default="postgres", json_schema_extra={"env": "SUPABASE_DB_NAME"}
+        default="postgres", json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_DB_NAME"}
     )
     supabase_db_user: str = Field(
-        default="postgres", json_schema_extra={"env": "SUPABASE_DB_USER"}
+        default="postgres", json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_DB_USER"}
     )
     supabase_db_password: str | None = Field(
-        default=None, json_schema_extra={"env": "SUPABASE_DB_PASSWORD"}
+        default=None, json_schema_extra={"env": "AUTH_SERVICE_SUPABASE_DB_PASSWORD"}
     )
     m2m_jwt_secret_key: str = Field(
-        ..., json_schema_extra={"env": "M2M_JWT_SECRET_KEY"}
+        ..., json_schema_extra={"env": "AUTH_SERVICE_M2M_JWT_SECRET_KEY"}
     )
     m2m_jwt_algorithm: str = Field(
         default="HS256", json_schema_extra={"env": "M2M_JWT_ALGORITHM"}

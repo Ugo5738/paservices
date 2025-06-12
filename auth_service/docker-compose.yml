@@ -10,9 +10,9 @@ services:
       - USE_PGBOUNCER=true
       - LOGGING_LEVEL=DEBUG
       - PIP_DEFAULT_TIMEOUT=300
-      - SUPABASE_URL=http://supabase_kong_paauth:8000
-      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-your_default_secret_key_for_testing}
+      - AUTH_SERVICE_SUPABASE_URL=http://supabase_kong_paauth:8000
+      - AUTH_SERVICE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - AUTH_SERVICE_JWT_SECRET_KEY=${JWT_SECRET_KEY:-your_default_secret_key_for_testing}
       - PYTHONPATH=/app/src
     ports:
       - "8000:8000" # Exposes auth_service on host port 8000

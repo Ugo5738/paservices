@@ -81,11 +81,11 @@ The application requires several environment variables to be configured. A `.env
 
 ### Supabase Configuration
 
-| Variable                    | Description                                  | Example                                   | Required |
-| --------------------------- | -------------------------------------------- | ----------------------------------------- | -------- |
-| `SUPABASE_URL`              | URL of your Supabase project                 | `https://project-ref.supabase.co`         | Yes      |
-| `SUPABASE_ANON_KEY`         | Anon/public key from Supabase                | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | Yes      |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role key from Supabase (keep secure) | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | Yes      |
+| Variable                                 | Description                                  | Example                                   | Required |
+| ---------------------------------------- | -------------------------------------------- | ----------------------------------------- | -------- |
+| `AUTH_SERVICE_SUPABASE_URL`              | URL of your Supabase project                 | `https://project-ref.supabase.co`         | Yes      |
+| `AUTH_SERVICE_SUPABASE_ANON_KEY`         | Anon/public key from Supabase                | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | Yes      |
+| `AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY` | Service role key from Supabase (keep secure) | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | Yes      |
 
 ### Database Configuration
 
@@ -97,7 +97,7 @@ The application requires several environment variables to be configured. A `.env
 
 | Variable                              | Description                           | Example                               | Required         |
 | ------------------------------------- | ------------------------------------- | ------------------------------------- | ---------------- |
-| `M2M_JWT_SECRET_KEY`                  | Secret key for signing M2M JWTs       | `your-secure-random-key-min-32-chars` | Yes              |
+| `AUTH_SERVICE_M2M_JWT_SECRET_KEY`     | Secret key for signing M2M JWTs       | `your-secure-random-key-min-32-chars` | Yes              |
 | `M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES` | Expiry time for M2M tokens in minutes | `15`                                  | No (default: 15) |
 
 ### Rate Limiting Configuration

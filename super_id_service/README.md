@@ -82,8 +82,8 @@ Or for multiple IDs:
 
 | Variable                      | Description                          | Required |
 |-------------------------------|--------------------------------------|----------|
-| SUPABASE_URL                  | URL of your Supabase project         | Yes      |
-| SUPABASE_SERVICE_ROLE_KEY     | Service role key from Supabase       | Yes      |
+| SUPER_ID_SERVICE_SUPABASE_URL                  | URL of your Supabase project         | Yes      |
+| SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY     | Service role key from Supabase       | Yes      |
 | JWT_SECRET_KEY                | Secret key from Auth Service         | Yes      |
 | AUTH_SERVICE_ISSUER           | Expected issuer in JWTs              | Yes      |
 | LOG_LEVEL                     | Logging level (INFO, DEBUG, etc)     | No       |

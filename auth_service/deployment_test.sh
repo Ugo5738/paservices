@@ -34,20 +34,20 @@ fi
 echo "✅ docker-compose.prod.yml syntax is valid"
 
 # Check if we're using self-hosted Supabase
-SELF_HOSTED=$(grep "SUPABASE_SELF_HOSTED=true" .env.production || echo "")
+SELF_HOSTED=$(grep "AUTH_SERVICE_SUPABASE_SELF_HOSTED=true" .env.production || echo "")
 if [ -n "$SELF_HOSTED" ]; then
     echo "Self-hosted Supabase configuration detected"
     
     # Check for required self-hosted variables
     MISSING_VARS=false
     
-    if ! grep -q "SUPABASE_DB_HOST" .env.production; then
-        echo "❌ ERROR: SUPABASE_DB_HOST not found in .env.production"
+    if ! grep -q "AUTH_SERVICE_SUPABASE_DB_HOST" .env.production; then
+        echo "❌ ERROR: AUTH_SERVICE_SUPABASE_DB_HOST not found in .env.production"
         MISSING_VARS=true
     fi
     
-    if ! grep -q "SUPABASE_DB_PASSWORD" .env.production; then
-        echo "❌ ERROR: SUPABASE_DB_PASSWORD not found in .env.production"
+    if ! grep -q "AUTH_SERVICE_SUPABASE_DB_PASSWORD" .env.production; then
+        echo "❌ ERROR: AUTH_SERVICE_SUPABASE_DB_PASSWORD not found in .env.production"
         MISSING_VARS=true
     fi
     

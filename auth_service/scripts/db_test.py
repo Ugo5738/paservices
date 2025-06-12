@@ -5,11 +5,11 @@ Simple Supabase Database Connection Tester
 This script directly tests the connection to your Supabase Cloud database
 without relying on the auth_service module structure.
 """
+import asyncio
 import os
+import socket
 import sys
 import time
-import asyncio
-import socket
 from datetime import datetime
 
 # Import required packages - install if needed with: pip install asyncpg httpx
@@ -28,56 +28,58 @@ DEFAULT_SUPABASE_URL = "https://ndindbknmovckjouvcvh.supabase.co"
 
 # Get connection details from environment or use defaults
 DB_URL = os.environ.get("AUTH_SERVICE_DATABASE_URL", DEFAULT_DB_URL)
-SUPABASE_URL = os.environ.get("SUPABASE_URL", DEFAULT_SUPABASE_URL)
+SUPABASE_URL = os.environ.get("AUTH_SERVICE_SUPABASE_URL", DEFAULT_SUPABASE_URL)
 
 
 async def test_direct_connection():
     """Test direct connection to Supabase database with pgBouncer settings."""
     print(f"\n{'='*20} DIRECT DATABASE CONNECTION TEST {'='*20}")
-    
+
     # Extract connection parameters from URL
     # Format: postgresql+asyncpg://username:password@host:port/dbname?pgbouncer=true
-    base_url = DB_URL.replace('postgresql+asyncpg://', '')
-    
+    base_url = DB_URL.replace("postgresql+asyncpg://", "")
+
     # Check if pgbouncer=true is in the URL
-    is_pgbouncer = 'pgbouncer=true' in base_url
-    conn_str = base_url.split('?')[0]  # Remove query params for parsing
-    
+    is_pgbouncer = "pgbouncer=true" in base_url
+    conn_str = base_url.split("?")[0]  # Remove query params for parsing
+
     # Split into user:pass@host:port/dbname
-    user_pass, host_port_db = conn_str.split('@', 1)
-    username, password = user_pass.split(':', 1)
-    
+    user_pass, host_port_db = conn_str.split("@", 1)
+    username, password = user_pass.split(":", 1)
+
     # Split into host:port and dbname
-    if '/' in host_port_db:
-        host_port, dbname = host_port_db.split('/', 1)
+    if "/" in host_port_db:
+        host_port, dbname = host_port_db.split("/", 1)
     else:
-        host_port, dbname = host_port_db, 'postgres'
-    
+        host_port, dbname = host_port_db, "postgres"
+
     # Split into host and port
-    if ':' in host_port:
-        host, port = host_port.split(':', 1)
+    if ":" in host_port:
+        host, port = host_port.split(":", 1)
         port = int(port)
     else:
         host, port = host_port, 5432
-    
+
     print(f"Database Host: {host}")
     print(f"Database Port: {port}")
     print(f"Database Name: {dbname}")
     print(f"Username: {username}")
     print(f"Using pgBouncer mode: {is_pgbouncer}")
-    
+
     # Test DNS resolution
     try:
         print(f"\nResolving DNS for {host}...")
         dns_start = time.time()
-        ip_addresses = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        ip_addresses = socket.getaddrinfo(
+            host, port, socket.AF_INET, socket.SOCK_STREAM
+        )
         dns_time = time.time() - dns_start
         print(f"✅ DNS resolution successful ({dns_time*1000:.2f}ms)")
         print(f"  IP addresses: {', '.join(addr[4][0] for addr in ip_addresses)}")
     except socket.gaierror as e:
         print(f"❌ DNS resolution failed: {e}")
         return False
-    
+
     # Test database connection
     try:
         print(f"\nConnecting to database...")
@@ -90,54 +92,60 @@ async def test_direct_connection():
             database=dbname,
             timeout=15.0,  # 15 second connection timeout
             command_timeout=10.0,  # 10 second command timeout
-            server_settings={
-                # pgBouncer requires READ COMMITTED isolation level
-                "application_name": "auth_service_diagnostic",
-                "default_transaction_isolation": "read committed",
-            } if is_pgbouncer else {}
+            server_settings=(
+                {
+                    # pgBouncer requires READ COMMITTED isolation level
+                    "application_name": "auth_service_diagnostic",
+                    "default_transaction_isolation": "read committed",
+                }
+                if is_pgbouncer
+                else {}
+            ),
         )
         conn_time = time.time() - conn_start
         print(f"✅ Connection established ({conn_time*1000:.2f}ms)")
-        
+
         # Test simple query
         print(f"\nExecuting test query...")
         query_start = time.time()
-        version = await conn.fetchval('SELECT version()')
+        version = await conn.fetchval("SELECT version()")
         query_time = time.time() - query_start
         print(f"✅ Query successful ({query_time*1000:.2f}ms)")
         print(f"  Database version: {version}")
-        
+
         # Test connection stability (fewer queries to avoid rate limits)
         print(f"\nTesting connection stability with 2 sequential queries...")
         times = []
         for i in range(2):  # Reduced from 5 to 2 to prevent rate limit issues
             start = time.time()
-            await conn.execute('SELECT 1')
+            await conn.execute("SELECT 1")
             query_time = time.time() - start
             times.append(query_time)
             print(f"  Query {i+1}: {query_time*1000:.2f}ms")
             await asyncio.sleep(0.5)  # Add small delay between queries
-            
+
         avg = sum(times) / len(times)
         print(f"  Average query time: {avg*1000:.2f}ms")
-        
+
         # Only get server parameters if not using pgBouncer
         # pgBouncer doesn't support some of these parameters
         if not is_pgbouncer:
             print(f"\nChecking server parameters...")
-            params = await conn.fetchrow('''
+            params = await conn.fetchrow(
+                """
                 SELECT 
                     current_setting('max_connections') as max_connections,
                     current_setting('idle_in_transaction_session_timeout') as idle_timeout,
                     current_setting('statement_timeout') as statement_timeout
-            ''')
-            
+            """
+            )
+
             print(f"  Max connections: {params['max_connections']}")
             print(f"  Idle timeout: {params['idle_timeout']} ms")
             print(f"  Statement timeout: {params['statement_timeout']} ms")
         else:
             print("\nSkipping server parameter check (not supported in pgBouncer mode)")
-        
+
         await conn.close()
         return True
     except Exception as e:
@@ -148,17 +156,17 @@ async def test_direct_connection():
 async def test_supabase_api():
     """Test connection to Supabase API."""
     print(f"\n{'='*20} SUPABASE API TEST {'='*20}")
-    
+
     try:
         print(f"Connecting to Supabase API at {SUPABASE_URL}...")
         start = time.time()
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{SUPABASE_URL}/rest/v1/", timeout=5.0)
         api_time = time.time() - start
-        
+
         print(f"✅ API request completed ({api_time*1000:.2f}ms)")
         print(f"  Status code: {response.status_code}")
-        
+
         if 200 <= response.status_code < 500:
             print(f"✅ Supabase API is reachable")
             return True
@@ -176,24 +184,28 @@ async def run_all_tests():
     print(f"DATABASE CONNECTION DIAGNOSTIC TOOL")
     print(f"Started at: {datetime.now().isoformat()}")
     print(f"{'='*60}")
-    
-    print(f"\nTesting connection to: {DB_URL.replace('postgresql+asyncpg://', 'postgresql://')}")
-    
+
+    print(
+        f"\nTesting connection to: {DB_URL.replace('postgresql+asyncpg://', 'postgresql://')}"
+    )
+
     db_success = await test_direct_connection()
     api_success = await test_supabase_api()
-    
+
     # Print summary
     print(f"\n{'='*60}")
     print("SUMMARY:")
     print(f"Database Connection: {'✅ PASS' if db_success else '❌ FAIL'}")
     print(f"Supabase API:        {'✅ PASS' if api_success else '❌ FAIL'}")
     print(f"{'='*60}")
-    
+
     if db_success and api_success:
-        print("\n✅ All tests passed! Your connection to Supabase is working correctly.")
+        print(
+            "\n✅ All tests passed! Your connection to Supabase is working correctly."
+        )
     else:
         print("\n⚠️ Some tests failed. Review the errors above for troubleshooting.")
-    
+
     print(f"\nTest completed at: {datetime.now().isoformat()}")
     return db_success and api_success
 

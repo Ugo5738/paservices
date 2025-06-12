@@ -22,11 +22,11 @@ async def test_list_users():
         )
         load_dotenv(override=True)
 
-    supabase_url = os.getenv("SUPABASE_URL")
-    supabase_service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_url = os.getenv("AUTH_SERVICE_SUPABASE_URL")
+    supabase_service_key = os.getenv("AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY")
 
     if not supabase_url or not supabase_service_key:
-        print("Error: SUPABASE_URL and/or SUPABASE_SERVICE_ROLE_KEY not found.")
+        print("Error: AUTH_SERVICE_SUPABASE_URL and/or AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY not found.")
         return
 
     print(f"Attempting to connect to Supabase URL: {supabase_url}")

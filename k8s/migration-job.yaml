@@ -25,33 +25,33 @@ spec:
               echo "=== Debugging Environment Variables ==="
               echo "Complete environment dump:"
               env | sort
-              
+
               echo "\n=== Checking Supabase Environment Variables ==="
-              echo "SUPABASE_URL exists: $(if [ -n "$SUPABASE_URL" ]; then echo YES; else echo NO; fi)"
-              echo "SUPABASE_URL length: ${#SUPABASE_URL}"
-              echo "SUPABASE_ANON_KEY exists: $(if [ -n "$SUPABASE_ANON_KEY" ]; then echo YES; else echo NO; fi)"
-              echo "SUPABASE_ANON_KEY length: ${#SUPABASE_ANON_KEY}"
-              echo "SUPABASE_SERVICE_ROLE_KEY exists: $(if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then echo YES; else echo NO; fi)"
-              echo "SUPABASE_SERVICE_ROLE_KEY length: ${#SUPABASE_SERVICE_ROLE_KEY}"
-              echo "M2M_JWT_SECRET_KEY exists: $(if [ -n "$M2M_JWT_SECRET_KEY" ]; then echo YES; else echo NO; fi)"
-              echo "M2M_JWT_SECRET_KEY length: ${#M2M_JWT_SECRET_KEY}"
-              
+              echo "AUTH_SERVICE_SUPABASE_URL exists: $(if [ -n "$AUTH_SERVICE_SUPABASE_URL" ]; then echo YES; else echo NO; fi)"
+              echo "AUTH_SERVICE_SUPABASE_URL length: ${#AUTH_SERVICE_SUPABASE_URL}"
+              echo "AUTH_SERVICE_SUPABASE_ANON_KEY exists: $(if [ -n "$AUTH_SERVICE_SUPABASE_ANON_KEY" ]; then echo YES; else echo NO; fi)"
+              echo "AUTH_SERVICE_SUPABASE_ANON_KEY length: ${#AUTH_SERVICE_SUPABASE_ANON_KEY}"
+              echo "AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY exists: $(if [ -n "$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY" ]; then echo YES; else echo NO; fi)"
+              echo "AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY length: ${#AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY}"
+              echo "AUTH_SERVICE_M2M_JWT_SECRET_KEY exists: $(if [ -n "$AUTH_SERVICE_M2M_JWT_SECRET_KEY" ]; then echo YES; else echo NO; fi)"
+              echo "AUTH_SERVICE_M2M_JWT_SECRET_KEY length: ${#AUTH_SERVICE_M2M_JWT_SECRET_KEY}"
+
               echo "\n=== Testing kubernetes secrets volume files ==="
               # Check if we can see secrets mounted as files (alternative access method)
               ls -la /var/run/secrets/kubernetes.io/ || echo "No Kubernetes secrets mounted"
-              
+
               echo "\n=== Testing database connection ==="
               python -c "import asyncio, asyncpg, os; asyncio.run(asyncio.wait_for(asyncpg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+asyncpg://', 'postgresql://')), timeout=10))" || { echo "Database connection failed"; exit 1; }
               echo "Database connection successful. Starting migration..."
-              
+
               # Set verbose logging for alembic
               export PYTHONPATH=/app:$PYTHONPATH
               export ALEMBIC_VERBOSE=1
-              
+
               # Run the migration with a timeout
               echo "\n=== Running migrations ==="
               timeout 600 alembic upgrade head
-              
+
               # Check exit status
               STATUS=$?
               if [ $STATUS -eq 0 ]; then
@@ -73,29 +73,29 @@ spec:
           env:
             # Try both approaches: envFrom (above) and direct valueFrom (below)
             # This gives us redundancy in case one approach isn't working
-            - name: SUPABASE_URL_DIRECT
+            - name: AUTH_SERVICE_SUPABASE_URL_DIRECT
               valueFrom:
                 secretKeyRef:
                   name: paservices-secrets
-                  key: SUPABASE_URL
+                  key: AUTH_SERVICE_SUPABASE_URL
                   optional: true
-            - name: SUPABASE_ANON_KEY_DIRECT
+            - name: AUTH_SERVICE_SUPABASE_ANON_KEY_DIRECT
               valueFrom:
                 secretKeyRef:
                   name: paservices-secrets
-                  key: SUPABASE_ANON_KEY
+                  key: AUTH_SERVICE_SUPABASE_ANON_KEY
                   optional: true
-            - name: SUPABASE_SERVICE_ROLE_KEY_DIRECT
+            - name: AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_DIRECT
               valueFrom:
                 secretKeyRef:
                   name: paservices-secrets
-                  key: SUPABASE_SERVICE_ROLE_KEY
+                  key: AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY
                   optional: true
-            - name: M2M_JWT_SECRET_KEY_DIRECT
+            - name: AUTH_SERVICE_M2M_JWT_SECRET_KEY_DIRECT
               valueFrom:
                 secretKeyRef:
                   name: paservices-secrets
-                  key: M2M_JWT_SECRET_KEY
+                  key: AUTH_SERVICE_M2M_JWT_SECRET_KEY
                   optional: true
             - name: PYTHONUNBUFFERED
               value: "1"
@@ -107,7 +107,7 @@ spec:
               cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m" 
+              cpu: "500m"
               memory: "512Mi"
       restartPolicy: Never
       # Add a reasonable timeout for the job

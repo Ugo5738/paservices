@@ -8,15 +8,14 @@ services:
     environment:
       # Connect directly to the Supabase postgres container with new project name
       - AUTH_SERVICE_DATABASE_URL=postgresql+psycopg://postgres:postgres@supabase_db_paservices:5432/postgres
-      - DATABASE_URL=postgresql+psycopg://postgres:postgres@supabase_db_paservices:5432/postgres
       - USE_PGBOUNCER=false
       - LOGGING_LEVEL=DEBUG
       # Supabase services - use the Kong API gateway on the Supabase network
-      - SUPABASE_URL=http://supabase_kong_paservices:8000
+      - AUTH_SERVICE_SUPABASE_URL=http://supabase_kong_paservices:8000
       # Default Supabase CLI keys
-      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-      - SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-      - M2M_JWT_SECRET_KEY=your_default_secret_key_for_testing
+      - AUTH_SERVICE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+      - AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+      - AUTH_SERVICE_M2M_JWT_SECRET_KEY=your_default_secret_key_for_testing
       - PYTHONPATH=/app/src
     env_file:
       - ./auth_service/.env.dev
@@ -47,24 +46,11 @@ services:
       context: ./super_id_service
       dockerfile: Dockerfile.test
     environment:
-      # Connect directly to the Supabase postgres container with super_id_test_db
-      - DATABASE_URL=postgresql+psycopg://postgres:postgres@supabase_db_paservices:5432/super_id_test_db
-      - DB_HOST=supabase_db_paservices
-      - DB_PORT=5432
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=super_id_test_db
       - ALEMBIC_DIR=/app/migrations
-      - LOGGING_LEVEL=DEBUG
-      # Enable test mode to disable rate limiting in tests
-      - ENVIRONMENT=test
-      # Supabase connection details
-      - SUPABASE_URL=http://supabase_kong_paservices:8000
-      # Default Supabase CLI keys
-      - SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-      - SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-      - JWT_SECRET_KEY=your_default_secret_key_for_testing
       - PYTHONPATH=/app:/app/src
+    env_file:
+      - ./super_id_service/.env.dev
+      # - ./super_id_service/.env.test
     ports:
       - "8001:8000" # Exposes super_id_service on host port 8001
     volumes:

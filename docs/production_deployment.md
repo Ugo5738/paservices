@@ -75,9 +75,9 @@ Create a `.env.production` file in the root of the auth_service directory with t
 
 ```
 # Self-hosted Supabase connection
-SUPABASE_URL=https://your_domain.com
-SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+AUTH_SERVICE_SUPABASE_URL=https://your_domain.com
+AUTH_SERVICE_SUPABASE_ANON_KEY=your_anon_key
+AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 
 # Database connection (to the same Postgres database that Supabase uses)
 AUTH_SERVICE_DATABASE_URL=postgresql+asyncpg://postgres:your_secure_db_password@db:5432/postgres
@@ -204,11 +204,11 @@ sudo /path/to/paservices/scripts/setup_microk8s.sh
 
 ```bash
 # First, base64 encode all your sensitive values
-SUPABASE_URL_B64=$(echo -n "your-supabase-url" | base64 -w 0)
-SUPABASE_ANON_KEY_B64=$(echo -n "your-anon-key" | base64 -w 0)
-SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "your-service-role-key" | base64 -w 0)
+AUTH_SERVICE_SUPABASE_URL_B64=$(echo -n "your-supabase-url" | base64 -w 0)
+AUTH_SERVICE_SUPABASE_ANON_KEY_B64=$(echo -n "your-anon-key" | base64 -w 0)
+AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "your-service-role-key" | base64 -w 0)
 AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "your-db-url" | base64 -w 0)
-M2M_JWT_SECRET_KEY_B64=$(echo -n "your-jwt-secret" | base64 -w 0)
+AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64=$(echo -n "your-jwt-secret" | base64 -w 0)
 REDIS_URL_B64=$(echo -n "your-redis-url" | base64 -w 0)
 DOCKER_REGISTRY="your-docker-registry" # e.g., your DockerHub username
 IMAGE_TAG="latest"  # or specific version/git sha
@@ -216,11 +216,11 @@ AUTH_DOMAIN="auth.yourdomain.com"  # your auth service domain
 
 # Apply the secrets with variable substitution using sed
 cat k8s/secrets.yaml | \
-  sed "s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g" | \
-  sed "s|SUPABASE_ANON_KEY_BASE64|$SUPABASE_ANON_KEY_B64|g" | \
-  sed "s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g" | \
+  sed "s|SUPABASE_URL_BASE64|$AUTH_SERVICE_SUPABASE_URL_B64|g" | \
+  sed "s|SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_B64|g" | \
+  sed "s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" | \
   sed "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g" | \
-  sed "s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g" | \
+  sed "s|M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64|g" | \
   sed "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" | \
   kubectl apply -f -
 ```
@@ -283,11 +283,11 @@ Set up the following secrets in your GitHub repository:
 
 **Application Environment Variables:**
 
-- `SUPABASE_URL`: URL of your Supabase instance
-- `SUPABASE_ANON_KEY`: Supabase anonymous key
-- `SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key
+- `AUTH_SERVICE_SUPABASE_URL`: URL of your Supabase instance
+- `AUTH_SERVICE_SUPABASE_ANON_KEY`: Supabase anonymous key
+- `AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY`: Supabase service role key
 - `AUTH_SERVICE_DATABASE_URL`: PostgreSQL connection string
-- `M2M_JWT_SECRET_KEY`: Secret key for M2M JWT token generation
+- `AUTH_SERVICE_M2M_JWT_SECRET_KEY`: Secret key for M2M JWT token generation
 - `REDIS_URL`: Connection URL for Redis
 
 #### Triggering Deployment
