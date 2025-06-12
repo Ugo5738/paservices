@@ -1,410 +1,409 @@
-name: Build and Deploy paauth
+# name: Build and Deploy paauth
 
-on:
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - "auth_service/**"
-      - "k8s/**" # Also trigger on changes to Kubernetes manifests
-      - ".github/workflows/deploy-k8s.yml"
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "Environment to deploy to production"
-        required: true
-        default: "staging"
-        type: choice
-        options:
-          - staging
-          - production
-      provider:
-        description: "Cloud provider"
-        required: true
-        default: "aws"
-        type: choice
-        options:
-          - aws
-          - digitalocean
+# on:
+#   push:
+#     branches:
+#       - main
+#       - master
+#     paths:
+#       - "auth_service/**"
+#       - "k8s/**" # Also trigger on changes to Kubernetes manifests
+#       - ".github/workflows/deploy-k8s.yml"
+#   workflow_dispatch:
+#     inputs:
+#       environment:
+#         description: "Environment to deploy to production"
+#         required: true
+#         default: "staging"
+#         type: choice
+#         options:
+#           - staging
+#           - production
+#       provider:
+#         description: "Cloud provider"
+#         required: true
+#         default: "aws"
+#         type: choice
+#         options:
+#           - aws
+#           - digitalocean
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    outputs:
-      image_tag: ${{ steps.image_info.outputs.image_tag }}
-      image_name: ${{ steps.image_info.outputs.image_name }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       image_tag: ${{ steps.image_info.outputs.image_tag }}
+#       image_name: ${{ steps.image_info.outputs.image_name }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+#       - name: Login to DockerHub
+#         uses: docker/login-action@v3
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Define Image Info
-        id: image_info
-        run: |
-          IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/paauth"
-          IMAGE_TAG="${{ github.sha }}"
-          echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
-          echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
-          echo "Full image name with latest tag: ${IMAGE_NAME}:latest"
-          echo "Full image name with SHA tag: ${IMAGE_NAME}:${IMAGE_TAG}"
+#       - name: Define Image Info
+#         id: image_info
+#         run: |
+#           IMAGE_NAME="${{ secrets.DOCKERHUB_USERNAME }}/paauth"
+#           IMAGE_TAG="${{ github.sha }}"
+#           echo "image_name=${IMAGE_NAME}" >> $GITHUB_OUTPUT
+#           echo "image_tag=${IMAGE_TAG}" >> $GITHUB_OUTPUT
+#           echo "Full image name with latest tag: ${IMAGE_NAME}:latest"
+#           echo "Full image name with SHA tag: ${IMAGE_NAME}:${IMAGE_TAG}"
 
-      - name: Build and push
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-        uses: docker/build-push-action@v5
-        with:
-          context: ./auth_service
-          file: ./auth_service/Dockerfile.prod
-          push: true
-          tags: |
-            ${{ steps.image_info.outputs.image_name }}:latest
-            ${{ steps.image_info.outputs.image_name }}:${{ steps.image_info.outputs.image_tag }}
-          cache-from: type=registry,ref=${{ steps.image_info.outputs.image_name }}:buildcache
-          cache-to: type=registry,ref=${{ steps.image_info.outputs.image_name }}:buildcache,mode=max
+#       - name: Build and push
+#         env:
+#           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+#         uses: docker/build-push-action@v5
+#         with:
+#           context: ./auth_service
+#           file: ./auth_service/Dockerfile.prod
+#           push: true
+#           tags: |
+#             ${{ steps.image_info.outputs.image_name }}:latest
+#             ${{ steps.image_info.outputs.image_name }}:${{ steps.image_info.outputs.image_tag }}
+#           cache-from: type=registry,ref=${{ steps.image_info.outputs.image_name }}:buildcache
+#           cache-to: type=registry,ref=${{ steps.image_info.outputs.image_name }}:buildcache,mode=max
 
-  deploy-to-aws-eks:
-    name: Deploy to AWS EKS
-    needs: build
-    if: ${{ github.event.inputs.provider == 'aws' || github.event.inputs.provider == '' }}
-    runs-on: ubuntu-latest
-    environment:
-      name: ${{ github.event.inputs.environment || 'staging' }}
-    env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#   deploy-to-aws-eks:
+#     name: Deploy to AWS EKS
+#     needs: build
+#     if: ${{ github.event.inputs.provider == 'aws' || github.event.inputs.provider == '' }}
+#     runs-on: ubuntu-latest
+#     environment:
+#       name: ${{ github.event.inputs.environment || 'staging' }}
+#     env:
+#       AWS_REGION: ${{ secrets.AWS_REGION }}
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Update kubeconfig
-        run: aws eks update-kubeconfig --name paauth-cluster --region ${{ secrets.AWS_REGION }}
+#       - name: Update kubeconfig
+#         run: aws eks update-kubeconfig --name paauth-cluster --region ${{ secrets.AWS_REGION }}
 
-      - name: Install kubectl
-        uses: azure/setup-kubectl@v3
-        with:
-          version: "latest"
+#       - name: Install kubectl
+#         uses: azure/setup-kubectl@v3
+#         with:
+#           version: "latest"
 
-      - name: Deploy to Kubernetes
-        env:
-          DOCKER_REGISTRY_VALUE: ${{ secrets.DOCKERHUB_USERNAME }}
-          IMAGE_TAG_VALUE: ${{ needs.build.outputs.image_tag }}
-          AUTH_DOMAIN_VALUE: ${{ secrets.AUTH_DOMAIN }}
-          SUPABASE_URL_VALUE: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY_VALUE: ${{ secrets.SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY_VALUE: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          AUTH_SERVICE_DATABASE_URL_VALUE: ${{ secrets.AUTH_SERVICE_DATABASE_URL }}
-          M2M_JWT_SECRET_KEY_VALUE: ${{ secrets.M2M_JWT_SECRET_KEY }}
-          REDIS_URL_VALUE: ${{ secrets.REDIS_URL }}
-          BASE_URL_VALUE: ${{ secrets.BASE_URL }}
-        run: |
-          echo "Preparing Kubernetes manifests..."
-          mkdir -p ./processed-k8s
+#       - name: Deploy to Kubernetes
+#         env:
+#           DOCKER_REGISTRY_VALUE: ${{ secrets.DOCKERHUB_USERNAME }}
+#           IMAGE_TAG_VALUE: ${{ needs.build.outputs.image_tag }}
+#           AUTH_DOMAIN_VALUE: ${{ secrets.AUTH_DOMAIN }}
+#           SUPABASE_URL_VALUE: ${{ secrets.SUPABASE_URL }}
+#           SUPABASE_ANON_KEY_VALUE: ${{ secrets.SUPABASE_ANON_KEY }}
+#           SUPABASE_SERVICE_ROLE_KEY_VALUE: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+#           AUTH_SERVICE_DATABASE_URL_VALUE: ${{ secrets.AUTH_SERVICE_DATABASE_URL }}
+#           M2M_JWT_SECRET_KEY_VALUE: ${{ secrets.M2M_JWT_SECRET_KEY }}
+#           REDIS_URL_VALUE: ${{ secrets.REDIS_URL }}
+#           BASE_URL_VALUE: ${{ secrets.BASE_URL }}
+#         run: |
+#           echo "Preparing Kubernetes manifests..."
+#           mkdir -p ./processed-k8s
 
-          # Secrets
-          SUPABASE_URL_B64=$(echo -n "$SUPABASE_URL_VALUE" | base64 -w 0)
-          SUPABASE_ANON_KEY_B64=$(echo -n "$SUPABASE_ANON_KEY_VALUE" | base64 -w 0)
-          SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "$SUPABASE_SERVICE_ROLE_KEY_VALUE" | base64 -w 0)
-          AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "$AUTH_SERVICE_DATABASE_URL_VALUE" | base64 -w 0)
-          M2M_JWT_SECRET_KEY_B64=$(echo -n "$M2M_JWT_SECRET_KEY_VALUE" | base64 -w 0)
-          REDIS_URL_B64=$(echo -n "$REDIS_URL_VALUE" | base64 -w 0)
-          BASE_URL_B64=$(echo -n "$BASE_URL_VALUE" | base64 -w 0)
-          USE_PGBOUNCER_B64=$(echo -n "false" | base64 -w 0)
+#           # Secrets
+#           SUPABASE_URL_B64=$(echo -n "$SUPABASE_URL_VALUE" | base64 -w 0)
+#           SUPABASE_ANON_KEY_B64=$(echo -n "$SUPABASE_ANON_KEY_VALUE" | base64 -w 0)
+#           SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "$SUPABASE_SERVICE_ROLE_KEY_VALUE" | base64 -w 0)
+#           AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "$AUTH_SERVICE_DATABASE_URL_VALUE" | base64 -w 0)
+#           M2M_JWT_SECRET_KEY_B64=$(echo -n "$M2M_JWT_SECRET_KEY_VALUE" | base64 -w 0)
+#           REDIS_URL_B64=$(echo -n "$REDIS_URL_VALUE" | base64 -w 0)
+#           BASE_URL_B64=$(echo -n "$BASE_URL_VALUE" | base64 -w 0)
+#           USE_PGBOUNCER_B64=$(echo -n "false" | base64 -w 0)
 
-          sed_command_secrets="s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g; "
-          sed_command_secrets+="s|SUPABASE_ANON_KEY_BASE64|$SUPABASE_ANON_KEY_B64|g; "
-          sed_command_secrets+="s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g; "
-          sed_command_secrets+="s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g; "
-          sed_command_secrets+="s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g; "
-          sed_command_secrets+="s|REDIS_URL_BASE64|$REDIS_URL_B64|g; "
-          sed_command_secrets+="s|BASE_URL_BASE64|$BASE_URL_B64|g; "
-          sed_command_secrets+="s|dHJ1ZQ==|$USE_PGBOUNCER_B64|g"
-          cat k8s/secrets.yaml | sed "$sed_command_secrets" > ./processed-k8s/secrets.yaml
+#           sed_command_secrets="s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g; "
+#           sed_command_secrets+="s|SUPABASE_ANON_KEY_BASE64|$SUPABASE_ANON_KEY_B64|g; "
+#           sed_command_secrets+="s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g; "
+#           sed_command_secrets+="s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g; "
+#           sed_command_secrets+="s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g; "
+#           sed_command_secrets+="s|REDIS_URL_BASE64|$REDIS_URL_B64|g; "
+#           sed_command_secrets+="s|BASE_URL_BASE64|$BASE_URL_B64|g; "
+#           sed_command_secrets+="s|dHJ1ZQ==|$USE_PGBOUNCER_B64|g"
+#           cat k8s/secrets.yaml | sed "$sed_command_secrets" > ./processed-k8s/secrets.yaml
 
-          # Migration Job
-          sed_command_migration_job="s|DOCKER_REGISTRY_PLACEHOLDER|$DOCKER_REGISTRY_VALUE|g; s|IMAGE_TAG_PLACEHOLDER|$IMAGE_TAG_VALUE|g"
-          cat k8s/migration-job.yaml | sed "$sed_command_migration_job" > ./processed-k8s/migration-job.yaml
+#           # Migration Job
+#           sed_command_migration_job="s|DOCKER_REGISTRY_PLACEHOLDER|$DOCKER_REGISTRY_VALUE|g; s|IMAGE_TAG_PLACEHOLDER|$IMAGE_TAG_VALUE|g"
+#           cat k8s/migration-job.yaml | sed "$sed_command_migration_job" > ./processed-k8s/migration-job.yaml
 
-          # Deployment
-          sed_command_deployment="s|DOCKER_REGISTRY|$DOCKER_REGISTRY_VALUE|g; s|IMAGE_TAG|$IMAGE_TAG_VALUE|g"
-          cat k8s/deployment.yaml | sed "$sed_command_deployment" > ./processed-k8s/deployment.yaml
+#           # Deployment
+#           sed_command_deployment="s|DOCKER_REGISTRY|$DOCKER_REGISTRY_VALUE|g; s|IMAGE_TAG|$IMAGE_TAG_VALUE|g"
+#           cat k8s/deployment.yaml | sed "$sed_command_deployment" > ./processed-k8s/deployment.yaml
 
-          # Ingress
-          sed "s|AUTH_DOMAIN_VALUE|$AUTH_DOMAIN_VALUE|g" k8s/ingress.yaml > ./processed-k8s/ingress.yaml
+#           # Ingress
+#           sed "s|AUTH_DOMAIN_VALUE|$AUTH_DOMAIN_VALUE|g" k8s/ingress.yaml > ./processed-k8s/ingress.yaml
 
-          # Service (usually no placeholders)
-          cp k8s/service.yaml ./processed-k8s/service.yaml
-          echo "Manifests prepared in ./processed-k8s directory."
+#           # Service (usually no placeholders)
+#           cp k8s/service.yaml ./processed-k8s/service.yaml
+#           echo "Manifests prepared in ./processed-k8s directory."
 
-      - name: Apply Kubernetes Secrets
-        run: |
-          echo "Applying Kubernetes secrets..."
-          kubectl apply -f ./processed-k8s/secrets.yaml
+#       - name: Apply Kubernetes Secrets
+#         run: |
+#           echo "Applying Kubernetes secrets..."
+#           kubectl apply -f ./processed-k8s/secrets.yaml
 
-          # Wait a moment for the secrets to be available
-          echo "Waiting for secrets to be available..."
-          sleep 5
-          
-      - name: Debug Kubernetes Secrets
-        run: |
-          echo "Checking if paauth-secrets exist..."
-          # Check if the secret exists without revealing its contents
-          kubectl get secret paauth-secrets -o name || echo "Secret not found!"
-          
-          # Check which keys exist in the secret (doesn't show values)
-          echo "Checking keys in paauth-secrets..."
-          kubectl get secret paauth-secrets -o json | jq '.data | keys[]' || echo "Failed to get keys"
-          
-          # Verify that certain keys exist (by checking their length)
-          echo "Length of SUPABASE_URL: "
-          kubectl get secret paauth-secrets -o jsonpath='{.data.SUPABASE_URL}' | wc -c
-          
-          echo "Length of SUPABASE_ANON_KEY: "
-          kubectl get secret paauth-secrets -o jsonpath='{.data.SUPABASE_ANON_KEY}' | wc -c
-          
-          echo "Length of SUPABASE_SERVICE_ROLE_KEY: "
-          kubectl get secret paauth-secrets -o jsonpath='{.data.SUPABASE_SERVICE_ROLE_KEY}' | wc -c
-          
-          echo "Length of M2M_JWT_SECRET_KEY: "
-          kubectl get secret paauth-secrets -o jsonpath='{.data.M2M_JWT_SECRET_KEY}' | wc -c
+#           # Wait a moment for the secrets to be available
+#           echo "Waiting for secrets to be available..."
+#           sleep 5
 
-      - name: Create Migration Job
-        env:
-          DOCKER_REGISTRY_VALUE: ${{ secrets.DOCKERHUB_USERNAME }}
-          IMAGE_TAG_VALUE: ${{ needs.build.outputs.image_tag }}
-        run: |
-          echo "Creating a dedicated migration job with increased resources..."
-          IMAGE="${DOCKER_REGISTRY_VALUE}/paauth:${IMAGE_TAG_VALUE}"
-          echo "Using image: $IMAGE"
+#       - name: Debug Kubernetes Secrets
+#         run: |
+#           echo "Checking if paauth-secrets exist..."
+#           # Check if the secret exists without revealing its contents
+#           kubectl get secret paauth-secrets -o name || echo "Secret not found!"
 
-          # Create a temporary file for the migration job
-          cat << EOF > migration-job.yaml
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: paauth-migration-job
-          spec:
-            ttlSecondsAfterFinished: 600  # Auto-delete after 10 minutes
-            backoffLimit: 3
-            template:
-              spec:
-                restartPolicy: Never
-                containers:
-                - name: migration
-                  image: "$IMAGE"
-                  imagePullPolicy: Always
-                  resources:
-                    requests:
-                      memory: "512Mi"
-                      cpu: "250m"
-                    limits:
-                      memory: "1Gi"
-                      cpu: "500m"
-                  command: ["/bin/bash"]
-                  args:
-                    - "-c"
-                    - |
-                      cd /app && \
-                      echo "Running migrations directly to database (bypassing pgBouncer)..." && \
-                      export PYTHONPATH=/app && \
-                      export USE_PGBOUNCER=false && \
-                      export PYTHONUNBUFFERED=1 && \
-                      export LOGGING_LEVEL=DEBUG && \
-                      echo "Using psycopg3 driver for better pgBouncer compatibility" && \
-                      echo "Debugging environment variables:" && \
-                      echo "AUTH_SERVICE_DATABASE_URL is set: ${AUTH_SERVICE_DATABASE_URL:0:10}..." && \
-                      echo "SUPABASE_URL is set: ${SUPABASE_URL:+yes}${SUPABASE_URL:-no}" && \
-                      echo "SUPABASE_ANON_KEY is set: ${SUPABASE_ANON_KEY:+yes}${SUPABASE_ANON_KEY:-no}" && \
-                      echo "SUPABASE_SERVICE_ROLE_KEY is set: ${SUPABASE_SERVICE_ROLE_KEY:+yes}${SUPABASE_SERVICE_ROLE_KEY:-no}" && \
-                      echo "M2M_JWT_SECRET_KEY is set: ${M2M_JWT_SECRET_KEY:+yes}${M2M_JWT_SECRET_KEY:-no}" && \
-                      echo "Running migration with full environment..." && \
-                      python -m alembic upgrade head
-                  env:
-                  - name: AUTH_SERVICE_DATABASE_URL
-                    valueFrom:
-                      secretKeyRef:
-                        name: paauth-secrets
-                        key: AUTH_SERVICE_DATABASE_URL
-                  - name: SUPABASE_URL
-                    valueFrom:
-                      secretKeyRef:
-                        name: paauth-secrets
-                        key: SUPABASE_URL
-                  - name: SUPABASE_ANON_KEY
-                    valueFrom:
-                      secretKeyRef:
-                        name: paauth-secrets
-                        key: SUPABASE_ANON_KEY
-                  - name: SUPABASE_SERVICE_ROLE_KEY
-                    valueFrom:
-                      secretKeyRef:
-                        name: paauth-secrets
-                        key: SUPABASE_SERVICE_ROLE_KEY
-                  - name: M2M_JWT_SECRET_KEY
-                    valueFrom:
-                      secretKeyRef:
-                        name: paauth-secrets
-                        key: M2M_JWT_SECRET_KEY
-                  - name: USE_PGBOUNCER
-                    value: "false"
-                  - name: DB_CONNECT_TIMEOUT
-                    value: "60"
-                  - name: DB_COMMAND_TIMEOUT 
-                    value: "60"
-                  - name: DB_STATEMENT_TIMEOUT
-                    value: "0"  # No timeout for long migrations
-                  - name: DB_IDLE_TIMEOUT
-                    value: "180"  # 3 minutes idle timeout
-                  - name: PYTHONUNBUFFERED
-                    value: "1"
-          EOF
+#           # Check which keys exist in the secret (doesn't show values)
+#           echo "Checking keys in paauth-secrets..."
+#           kubectl get secret paauth-secrets -o json | jq '.data | keys[]' || echo "Failed to get keys"
 
-          # Show the job YAML for debugging
-          echo "Generated migration job YAML:"
-          cat migration-job.yaml
+#           # Verify that certain keys exist (by checking their length)
+#           echo "Length of SUPABASE_URL: "
+#           kubectl get secret paauth-secrets -o jsonpath='{.data.SUPABASE_URL}' | wc -c
 
-          # Delete any existing migration job first
-          echo "Checking for existing migration job..."
-          if kubectl get job paauth-migration-job &>/dev/null; then
-            echo "Existing migration job found. Deleting it first..."
-            kubectl delete job paauth-migration-job --wait=false || true
-            echo "Waiting a moment for the job to be fully deleted..."
-            sleep 10
-          fi
+#           echo "Length of SUPABASE_ANON_KEY: "
+#           kubectl get secret paauth-secrets -o jsonpath='{.data.SUPABASE_ANON_KEY}' | wc -c
 
-          # Apply the migration job
-          echo "Applying migration job..."
-          kubectl apply -f migration-job.yaml
+#           echo "Length of SUPABASE_SERVICE_ROLE_KEY: "
+#           kubectl get secret paauth-secrets -o jsonpath='{.data.SUPABASE_SERVICE_ROLE_KEY}' | wc -c
 
-          # Wait for the pod to be created
-          echo "Waiting for migration pod to be created..."
-          sleep 10
+#           echo "Length of M2M_JWT_SECRET_KEY: "
+#           kubectl get secret paauth-secrets -o jsonpath='{.data.M2M_JWT_SECRET_KEY}' | wc -c
 
-          # Get the pod name of the migration job
-          MIGRATION_POD=$(kubectl get pods --selector=job-name=paauth-migration-job -o jsonpath='{.items[0].metadata.name}')
-          if [ -z "$MIGRATION_POD" ]; then
-            echo "Error: Migration pod not found!"
-            kubectl get pods
-            exit 1
-          fi
-          echo "Migration pod created: $MIGRATION_POD"
+#       - name: Create Migration Job
+#         env:
+#           DOCKER_REGISTRY_VALUE: ${{ secrets.DOCKERHUB_USERNAME }}
+#           IMAGE_TAG_VALUE: ${{ needs.build.outputs.image_tag }}
+#         run: |
+#           echo "Creating a dedicated migration job with increased resources..."
+#           IMAGE="${DOCKER_REGISTRY_VALUE}/paauth:${IMAGE_TAG_VALUE}"
+#           echo "Using image: $IMAGE"
 
-          # Stream logs from the migration pod to see progress in real-time
-          echo "Streaming migration logs (will continue for 30 seconds)..."
-          kubectl logs -f $MIGRATION_POD --tail=100 & 
-          PID=$!
-          sleep 30
-          kill $PID || true
+#           # Create a temporary file for the migration job
+#           cat << EOF > migration-job.yaml
+#           apiVersion: batch/v1
+#           kind: Job
+#           metadata:
+#             name: paauth-migration-job
+#           spec:
+#             ttlSecondsAfterFinished: 600  # Auto-delete after 10 minutes
+#             backoffLimit: 3
+#             template:
+#               spec:
+#                 restartPolicy: Never
+#                 containers:
+#                 - name: migration
+#                   image: "$IMAGE"
+#                   imagePullPolicy: Always
+#                   resources:
+#                     requests:
+#                       memory: "512Mi"
+#                       cpu: "250m"
+#                     limits:
+#                       memory: "1Gi"
+#                       cpu: "500m"
+#                   command: ["/bin/bash"]
+#                   args:
+#                     - "-c"
+#                     - |
+#                       cd /app && \
+#                       echo "Running migrations directly to database (bypassing pgBouncer)..." && \
+#                       export PYTHONPATH=/app && \
+#                       export USE_PGBOUNCER=false && \
+#                       export PYTHONUNBUFFERED=1 && \
+#                       export LOGGING_LEVEL=DEBUG && \
+#                       echo "Using psycopg3 driver for better pgBouncer compatibility" && \
+#                       echo "Debugging environment variables:" && \
+#                       echo "AUTH_SERVICE_DATABASE_URL is set: ${AUTH_SERVICE_DATABASE_URL:0:10}..." && \
+#                       echo "SUPABASE_URL is set: ${SUPABASE_URL:+yes}${SUPABASE_URL:-no}" && \
+#                       echo "SUPABASE_ANON_KEY is set: ${SUPABASE_ANON_KEY:+yes}${SUPABASE_ANON_KEY:-no}" && \
+#                       echo "SUPABASE_SERVICE_ROLE_KEY is set: ${SUPABASE_SERVICE_ROLE_KEY:+yes}${SUPABASE_SERVICE_ROLE_KEY:-no}" && \
+#                       echo "M2M_JWT_SECRET_KEY is set: ${M2M_JWT_SECRET_KEY:+yes}${M2M_JWT_SECRET_KEY:-no}" && \
+#                       echo "Running migration with full environment..." && \
+#                       python -m alembic upgrade head
+#                   env:
+#                   - name: AUTH_SERVICE_DATABASE_URL
+#                     valueFrom:
+#                       secretKeyRef:
+#                         name: paauth-secrets
+#                         key: AUTH_SERVICE_DATABASE_URL
+#                   - name: SUPABASE_URL
+#                     valueFrom:
+#                       secretKeyRef:
+#                         name: paauth-secrets
+#                         key: SUPABASE_URL
+#                   - name: SUPABASE_ANON_KEY
+#                     valueFrom:
+#                       secretKeyRef:
+#                         name: paauth-secrets
+#                         key: SUPABASE_ANON_KEY
+#                   - name: SUPABASE_SERVICE_ROLE_KEY
+#                     valueFrom:
+#                       secretKeyRef:
+#                         name: paauth-secrets
+#                         key: SUPABASE_SERVICE_ROLE_KEY
+#                   - name: M2M_JWT_SECRET_KEY
+#                     valueFrom:
+#                       secretKeyRef:
+#                         name: paauth-secrets
+#                         key: M2M_JWT_SECRET_KEY
+#                   - name: USE_PGBOUNCER
+#                     value: "false"
+#                   - name: DB_CONNECT_TIMEOUT
+#                     value: "60"
+#                   - name: DB_COMMAND_TIMEOUT
+#                     value: "60"
+#                   - name: DB_STATEMENT_TIMEOUT
+#                     value: "0"  # No timeout for long migrations
+#                   - name: DB_IDLE_TIMEOUT
+#                     value: "180"  # 3 minutes idle timeout
+#                   - name: PYTHONUNBUFFERED
+#                     value: "1"
+#           EOF
 
-          # Now wait for job completion
-          echo "Waiting for migration job to complete (timeout: 5 minutes)..."
-          if ! kubectl wait --for=condition=complete --timeout=300s job/paauth-migration-job; then
-            echo "Migration job did not complete in time! Getting full logs..."
-            kubectl logs $MIGRATION_POD
-            exit 1
-          fi
+#           # Show the job YAML for debugging
+#           echo "Generated migration job YAML:"
+#           cat migration-job.yaml
 
-          # Check if the job failed
-          if kubectl get job paauth-migration-job -o jsonpath='{.status.failed}' | grep -q 1; then
-            echo "Migration job failed! Getting failure details..."
-            kubectl logs $MIGRATION_POD
-            exit 1
-          fi
+#           # Delete any existing migration job first
+#           echo "Checking for existing migration job..."
+#           if kubectl get job paauth-migration-job &>/dev/null; then
+#             echo "Existing migration job found. Deleting it first..."
+#             kubectl delete job paauth-migration-job --wait=false || true
+#             echo "Waiting a moment for the job to be fully deleted..."
+#             sleep 10
+#           fi
 
-          echo "Migration job completed successfully!"
+#           # Apply the migration job
+#           echo "Applying migration job..."
+#           kubectl apply -f migration-job.yaml
 
-          # Delete the job to clean up
-          kubectl delete job paauth-migration-job
+#           # Wait for the pod to be created
+#           echo "Waiting for migration pod to be created..."
+#           sleep 10
 
-          # Now deploy the main application
-          echo "Deploying main application..."
-          kubectl apply -f ./processed-k8s/deployment.yaml
+#           # Get the pod name of the migration job
+#           MIGRATION_POD=$(kubectl get pods --selector=job-name=paauth-migration-job -o jsonpath='{.items[0].metadata.name}')
+#           if [ -z "$MIGRATION_POD" ]; then
+#             echo "Error: Migration pod not found!"
+#             kubectl get pods
+#             exit 1
+#           fi
+#           echo "Migration pod created: $MIGRATION_POD"
 
-      - name: Deploy Application
-        run: |
-          echo "Applying deployment..."
-          kubectl apply -f ./processed-k8s/deployment.yaml
-          echo "Applying service..."
-          kubectl apply -f ./processed-k8s/service.yaml
-          echo "Applying ingress..."
-          kubectl apply -f ./processed-k8s/ingress.yaml
+#           # Stream logs from the migration pod to see progress in real-time
+#           echo "Streaming migration logs (will continue for 30 seconds)..."
+#           kubectl logs -f $MIGRATION_POD --tail=100 &
+#           PID=$!
+#           sleep 30
+#           kill $PID || true
 
-      - name: Verify Deployment Rollout
-        run: kubectl rollout status deployment/paauth --namespace=default --timeout=5m # Adjust namespace
+#           # Now wait for job completion
+#           echo "Waiting for migration job to complete (timeout: 5 minutes)..."
+#           if ! kubectl wait --for=condition=complete --timeout=300s job/paauth-migration-job; then
+#             echo "Migration job did not complete in time! Getting full logs..."
+#             kubectl logs $MIGRATION_POD
+#             exit 1
+#           fi
 
+#           # Check if the job failed
+#           if kubectl get job paauth-migration-job -o jsonpath='{.status.failed}' | grep -q 1; then
+#             echo "Migration job failed! Getting failure details..."
+#             kubectl logs $MIGRATION_POD
+#             exit 1
+#           fi
 
-  # deploy-digitalocean:
-  #   needs: build
-  #   if: ${{ github.event.inputs.provider == 'digitalocean' }}
-  #   runs-on: ubuntu-latest
-  #   env:
-  #     DIGITALOCEAN_CLUSTER_NAME: ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
-  #   steps:
-  #     - name: Checkout code
-  #       uses: actions/checkout@v3
+#           echo "Migration job completed successfully!"
 
-  #     - name: Install doctl
-  #       uses: digitalocean/action-doctl@v2
-  #       with:
-  #         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+#           # Delete the job to clean up
+#           kubectl delete job paauth-migration-job
 
-  #     - name: Save DigitalOcean kubeconfig
-  #       run: doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
+#           # Now deploy the main application
+#           echo "Deploying main application..."
+#           kubectl apply -f ./processed-k8s/deployment.yaml
 
-  #     - name: Install kubectl
-  #       uses: azure/setup-kubectl@v3
-  #       with:
-  #         version: "latest"
+#       - name: Deploy Application
+#         run: |
+#           echo "Applying deployment..."
+#           kubectl apply -f ./processed-k8s/deployment.yaml
+#           echo "Applying service..."
+#           kubectl apply -f ./processed-k8s/service.yaml
+#           echo "Applying ingress..."
+#           kubectl apply -f ./processed-k8s/ingress.yaml
 
-  #     - name: Deploy to Kubernetes
-  #       env:
-  #         DOCKER_REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
-  #         TAG: ${{ github.sha }}
-  #         AUTH_DOMAIN: ${{ secrets.AUTH_DOMAIN }}
-  #       run: |
-  #         # Base64 encode secrets for Kubernetes
-  #         SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPABASE_URL }}" | base64 -w 0)
-  #         SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.SUPABASE_ANON_KEY }}" | base64 -w 0)
-  #         SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
-  #         AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DATABASE_URL }}" | base64 -w 0)
-  #         M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.M2M_JWT_SECRET_KEY }}" | base64 -w 0)
-  #         REDIS_URL_B64=$(echo -n "${{ secrets.REDIS_URL }}" | base64 -w 0)
+#       - name: Verify Deployment Rollout
+#         run: kubectl rollout status deployment/paauth --namespace=default --timeout=5m # Adjust namespace
 
-  #         # Replace variables in k8s manifests using sed instead of envsubst
-  #         cat k8s/secrets.yaml | \
-  #           sed "s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g" | \
-  #           sed "s|SUPABASE_ANON_KEY_BASE64|$SUPABASE_ANON_KEY_B64|g" | \
-  #           sed "s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g" | \
-  #           sed "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g" | \
-  #           sed "s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g" | \
-  #           sed "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" | \
-  #           kubectl apply -f -
+#   # deploy-digitalocean:
+#   #   needs: build
+#   #   if: ${{ github.event.inputs.provider == 'digitalocean' }}
+#   #   runs-on: ubuntu-latest
+#   #   env:
+#   #     DIGITALOCEAN_CLUSTER_NAME: ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
+#   #   steps:
+#   #     - name: Checkout code
+#   #       uses: actions/checkout@v3
 
-  #         cat k8s/deployment.yaml | \
-  #           sed "s|DOCKER_REGISTRY|$DOCKER_REGISTRY|g" | \
-  #           sed "s|IMAGE_TAG|$TAG|g" | \
-  #           kubectl apply -f -
+#   #     - name: Install doctl
+#   #       uses: digitalocean/action-doctl@v2
+#   #       with:
+#   #         token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
 
-  #         kubectl apply -f k8s/service.yaml
+#   #     - name: Save DigitalOcean kubeconfig
+#   #       run: doctl kubernetes cluster kubeconfig save ${{ secrets.DIGITALOCEAN_CLUSTER_NAME }}
 
-  #         # Process ingress with domain name
-  #         cat k8s/ingress.yaml | \
-  #           sed "s|AUTH_DOMAIN_VALUE|$AUTH_DOMAIN|g" | \
-  #           kubectl apply -f -
+#   #     - name: Install kubectl
+#   #       uses: azure/setup-kubectl@v3
+#   #       with:
+#   #         version: "latest"
 
-  #         # Verify deployment
-  #         kubectl rollout status deployment/paauth
+#   #     - name: Deploy to Kubernetes
+#   #       env:
+#   #         DOCKER_REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
+#   #         TAG: ${{ github.sha }}
+#   #         AUTH_DOMAIN: ${{ secrets.AUTH_DOMAIN }}
+#   #       run: |
+#   #         # Base64 encode secrets for Kubernetes
+#   #         SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPABASE_URL }}" | base64 -w 0)
+#   #         SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.SUPABASE_ANON_KEY }}" | base64 -w 0)
+#   #         SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
+#   #         AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DATABASE_URL }}" | base64 -w 0)
+#   #         M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.M2M_JWT_SECRET_KEY }}" | base64 -w 0)
+#   #         REDIS_URL_B64=$(echo -n "${{ secrets.REDIS_URL }}" | base64 -w 0)
+
+#   #         # Replace variables in k8s manifests using sed instead of envsubst
+#   #         cat k8s/secrets.yaml | \
+#   #           sed "s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g" | \
+#   #           sed "s|SUPABASE_ANON_KEY_BASE64|$SUPABASE_ANON_KEY_B64|g" | \
+#   #           sed "s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g" | \
+#   #           sed "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g" | \
+#   #           sed "s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g" | \
+#   #           sed "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" | \
+#   #           kubectl apply -f -
+
+#   #         cat k8s/deployment.yaml | \
+#   #           sed "s|DOCKER_REGISTRY|$DOCKER_REGISTRY|g" | \
+#   #           sed "s|IMAGE_TAG|$TAG|g" | \
+#   #           kubectl apply -f -
+
+#   #         kubectl apply -f k8s/service.yaml
+
+#   #         # Process ingress with domain name
+#   #         cat k8s/ingress.yaml | \
+#   #           sed "s|AUTH_DOMAIN_VALUE|$AUTH_DOMAIN|g" | \
+#   #           kubectl apply -f -
+
+#   #         # Verify deployment
+#   #         kubectl rollout status deployment/paauth

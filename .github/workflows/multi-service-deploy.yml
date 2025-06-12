@@ -24,8 +24,8 @@ on:
 env:
   # Docker settings
   DOCKER_REGISTRY: docker.io
-  AUTH_SERVICE_IMAGE: ugo5738/auth-service
-  SUPER_ID_SERVICE_IMAGE: ugo5738/super-id-service
+  AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
+  SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
 
   # Deployment settings
   AUTH_DOMAIN: ${{ secrets.AUTH_SERVICE_DOMAIN }}
@@ -67,7 +67,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.AUTH_SERVICE_DOCKERHUB_TOKEN }}
 
       - name: Build and push Auth Service
         uses: docker/build-push-action@v4
@@ -91,7 +91,7 @@ jobs:
         uses: docker/login-action@v2
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          password: ${{ secrets.SUPER_ID_SERVICE_DOCKERHUB_TOKEN }}
 
       - name: Build and push Super ID Service
         uses: docker/build-push-action@v4
