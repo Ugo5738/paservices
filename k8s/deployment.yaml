@@ -1,0 +1,115 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paservices
+  labels:
+    app: paservices
+spec:
+  replicas: 2 # Increased to 2 for high availability
+  selector:
+    matchLabels:
+      app: paservices
+  template:
+    metadata:
+      labels:
+        app: paservices
+    spec:
+      containers:
+        - name: paservices
+          image: DOCKER_REGISTRY/paservices:IMAGE_TAG
+          command: ["bash"]
+          args:
+            - "-c"
+            - |
+              echo "Starting with environment:" &&
+              echo "SUPABASE_URL is set: $(if [ -n "$SUPABASE_URL" ]; then echo yes; else echo no; fi)" &&
+              echo "SUPABASE_ANON_KEY is set: $(if [ -n "$SUPABASE_ANON_KEY" ]; then echo yes; else echo no; fi)" &&
+              echo "SUPABASE_SERVICE_ROLE_KEY is set: $(if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then echo yes; else echo no; fi)" &&
+              echo "M2M_JWT_SECRET_KEY is set: $(if [ -n "$M2M_JWT_SECRET_KEY" ]; then echo yes; else echo no; fi)" &&
+              echo "AUTH_SERVICE_DATABASE_URL is set: $(if [ -n "$AUTH_SERVICE_DATABASE_URL" ]; then echo yes; else echo no; fi)" &&
+              echo "Starting application..." &&
+              cd /app && uvicorn auth_service.main:app --host 0.0.0.0 --port 8000
+          ports:
+            - containerPort: 8000
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+          env:
+            - name: ENVIRONMENT
+              value: "production"
+            - name: ROOT_PATH
+              value: "/api/v1"
+            - name: BASE_URL
+              value: "https://auth.supersami.com"
+            - name: LOGGING_LEVEL
+              value: "INFO"
+            - name: USE_PGBOUNCER
+              value: "false"
+            - name: DB_CONNECT_TIMEOUT
+              value: "60"
+            - name: DB_COMMAND_TIMEOUT
+              value: "60"
+            - name: DB_STATEMENT_TIMEOUT
+              value: "0"  # No timeout for long operations
+            - name: DB_IDLE_TIMEOUT
+              value: "180"  # 3 minutes idle timeout
+            # Add direct environment variable mapping
+            - name: SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: SUPABASE_URL
+            - name: SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: SUPABASE_ANON_KEY
+            - name: SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: SUPABASE_SERVICE_ROLE_KEY
+            - name: M2M_JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: M2M_JWT_SECRET_KEY
+            - name: AUTH_SERVICE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: AUTH_SERVICE_DATABASE_URL
+          envFrom:
+            - secretRef:
+                name: paservices-secrets
+          # Startup probe - gives the application time to start up before checking health
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 5
+            failureThreshold: 15 # Allow 75 seconds for startup
+            timeoutSeconds: 2
+          # Readiness probe - determines if the pod should receive traffic
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+            timeoutSeconds: 2
+          # Liveness probe - determines if the pod should be restarted
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 90 # Give plenty of time before first liveness check
+            periodSeconds: 30
+            failureThreshold: 5
+            timeoutSeconds: 3

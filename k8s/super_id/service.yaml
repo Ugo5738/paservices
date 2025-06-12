@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: super-id-service
+  labels:
+    app: super-id-service
+spec:
+  selector:
+    app: super-id-service
+  ports:
+    - port: 80
+      targetPort: 8000
+      protocol: TCP
+  type: ClusterIP

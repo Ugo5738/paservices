@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: super-id-service
+  labels:
+    app: super-id-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: super-id-service
+  template:
+    metadata:
+      labels:
+        app: super-id-service
+    spec:
+      containers:
+        - name: super-id-service
+          image: ${DOCKER_IMAGE_TAG}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Checking environment variables:"
+              echo "SUPER_ID_SERVICE_SUPABASE_URL exists: $([ ! -z "$SUPER_ID_SERVICE_SUPABASE_URL" ] && echo "yes" || echo "no")"
+              echo "SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY exists: $([ ! -z "$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY" ] && echo "yes" || echo "no")"
+              echo "SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY exists: $([ ! -z "$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY" ] && echo "yes" || echo "no")"
+              echo "SUPER_ID_SERVICE_DATABASE_URL exists: $([ ! -z "$SUPER_ID_SERVICE_DATABASE_URL" ] && echo "yes" || echo "no")"
+              echo "Starting service..."
+              poetry run uvicorn super_id_service.main:app --host 0.0.0.0 --port 8000
+          ports:
+            - containerPort: 8000
+          env:
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: LOG_LEVEL
+              value: "INFO"
+            - name: ENVIRONMENT
+              value: "production"
+            - name: ROOT_PATH
+              value: "/api/v1"
+            - name: AUTH_SERVICE_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: super-id-service-config
+                  key: AUTH_SERVICE_ISSUER
+            - name: RATE_LIMIT_REQUESTS_PER_MINUTE
+              valueFrom:
+                configMapKeyRef:
+                  name: super-id-service-config
+                  key: RATE_LIMIT_REQUESTS_PER_MINUTE
+            - name: SUPER_ID_SERVICE_SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: super-id-service-secrets
+                  key: SUPER_ID_SERVICE_SUPABASE_URL
+            - name: SUPER_ID_SERVICE_SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: super-id-service-secrets
+                  key: SUPER_ID_SERVICE_SUPABASE_ANON_KEY
+            - name: SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: super-id-service-secrets
+                  key: SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY
+            - name: SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: super-id-service-secrets
+                  key: SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY
+            - name: SUPER_ID_SERVICE_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: super-id-service-secrets
+                  key: SUPER_ID_SERVICE_DATABASE_URL
+            # Configure database options with proper format (single quotes for values with spaces)
+            - name: USE_PGBOUNCER
+              value: "false"
+            - name: DB_CONNECT_TIMEOUT
+              value: "60"
+            - name: DB_COMMAND_TIMEOUT
+              value: "60"
+            - name: DB_STATEMENT_TIMEOUT
+              value: "0"  # No timeout for long operations
+            - name: DB_IDLE_TIMEOUT
+              value: "180"  # 3 minutes idle timeout
+            - name: DB_POOL_SIZE
+              value: "10"
+          envFrom:
+            - secretRef:
+                name: super-id-service-secrets
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            timeoutSeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            timeoutSeconds: 3
+            periodSeconds: 10
+      terminationGracePeriodSeconds: 30

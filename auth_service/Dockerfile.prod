@@ -1,0 +1,94 @@
+# Multi-stage Dockerfile for production deployment
+
+###############
+# BUILD STAGE #
+###############
+FROM python:3.12-slim AS builder
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_CREATE=true \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    POETRY_CACHE_DIR='/tmp/poetry_cache' \
+    PIP_DEFAULT_TIMEOUT=100
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry==1.7.1
+
+WORKDIR /app
+
+# Copy only files needed for dependency installation
+COPY pyproject.toml poetry.lock ./
+
+# Install dependencies
+# --only=main ensures we only install production dependencies
+# RUN poetry install --only=main --no-root
+RUN poetry install --only=main --no-root -vvv
+
+# Copy the rest of the application
+COPY . .
+
+# Install the project
+RUN poetry install --only=main
+
+################
+# RUNTIME STAGE #
+################
+FROM python:3.12-slim AS runtime
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONPATH="/app/src:$PYTHONPATH"
+
+# Create a non-root user to run the application
+RUN addgroup --system --gid 1001 appuser && \
+    adduser --system --uid 1001 --gid 1001 --no-create-home appuser
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Add any required runtime system packages here
+    # Minimal dependencies for a production environment
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the virtual environment from the builder stage
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy application code
+COPY --from=builder /app/src /app/src
+# Copy Alembic migrations
+COPY --from=builder /app/alembic /app/alembic
+COPY --from=builder /app/alembic.ini /app/alembic.ini
+
+# Ensure Python uses the virtual environment
+ENV PATH="/app/.venv/bin:$PATH"
+
+# Set proper ownership
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 8000
+
+# Create directory for healthchecks
+RUN mkdir -p /tmp/health
+
+# Configure healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command - note we're not using --reload in production
+CMD ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

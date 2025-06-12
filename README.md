@@ -1,109 +1,114 @@
-# Super ID Service
+# Property Analysis Services
 
-A microservice for generating and recording unique identifiers (UUIDs) for cross-service workflows.
+A suite of microservices for property analysis and authentication.
 
 ## Overview
 
-Super ID Service is a critical utility microservice within the property analysis ecosystem. Its primary responsibility is to generate, record, and provide unique identifiers (UUIDs, referred to as `super_ids`) on demand.
+This repository (`paservices`) contains a collection of microservices that work together to provide property analysis capabilities. The services are designed to be independently deployable while sharing common infrastructure and CI/CD pipelines.
 
-These `super_ids` serve as overarching workflow IDs, version IDs, or transaction IDs, typically generated at the inception of a multi-step process by an orchestrating entity (e.g., an Orchestrator Service, API Gateway/BFF, or an AI Agent).
+### Services
 
-## Features
+- **Auth Service**: Authentication and authorization service built with FastAPI and Supabase
+- **Super ID Service**: UUID generation service for workflow tracking and request correlation
 
-- Generate universally unique IDs (UUID v4)
-- Record all generated IDs for audit and tracking
-- JWT-based authentication using the Auth Service
-- Permission-based authorization ("super_id:generate")
-- Rate limiting to prevent abuse
+## Architecture
 
-## Development
+This project uses a microservice architecture with:
+
+- FastAPI for REST API development
+- Supabase for authentication and isolated PostgreSQL databases per service
+- Kubernetes for container orchestration on AWS EKS
+- GitHub Actions for CI/CD with conditional builds per service
+- Redis for rate limiting and caching
+- JWT-based service authentication
+
+## Database Architecture
+
+### Service Isolation
+
+Each microservice uses its own dedicated database for proper service isolation:
+
+- **Auth Service Database**: `auth_service_db` - Stores user credentials, roles, and permissions
+- **Super ID Service Database**: `super_id_db` - Manages generated UUIDs and their audit logs
+
+### Database Connection Format
+
+Connection strings use the following format with proper quoting for options with spaces:
+
+```
+postgresql://user:password@host:port/dbname?sslmode=require&options='--client_encoding=utf8 --timezone=UTC --default_transaction_isolation=\'read committed\'''
+```
+
+> **Note**: The connection string uses single quotes around values with spaces in the `options` parameter to avoid invalid escape sequences.
+
+## Getting Started
 
 ### Prerequisites
 
 - Docker & Docker Compose
-- Python 3.12+
-- Poetry for dependency management
-- Access to a Supabase project
+- Kubernetes CLI (kubectl)
+- Supabase account and CLI
+- Python 3.12+ and Poetry
 
-### Local Development Setup
+### Development
 
-1. Copy `.env.example` to `.env` and configure required variables:
-
-```bash
-cp .env.example .env
-# Edit .env with your values
-```
-
-2. Start the service with Docker Compose:
+Each service has its own Docker Compose configuration for local development:
 
 ```bash
+# Auth Service
+cd auth_service
+docker-compose up -d
+
+# Super ID Service
+cd super_id_service
 docker-compose up -d
 ```
 
-3. Run tests:
-
-```bash
-docker-compose exec super-id-service poetry run pytest
-```
-
-## API Endpoints
-
-### Generate Super IDs
+### Repository Structure
 
 ```
-POST /super_ids
+paservices/
+├── auth_service/        # Auth Service source code
+├── super_id_service/    # Super ID Service source code
+├── k8s/                 # Kubernetes manifests
+│   ├── auth/            # Auth Service K8s manifests
+│   ├── super_id/        # Super ID Service K8s manifests
+│   └── shared/          # Shared infrastructure manifests
+└── .github/workflows/   # CI/CD pipeline configurations
 ```
 
-**Request Body:**
-```json
-{
-  "count": 1  // Optional, defaults to 1
-}
+See [Development Guide](docs/development.md) for detailed instructions.
+
+### Deployment
+
+The services are deployed to Kubernetes using GitHub Actions. The workflow:
+
+1. Builds Docker images
+2. Pushes to container registry
+3. Applies Kubernetes manifests
+
+See [Deployment Documentation](docs/deployment.md) for details.
+
+## Project Structure
+
+```
+/paservices/
+├── auth_service/        # Authentication and Authorization service
+├── super_id_service/    # Super ID service (planned)
+├── k8s/                 # Kubernetes manifests
+├── docs/                # Documentation
+└── scripts/             # Repository-level scripts
 ```
 
-**Response:**
-```json
-{
-  "super_id": "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx"
-}
-```
+See [Project Structure](PROJECT_STRUCTURE.md) for more details.
 
-Or for multiple IDs:
-```json
-{
-  "super_ids": [
-    "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx",
-    "yyyyyyyy-yyyy-4yyy-zyyy-yyyyyyyyyyyy"
-  ]
-}
-```
+## Contributing
 
-## Environment Variables
+1. Follow consistent code style using pre-commit hooks
+2. Ensure tests pass for any changes
+3. Update documentation as needed
+4. Submit PRs against the main branch
 
-| Variable                      | Description                          | Required |
-|-------------------------------|--------------------------------------|----------|
-| SUPABASE_URL                  | URL of your Supabase project         | Yes      |
-| SUPABASE_SERVICE_ROLE_KEY     | Service role key from Supabase       | Yes      |
-| JWT_SECRET_KEY                | Secret key from Auth Service         | Yes      |
-| AUTH_SERVICE_ISSUER           | Expected issuer in JWTs              | Yes      |
-| LOG_LEVEL                     | Logging level (INFO, DEBUG, etc)     | No       |
-| ROOT_PATH                     | Base path for API routes             | No       |
-| RATE_LIMIT_REQUESTS_PER_MINUTE| Rate limit for API requests          | No       |
+## License
 
-## Database Schema
-
-The service uses a single table in Supabase:
-
-### Table: `generated_super_ids`
-
-| Column Name              | Data Type     | Description                                 |
-|--------------------------|---------------|---------------------------------------------|
-| id                       | BIGSERIAL     | Primary key                                 |
-| super_id                 | UUID          | The generated UUID v4                       |
-| generated_at             | TIMESTAMPTZ   | When the ID was generated                   |
-| requested_by_client_id   | TEXT          | Client ID from the JWT                      |
-| metadata                 | JSONB         | Additional metadata                         |
-
-## Deployment
-
-The service is deployed to Kubernetes using GitHub Actions. See the [Deployment Guide](../docs/deployment.md) for more information.
+Proprietary - All rights reserved

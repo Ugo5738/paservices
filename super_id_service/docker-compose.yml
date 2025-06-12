@@ -1,0 +1,39 @@
+services:
+  super-id-service:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - .:/app
+    ports:
+      - "8001:8000" # Map to 8001 to avoid conflict with auth_service on 8000
+    environment:
+      - PYTHONPATH=/app/src
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    env_file:
+      - .env
+    depends_on:
+      - redis
+    networks:
+      - super-id-network
+      - supabase-network # Connect to existing supabase network if needed
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379" # Map to 6380 to avoid conflict with other services
+    volumes:
+      - redis-data:/data
+    networks:
+      - super-id-network
+
+networks:
+  super-id-network:
+    driver: bridge
+  supabase-network:
+    external: true
+    name: supabase_network_default # Adjust to match your actual supabase network name
+
+volumes:
+  redis-data:

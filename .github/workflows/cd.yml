@@ -1,0 +1,131 @@
+# name: Continuous Deployment
+
+# on:
+#   push:
+#     branches: [main]
+#   workflow_dispatch:
+#     inputs:
+#       environment:
+#         description: 'Environment to deploy to'
+#         required: true
+#         default: 'staging'
+#         type: choice
+#         options:
+#           - staging
+#           - production
+
+# # Define environments to manage secrets and deployment targets
+# env:
+#   REGISTRY: ghcr.io
+#   IMAGE_NAME: ${{ github.repository }}/auth-service
+
+# jobs:
+#   build-and-push:
+#     runs-on: ubuntu-latest
+#     # Only proceed with deployment if workflow was manually triggered or commit has [deploy] in message
+#     if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[deploy]') }}
+
+#     # Define strategy to deploy to either staging or production
+#     strategy:
+#       matrix:
+#         include:
+#           - environment: ${{ github.event.inputs.environment || 'staging' }}
+
+#     steps:
+#       - uses: actions/checkout@v3
+
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2
+
+#       - name: Login to GitHub Container Registry
+#         uses: docker/login-action@v2
+#         with:
+#           registry: ghcr.io
+#           username: ${{ github.actor }}
+#           password: ${{ secrets.GITHUB_TOKEN }}
+
+#       - name: Build and push Docker image
+#         uses: docker/build-push-action@v4
+#         with:
+#           context: ./auth_service
+#           file: ./auth_service/Dockerfile.prod
+#           push: true
+#           tags: |
+#             ghcr.io/${{ github.repository }}/auth-service:${{ matrix.environment }}-${{ github.sha }}
+#             ghcr.io/${{ github.repository }}/auth-service:${{ matrix.environment }}-latest
+#           cache-from: type=gha
+#           cache-to: type=gha,mode=max
+#           build-args: |
+#             ENVIRONMENT=${{ matrix.environment }}
+
+#   deploy:
+#     needs: build-and-push
+#     runs-on: ubuntu-latest
+#     environment: ${{ github.event.inputs.environment || 'staging' }}
+
+#     steps:
+#       # Define environment variables for deployment
+#       - name: Set environment variables
+#         id: env_vars
+#         run: |
+#           echo "DEPLOY_ENV=${{ github.event.inputs.environment || 'staging' }}" >> $GITHUB_OUTPUT
+#           echo "IMAGE_TAG=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.environment || 'staging' }}-latest" >> $GITHUB_OUTPUT
+
+#       # Deploy to server using SSH
+#       - name: Deploy to server
+#         uses: appleboy/ssh-action@master
+#         env:
+#           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+#           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+#           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+#           AUTH_SERVICE_DATABASE_URL: ${{ secrets.AUTH_SERVICE_DATABASE_URL }}
+#           M2M_JWT_SECRET_KEY: ${{ secrets.M2M_JWT_SECRET_KEY }}
+#           INITIAL_ADMIN_EMAIL: ${{ secrets.INITIAL_ADMIN_EMAIL }}
+#           INITIAL_ADMIN_PASSWORD: ${{ secrets.INITIAL_ADMIN_PASSWORD }}
+#           ROOT_PATH: ${{ secrets.ROOT_PATH }}
+#           DEPLOY_ENV: ${{ steps.env_vars.outputs.DEPLOY_ENV }}
+#           IMAGE_TAG: ${{ steps.env_vars.outputs.IMAGE_TAG }}
+#         with:
+#           host: ${{ secrets.SSH_HOST }}
+#           username: ${{ secrets.SSH_USERNAME }}
+#           key: ${{ secrets.SSH_PRIVATE_KEY }}
+#           envs: SUPABASE_URL,SUPABASE_ANON_KEY,SUPABASE_SERVICE_ROLE_KEY,AUTH_SERVICE_DATABASE_URL,M2M_JWT_SECRET_KEY,INITIAL_ADMIN_EMAIL,INITIAL_ADMIN_PASSWORD,ROOT_PATH,DEPLOY_ENV,IMAGE_TAG
+#           script: |
+#             # Pull the latest image
+#             docker pull ${IMAGE_TAG}
+
+#             # Create .env file
+#             cat > .env << EOF
+#             SUPABASE_URL=${SUPABASE_URL}
+#             SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+#             SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+#             AUTH_SERVICE_DATABASE_URL=${AUTH_SERVICE_DATABASE_URL}
+#             M2M_JWT_SECRET_KEY=${M2M_JWT_SECRET_KEY}
+#             INITIAL_ADMIN_EMAIL=${INITIAL_ADMIN_EMAIL}
+#             INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD}
+#             ROOT_PATH=${ROOT_PATH}
+#             ENVIRONMENT=${DEPLOY_ENV}
+#             LOGGING_LEVEL=INFO
+#             RATE_LIMIT_LOGIN=10/minute
+#             RATE_LIMIT_REGISTER=5/minute
+#             RATE_LIMIT_TOKEN=20/minute
+#             RATE_LIMIT_PASSWORD_RESET=3/minute
+#             EOF
+
+#             # Run database migrations
+#             docker run --rm \
+#               --env-file .env \
+#               ghcr.io/${{ github.repository }}/auth-service:${{ github.event.inputs.environment || 'staging' }}-latest \
+#               alembic upgrade head
+
+#             # Stop and remove existing container if it exists
+#             docker stop auth-service || true
+#             docker rm auth-service || true
+
+#             # Start the new container
+#             docker run -d \
+#               --name auth-service \
+#               --env-file .env \
+#               --restart unless-stopped \
+#               -p 8000:8000 \
+#               ghcr.io/${{ github.repository }}/auth-service:${{ github.event.inputs.environment || 'staging' }}-latest

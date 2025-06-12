@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: super-id-service-config
+data:
+  AUTH_SERVICE_ISSUER: "auth.supersami.com"
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "60"

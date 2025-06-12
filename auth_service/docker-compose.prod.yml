@@ -1,0 +1,96 @@
+services:
+  traefik:
+    image: traefik:v2.10
+    container_name: paauth_traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=false"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:-your-email@example.com}"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certificates:/letsencrypt
+    networks:
+      - web
+    environment:
+      - TZ=UTC
+
+  auth_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: paauth-auth:prod
+    container_name: auth_service_prod
+    restart: unless-stopped
+    environment:
+      - ENVIRONMENT=production
+      - ROOT_PATH=/api/v1
+      - BASE_URL=https://${AUTH_DOMAIN:-auth.supersami.com}
+      - LOGGING_LEVEL=INFO
+    env_file:
+      - .env.production
+    networks:
+      - web
+      - internal
+      - auth_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Host(`${AUTH_DOMAIN:-auth.supersami.com}`)"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls.certresolver=letsencrypt"
+      - "traefik.http.services.auth.loadbalancer.server.port=8000"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    container_name: auth_redis_prod
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - internal
+      - auth_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+networks:
+  web:
+  internal:
+  auth_network:
+  supabase_network:
+    external:
+      true # This assumes the Supabase network already exists
+      # Comment this out if not using self-hosted Supabase
+
+volumes:
+  redis_data:
+    driver: local
+  traefik-certificates:

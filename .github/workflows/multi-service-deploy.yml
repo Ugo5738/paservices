@@ -1,0 +1,276 @@
+name: Multi-Service CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "auth_service/**"
+      - "super_id_service/**"
+      - "k8s/**"
+      - ".github/workflows/multi-service-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      deploy_auth:
+        description: "Deploy Auth Service"
+        required: false
+        type: boolean
+        default: true
+      deploy_super_id:
+        description: "Deploy Super ID Service"
+        required: false
+        type: boolean
+        default: false
+
+env:
+  # Docker settings
+  DOCKER_REGISTRY: docker.io
+  AUTH_SERVICE_IMAGE: ugo5738/auth-service
+  SUPER_ID_SERVICE_IMAGE: ugo5738/super-id-service
+
+  # Deployment settings
+  AUTH_DOMAIN: ${{ secrets.AUTH_SERVICE_DOMAIN }}
+  SUPER_ID_DOMAIN: ${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auth_service: ${{ steps.filter.outputs.auth_service }}
+      super_id_service: ${{ steps.filter.outputs.super_id_service }}
+      k8s: ${{ steps.filter.outputs.k8s }}
+    steps:
+      - uses: actions/checkout@v3
+
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            auth_service:
+              - 'auth_service/**'
+            super_id_service:
+              - 'super_id_service/**'
+            k8s:
+              - 'k8s/**'
+
+  build-auth-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.auth_service == 'true' || github.event.inputs.deploy_auth == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Auth Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./auth_service
+          push: true
+          tags: ${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }},${{ env.AUTH_SERVICE_IMAGE }}:latest
+
+  build-super-id-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.super_id_service == 'true' || github.event.inputs.deploy_super_id == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Super ID Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./super_id_service
+          push: true
+          tags: ${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }},${{ env.SUPER_ID_SERVICE_IMAGE }}:latest
+
+  deploy-auth-service:
+    needs: [detect-changes, build-auth-service]
+    if: ${{ needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_auth == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name my-cluster --region us-east-1
+
+      - name: Process K8s manifests for Auth Service
+        run: |
+          # Encode secrets as base64 for K8s secrets
+          SUPABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_URL }}" | base64 -w 0)
+          SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}" | base64 -w 0)
+          SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
+          M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
+          # Format uses single quotes for values with spaces in options parameter per memory
+          AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DATABASE_URL }}" | base64 -w 0)
+          USE_PGBOUNCER_B64=$(echo -n "false" | base64 -w 0)
+
+          # Replace placeholders directly in secrets.yaml
+          sed -i "s|\${SUPABASE_URL_B64}|$SUPABASE_URL_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|\${SUPABASE_ANON_KEY_B64}|$SUPABASE_ANON_KEY_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|\${SUPABASE_SERVICE_ROLE_KEY_B64}|$SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|\${M2M_JWT_SECRET_KEY_B64}|$M2M_JWT_SECRET_KEY_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|\${AUTH_SERVICE_DATABASE_URL_B64}|$AUTH_SERVICE_DATABASE_URL_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|\${USE_PGBOUNCER_B64}|$USE_PGBOUNCER_B64|g" k8s/auth/secrets.yaml
+
+          # Replace placeholders directly in migration job
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/migration-job.yaml
+
+          # Replace placeholders directly in deployment
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/deployment.yaml
+
+          # Replace placeholder directly in ingress
+          sed -i "s|AUTH_DOMAIN_VALUE|${{ env.AUTH_DOMAIN }}|g" k8s/auth/ingress.yaml
+
+      - name: Apply Auth Service K8s manifests
+        run: |
+          # Apply secrets first
+          kubectl apply -f k8s/auth/secrets.yaml
+
+          # Run migration job and wait for completion
+          kubectl apply -f k8s/auth/migration-job.yaml
+          kubectl wait --for=condition=complete --timeout=300s job/auth-migration-job
+
+          # Apply remaining manifests
+          kubectl apply -f k8s/auth/deployment.yaml
+          kubectl apply -f k8s/auth/service.yaml
+          kubectl apply -f k8s/auth/ingress.yaml
+
+          # Wait for deployment rollout
+          kubectl rollout status deployment/auth-service --timeout=300s
+
+  deploy-super-id-service:
+    needs: [detect-changes, build-super-id-service]
+    if: ${{ needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_super_id == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name my-cluster --region us-east-1
+
+      - name: Process K8s manifests for Super ID Service
+        run: |
+          # Encode secrets as base64 for K8s secrets
+          SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}" | base64 -w 0)
+          SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
+          M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
+          # Format uses single quotes for values with spaces in options parameter per memory
+          SUPER_ID_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}" | base64 -w 0)
+
+          # Replace placeholders directly in secrets.yaml
+          sed -i "s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_B64|g" k8s/super_id/secrets.yaml
+
+          # Replace placeholders directly in deployment
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/deployment.yaml
+
+          # Replace placeholder directly in ingress
+          sed -i "s|superid.supersami.com|${{ env.SUPER_ID_DOMAIN }}|g" k8s/super_id/ingress.yaml
+
+      - name: Setup Supabase Table for Super ID Service
+        run: |
+          # Apply SQL to create the table if it doesn't exist
+          cat <<EOF > create-super-id-table.sql
+          CREATE TABLE IF NOT EXISTS generated_super_ids (
+              id BIGSERIAL PRIMARY KEY,
+              super_id UUID NOT NULL UNIQUE,
+              generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+              requested_by_client_id TEXT,
+              metadata JSONB
+          );
+          EOF
+
+          # Use kubectl to run a job to create the table
+          cat <<EOF | kubectl apply -f -
+          apiVersion: batch/v1
+          kind: Job
+          metadata:
+            name: super-id-db-setup
+            labels:
+              app: super-id-service
+          spec:
+            ttlSecondsAfterFinished: 100
+            template:
+              spec:
+                containers:
+                - name: db-setup
+                  image: postgres:15
+                  env:
+                  - name: PGPASSWORD
+                    valueFrom:
+                      secretKeyRef:
+                        name: super-id-service-secrets
+                        key: SUPABASE_DB_PASSWORD
+                  command:
+                  - sh
+                  - -c
+                  - |
+                    echo "Creating super_id table if needed..."
+                    cat /tmp/create-super-id-table.sql | psql -h \$SUPABASE_HOST -U postgres -d postgres
+                    echo "Table setup complete."
+                  volumeMounts:
+                  - name: sql
+                    mountPath: /tmp/create-super-id-table.sql
+                    subPath: create-super-id-table.sql
+                volumes:
+                - name: sql
+                  configMap:
+                    name: super-id-db-setup-sql
+                restartPolicy: OnFailure
+          EOF
+
+          kubectl create configmap super-id-db-setup-sql --from-file=create-super-id-table.sql
+
+          # Wait for the job to complete
+          kubectl wait --for=condition=complete --timeout=300s job/super-id-db-setup
+
+      - name: Apply Super ID Service K8s manifests
+        run: |
+          # Apply secrets and configmap first
+          kubectl apply -f k8s/super_id/secrets.yaml
+          kubectl apply -f k8s/super_id/configmap.yaml
+
+          # Apply remaining manifests
+          kubectl apply -f k8s/super_id/deployment.yaml
+          kubectl apply -f k8s/super_id/service.yaml
+          kubectl apply -f k8s/super_id/ingress.yaml
+
+          # Wait for deployment rollout
+          kubectl rollout status deployment/super-id-service --timeout=300s

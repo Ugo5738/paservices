@@ -1,0 +1,116 @@
+# k8s/migration-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: paservices-migrations # Name of the migration job
+  namespace: default # Or the namespace where your app will be deployed
+  labels:
+    app: paservices
+    component: migrations
+spec:
+  template:
+    metadata:
+      labels:
+        app: paservices
+        component: migrations
+    spec:
+      containers:
+        - name: paservices-migrator
+          image: DOCKER_REGISTRY_PLACEHOLDER/paservices:IMAGE_TAG_PLACEHOLDER # Placeholder, will be replaced by CI/CD
+          # Using a shell script to provide better debugging output
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "=== Starting database migration job ==="
+              echo "=== Debugging Environment Variables ==="
+              echo "Complete environment dump:"
+              env | sort
+              
+              echo "\n=== Checking Supabase Environment Variables ==="
+              echo "SUPABASE_URL exists: $(if [ -n "$SUPABASE_URL" ]; then echo YES; else echo NO; fi)"
+              echo "SUPABASE_URL length: ${#SUPABASE_URL}"
+              echo "SUPABASE_ANON_KEY exists: $(if [ -n "$SUPABASE_ANON_KEY" ]; then echo YES; else echo NO; fi)"
+              echo "SUPABASE_ANON_KEY length: ${#SUPABASE_ANON_KEY}"
+              echo "SUPABASE_SERVICE_ROLE_KEY exists: $(if [ -n "$SUPABASE_SERVICE_ROLE_KEY" ]; then echo YES; else echo NO; fi)"
+              echo "SUPABASE_SERVICE_ROLE_KEY length: ${#SUPABASE_SERVICE_ROLE_KEY}"
+              echo "M2M_JWT_SECRET_KEY exists: $(if [ -n "$M2M_JWT_SECRET_KEY" ]; then echo YES; else echo NO; fi)"
+              echo "M2M_JWT_SECRET_KEY length: ${#M2M_JWT_SECRET_KEY}"
+              
+              echo "\n=== Testing kubernetes secrets volume files ==="
+              # Check if we can see secrets mounted as files (alternative access method)
+              ls -la /var/run/secrets/kubernetes.io/ || echo "No Kubernetes secrets mounted"
+              
+              echo "\n=== Testing database connection ==="
+              python -c "import asyncio, asyncpg, os; asyncio.run(asyncio.wait_for(asyncpg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+asyncpg://', 'postgresql://')), timeout=10))" || { echo "Database connection failed"; exit 1; }
+              echo "Database connection successful. Starting migration..."
+              
+              # Set verbose logging for alembic
+              export PYTHONPATH=/app:$PYTHONPATH
+              export ALEMBIC_VERBOSE=1
+              
+              # Run the migration with a timeout
+              echo "\n=== Running migrations ==="
+              timeout 600 alembic upgrade head
+              
+              # Check exit status
+              STATUS=$?
+              if [ $STATUS -eq 0 ]; then
+                echo "=== Migration completed successfully ==="
+                exit 0
+              else
+                echo "=== Migration failed with status $STATUS ==="
+                echo "Checking database connection one more time..."
+                python -c "import asyncio, asyncpg, os; asyncio.run(asyncio.wait_for(asyncpg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+asyncpg://', 'postgresql://')), timeout=10))"
+                echo "=== Reviewing alembic history ==="
+                alembic history
+                echo "=== Current database migration version ==="
+                alembic current
+                exit $STATUS
+              fi
+          envFrom:
+            - secretRef:
+                name: paservices-secrets
+          env:
+            # Try both approaches: envFrom (above) and direct valueFrom (below)
+            # This gives us redundancy in case one approach isn't working
+            - name: SUPABASE_URL_DIRECT
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: SUPABASE_URL
+                  optional: true
+            - name: SUPABASE_ANON_KEY_DIRECT
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: SUPABASE_ANON_KEY
+                  optional: true
+            - name: SUPABASE_SERVICE_ROLE_KEY_DIRECT
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: SUPABASE_SERVICE_ROLE_KEY
+                  optional: true
+            - name: M2M_JWT_SECRET_KEY_DIRECT
+              valueFrom:
+                secretKeyRef:
+                  name: paservices-secrets
+                  key: M2M_JWT_SECRET_KEY
+                  optional: true
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            # Add dedicated timeout value
+            - name: ALEMBIC_TIMEOUT
+              value: "600"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m" 
+              memory: "512Mi"
+      restartPolicy: Never
+      # Add a reasonable timeout for the job
+      activeDeadlineSeconds: 900 # 15 minutes timeout for the entire job
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600

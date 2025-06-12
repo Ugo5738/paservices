@@ -1,0 +1,55 @@
+# Docker Compose for local production testing
+# This simulates the production environment but runs locally
+
+services:
+  auth_service:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    image: paauth-auth:local-prod-test
+    container_name: auth_service_local_prod_test
+    restart: unless-stopped
+    ports:
+      - "8000:8000" # Using port 8001 to avoid conflict with existing container
+    environment:
+      - ENVIRONMENT=production
+      - ROOT_PATH=/api/v1
+      - BASE_URL=http://localhost:8000 # Updated to match external port
+      - LOGGING_LEVEL=INFO
+    env_file:
+      - .env.production # Make sure this exists with proper configuration
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - local_prod_test_network
+
+  # Add Redis if your application uses it
+  redis:
+    image: redis:7-alpine
+    container_name: auth_redis_local_prod_test
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379" # Expose Redis port for local testing
+    volumes:
+      - redis_local_prod_test_data:/data
+    networks:
+      - local_prod_test_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+
+networks:
+  local_prod_test_network:
+    driver: bridge
+
+volumes:
+  redis_local_prod_test_data:
+    driver: local
