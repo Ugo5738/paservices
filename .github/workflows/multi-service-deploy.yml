@@ -140,8 +140,11 @@ jobs:
           sed -i "s|AUTH_SERVICE_SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_B64|g" k8s/auth/secrets.yaml
           sed -i "s|AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/auth/secrets.yaml
           sed -i "s|AUTH_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|\${AUTH_SERVICE_DATABASE_URL_B64}|$AUTH_SERVICE_DATABASE_URL_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|\${USE_PGBOUNCER_B64}|$USE_PGBOUNCER_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g" k8s/auth/secrets.yaml
+          REDIS_URL_B64=$(echo -n "${{ secrets.REDIS_URL }}" | base64 -w 0)
+          BASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DOMAIN }}" | base64 -w 0)
+          sed -i "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|BASE_URL_BASE64|$BASE_URL_B64|g" k8s/auth/secrets.yaml
 
           # Replace placeholders directly in migration job
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/migration-job.yaml
@@ -208,63 +211,6 @@ jobs:
 
           # Replace placeholder directly in ingress
           sed -i "s|superid.supersami.com|${{ env.SUPER_ID_DOMAIN }}|g" k8s/super_id/ingress.yaml
-
-      - name: Setup Supabase Table for Super ID Service
-        run: |
-          # Apply SQL to create the table if it doesn't exist
-          cat <<EOF > create-super-id-table.sql
-          CREATE TABLE IF NOT EXISTS generated_super_ids (
-              id BIGSERIAL PRIMARY KEY,
-              super_id UUID NOT NULL UNIQUE,
-              generated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-              requested_by_client_id TEXT,
-              metadata JSONB
-          );
-          EOF
-
-          # Use kubectl to run a job to create the table
-          cat <<EOF | kubectl apply -f -
-          apiVersion: batch/v1
-          kind: Job
-          metadata:
-            name: super-id-db-setup
-            labels:
-              app: super-id-service
-          spec:
-            ttlSecondsAfterFinished: 100
-            template:
-              spec:
-                containers:
-                - name: db-setup
-                  image: postgres:15
-                  env:
-                  - name: PGPASSWORD
-                    valueFrom:
-                      secretKeyRef:
-                        name: super-id-service-secrets
-                        key: SUPER_ID_SERVICE_SUPABASE_DB_PASSWORD
-                  command:
-                  - sh
-                  - -c
-                  - |
-                    echo "Creating super_id table if needed..."
-                    cat /tmp/create-super-id-table.sql | psql -h \$SUPABASE_HOST -U postgres -d postgres
-                    echo "Table setup complete."
-                  volumeMounts:
-                  - name: sql
-                    mountPath: /tmp/create-super-id-table.sql
-                    subPath: create-super-id-table.sql
-                volumes:
-                - name: sql
-                  configMap:
-                    name: super-id-db-setup-sql
-                restartPolicy: OnFailure
-          EOF
-
-          kubectl create configmap super-id-db-setup-sql --from-file=create-super-id-table.sql
-
-          # Wait for the job to complete
-          kubectl wait --for=condition=complete --timeout=300s job/super-id-db-setup
 
       - name: Apply Super ID Service K8s manifests
         run: |

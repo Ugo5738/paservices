@@ -7,7 +7,7 @@ Authentication and Authorization service for managing users, application clients
 **Prerequisites**
 
 - Docker & Docker Compose installed
-- `.env` file configured with required variables (see [Environment Variables](#environment-variables) section)
+- `.env` file configured with required variables (see [Environment Variables](#environment-variables) section).
 
 **Running the Application**
 
