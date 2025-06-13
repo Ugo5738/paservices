@@ -12,8 +12,8 @@ env:
   SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
 
   # Deployment settings
-  AUTH_DOMAIN: ${{ secrets.AUTH_SERVICE_DOMAIN }}
-  SUPER_ID_DOMAIN: ${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
+  AUTH_DOMAIN: auth.supersami.com
+  SUPER_ID_DOMAIN: superid.supersami.com
 
 on:
   push:
