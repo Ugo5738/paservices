@@ -34,6 +34,16 @@ on:
         description: "Deploy Super ID Service"
         required: false
         type: boolean
+        default: true
+      force_full_deploy:
+        description: "Force full deployment (re-deploy everything)"
+        required: false
+        type: boolean
+        default: false
+      clean_resources:
+        description: "Clean up existing jobs before deploying"
+        required: false
+        type: boolean
         default: false
 
 jobs:
@@ -157,11 +167,25 @@ jobs:
 
       - name: Apply Auth Service K8s manifests
         run: |
+          # Cleanup existing jobs if requested
+          if [[ "${{ github.event.inputs.clean_resources }}" == "true" ]]; then
+            echo "Cleaning up existing jobs..."
+            kubectl delete job auth-service-migrations --ignore-not-found=true
+          fi
+
           # Apply secrets first
           kubectl apply -f k8s/auth/secrets.yaml
 
-          # Run migration job and wait for completion
+          # Apply migration job
           kubectl apply -f k8s/auth/migration-job.yaml
+          
+          # Wait for job to start
+          echo "Waiting for migration job to start..."
+          kubectl wait --for=condition=initialized --timeout=30s job/auth-service-migrations || true
+          
+          # Watch job logs for diagnostics
+          echo "Showing migration job logs:"
+          kubectl logs -f job/auth-service-migrations --tail=50 || true
 
           # Apply remaining manifests
           kubectl apply -f k8s/auth/deployment.yaml
@@ -215,14 +239,34 @@ jobs:
 
       - name: Apply Super ID Service K8s manifests
         run: |
+          # Cleanup existing resources if requested
+          if [[ "${{ github.event.inputs.clean_resources }}" == "true" ]]; then
+            echo "Cleaning up existing super-id-db-setup job..."
+            kubectl delete job super-id-db-setup --ignore-not-found=true
+          fi
+
           # Apply secrets and configmap first
           kubectl apply -f k8s/super_id/secrets.yaml
           kubectl apply -f k8s/super_id/configmap.yaml
 
-          # Apply remaining manifests
+          # Apply main manifests
           kubectl apply -f k8s/super_id/deployment.yaml
           kubectl apply -f k8s/super_id/service.yaml
           kubectl apply -f k8s/super_id/ingress.yaml
 
-          # Wait for deployment rollout
-          kubectl rollout status deployment/super-id-service --timeout=300s
+          # Show pod status for debugging
+          echo "Current pods status:"
+          kubectl get pods -l app=super-id-service
+
+          # Check logs from any existing pods
+          POD_NAME=$(kubectl get pods -l app=super-id-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          if [ -n "$POD_NAME" ]; then
+            echo "Showing logs from $POD_NAME:"
+            kubectl logs $POD_NAME --tail=50 || true
+          else
+            echo "No super-id-service pods found yet"
+          fi
+
+          # Wait for deployment rollout with shorter timeout
+          echo "Waiting for deployment rollout..."
+          kubectl rollout status deployment/super-id-service --timeout=120s || echo "Deployment rollout timed out, check pod status manually"
