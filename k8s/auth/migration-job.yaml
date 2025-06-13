@@ -40,8 +40,11 @@ spec:
               # Check if we can see secrets mounted as files (alternative access method)
               ls -la /var/run/secrets/kubernetes.io/ || echo "No Kubernetes secrets mounted"
               
+              echo "\n=== Installing required packages ==="
+              pip install psycopg sqlalchemy alembic
+              
               echo "\n=== Testing database connection ==="
-              python -c "import asyncio, asyncpg, os; asyncio.run(asyncio.wait_for(asyncpg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+asyncpg://', 'postgresql://')), timeout=10))" || { echo "Database connection failed"; exit 1; }
+              python -c "import os, psycopg; conn = psycopg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+psycopg://', 'postgresql://'), connect_timeout=10); conn.close()" || { echo "Database connection failed"; exit 1; }
               echo "Database connection successful. Starting migration..."
               
               # Set verbose logging for alembic

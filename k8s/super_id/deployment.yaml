@@ -21,12 +21,24 @@ spec:
             - sh
             - -c
             - |
-              echo "Checking environment variables:"
+              echo "=== Checking environment variables ==="
               echo "SUPER_ID_SERVICE_SUPABASE_URL exists: $([ ! -z "$SUPER_ID_SERVICE_SUPABASE_URL" ] && echo "yes" || echo "no")"
               echo "SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY exists: $([ ! -z "$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY" ] && echo "yes" || echo "no")"
               echo "SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY exists: $([ ! -z "$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY" ] && echo "yes" || echo "no")"
               echo "SUPER_ID_SERVICE_DATABASE_URL exists: $([ ! -z "$SUPER_ID_SERVICE_DATABASE_URL" ] && echo "yes" || echo "no")"
-              echo "Starting service..."
+              
+              echo "=== Testing database connection ==="
+              pip install psycopg sqlalchemy || echo "Failed to install database dependencies"
+              python -c "import os, psycopg; conn = psycopg.connect(os.environ.get('SUPER_ID_SERVICE_DATABASE_URL').replace('postgresql+psycopg://', 'postgresql://'), connect_timeout=10); print('Database connection successful'); conn.close()" || echo "Database connection failed but continuing"
+              
+              echo "=== Ensuring Poetry and dependencies ==="
+              if ! command -v poetry &> /dev/null; then
+                echo "Poetry not found, attempting to install..."
+                pip install poetry
+              fi
+              
+              echo "=== Starting service ==="
+              export PYTHONPATH=${PYTHONPATH}:/app
               poetry run uvicorn super_id_service.main:app --host 0.0.0.0 --port 8000
           ports:
             - containerPort: 8000
