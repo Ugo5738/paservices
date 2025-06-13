@@ -194,6 +194,7 @@ jobs:
         run: |
           # Encode secrets as base64 for K8s secrets
           SUPER_ID_SERVICE_SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}" | base64 -w 0)
+          SUPER_ID_SERVICE_SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_ANON_KEY }}" | base64 -w 0)
           SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
           SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
           # Format uses single quotes for values with spaces in options parameter per memory
@@ -201,6 +202,7 @@ jobs:
 
           # Replace placeholders directly in secrets.yaml
           sed -i "s|SUPER_ID_SERVICE_SUPABASE_URL_BASE64|$SUPER_ID_SERVICE_SUPABASE_URL_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_SUPABASE_ANON_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_ANON_KEY_B64|g" k8s/super_id/secrets.yaml
           sed -i "s|SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/super_id/secrets.yaml
           sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/super_id/secrets.yaml
           sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_B64|g" k8s/super_id/secrets.yaml
