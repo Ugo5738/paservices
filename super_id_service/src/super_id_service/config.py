@@ -6,6 +6,7 @@ import os
 from enum import Enum
 from typing import Any, List, Literal, Optional
 
+# Use validation_alias for specific overrides
 from pydantic import ConfigDict, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,61 +25,36 @@ class Settings(BaseSettings):
     """
 
     # Core settings
-    environment: Environment = Field(
-        default=Environment.DEVELOPMENT,
-        json_schema_extra={"env": "SUPER_ID_SERVICE_ENVIRONMENT"},
-    )
-    root_path: str = Field("", json_schema_extra={"env": "SUPER_ID_SERVICE_ROOT_PATH"})
-    log_level: str = Field(
-        "INFO", json_schema_extra={"env": "SUPER_ID_SERVICE_LOGGING_LEVEL"}
-    )
+    environment: Environment = Field(default=Environment.DEVELOPMENT)
+    root_path: str = ""
+    log_level: str = "INFO"
 
     # Database configuration
-    super_id_service_database_url: str = Field(
-        ..., json_schema_extra={"env": "SUPER_ID_SERVICE_DATABASE_URL"}
-    )
-    use_pgbouncer: bool = Field(
-        default=False, json_schema_extra={"env": "SUPER_ID_SERVICE_USE_PGBOUNCER"}
-    )
+    database_url: str = Field(...)  # Renamed for simplicity with prefix
+    use_pgbouncer: bool = False
 
     # Supabase configuration
-    supabase_url: str = Field(
-        ..., json_schema_extra={"env": "SUPER_ID_SERVICE_SUPABASE_URL"}
-    )
-    supabase_anon_key: str = Field(
-        ..., json_schema_extra={"env": "SUPER_ID_SERVICE_SUPABASE_ANON_KEY"}
-    )
-    supabase_service_role_key: str = Field(
-        ..., json_schema_extra={"env": "SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY"}
-    )
+    supabase_url: str = Field(...)
+    supabase_anon_key: str = Field(...)
+    supabase_service_role_key: str = Field(...)
 
     # JWT configuration (for validating auth_service JWTs)
+    # Use validation_alias to specify the exact environment variable name
     jwt_secret_key: str = Field(
-        ..., json_schema_extra={"env": "SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY"}
+        ..., validation_alias="SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY"
     )
-    auth_service_issuer: str = Field(
-        "auth.supersami.com",
-        json_schema_extra={"env": "SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER"},
-    )
+    auth_service_issuer: str = "auth.supersami.com"
 
     # Rate limiting
-    rate_limit_requests_per_minute: str = Field(
-        default="60/minute",
-        json_schema_extra={"env": "SUPER_ID_SERVICE_RATE_LIMIT_REQUESTS_PER_MINUTE"},
-    )
+    rate_limit_requests_per_minute: str = "60/minute"
 
     # Redis configuration (optional, for rate limiting)
-    redis_url: Optional[str] = Field(
-        None, json_schema_extra={"env": "SUPER_ID_SERVICE_REDIS_URL"}
-    )
+    redis_url: Optional[str] = None
 
     # CORS settings
-    cors_allow_origins: List[str] = Field(
-        default_factory=lambda: ["*"],
-        json_schema_extra={"env": "SUPER_ID_SERVICE_CORS_ALLOW_ORIGINS"},
-    )
+    cors_allow_origins: List[str] = Field(default_factory=lambda: ["*"])
 
-    @field_validator("super_id_service_database_url")
+    @field_validator("database_url")
     def validate_database_url(cls, v: str, info: Any) -> str:
         # Return the database URL as is, add validation if needed
         return v
@@ -93,8 +69,11 @@ class Settings(BaseSettings):
         return self.environment == Environment.TESTING
 
     # Model configuration
-    model_config = ConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False
+    model_config = SettingsConfigDict(
+        env_prefix="SUPER_ID_SERVICE_",  # <-- This is the main fix
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
     )
 
 
