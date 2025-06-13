@@ -31,6 +31,21 @@ spec:
               pip install psycopg sqlalchemy || echo "Failed to install database dependencies"
               python -c "import os, psycopg; conn = psycopg.connect(os.environ.get('SUPER_ID_SERVICE_DATABASE_URL').replace('postgresql+psycopg://', 'postgresql://'), connect_timeout=10); print('Database connection successful'); conn.close()" || echo "Database connection failed but continuing"
               
+              echo "=== Creating environment variable mappings for compatibility ==="
+              # Map prefixed variables to non-prefixed ones for backward compatibility
+              export SUPABASE_URL="$SUPER_ID_SERVICE_SUPABASE_URL"
+              export SUPABASE_ANON_KEY="$SUPER_ID_SERVICE_SUPABASE_ANON_KEY"
+              export SUPABASE_SERVICE_ROLE_KEY="$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY"
+              export JWT_SECRET_KEY="$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY"
+              export DATABASE_URL="$SUPER_ID_SERVICE_DATABASE_URL"
+              
+              echo "Created mappings:"
+              echo "SUPABASE_URL=${SUPABASE_URL:-not set}"
+              echo "SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-not set}"
+              echo "SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY:-not set}"
+              echo "JWT_SECRET_KEY=${JWT_SECRET_KEY:-not set}"
+              echo "DATABASE_URL=${DATABASE_URL:-not set}"
+              
               echo "=== Ensuring Poetry and dependencies ==="
               if ! command -v poetry &> /dev/null; then
                 echo "Poetry not found, attempting to install..."

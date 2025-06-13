@@ -63,7 +63,7 @@ spec:
               else
                 echo "=== Migration failed with status $STATUS ==="
                 echo "Checking database connection one more time..."
-                python -c "import asyncio, asyncpg, os; asyncio.run(asyncio.wait_for(asyncpg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+asyncpg://', 'postgresql://')), timeout=10))"
+                python -c "import os, psycopg; conn = psycopg.connect(os.environ.get('AUTH_SERVICE_DATABASE_URL').replace('postgresql+psycopg://', 'postgresql://'), connect_timeout=10); conn.close()"
                 echo "=== Reviewing alembic history ==="
                 alembic history
                 echo "=== Current database migration version ==="
