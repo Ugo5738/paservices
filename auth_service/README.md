@@ -1,6 +1,6 @@
 # Auth Service
 
-Authentication and Authorization service for managing users, application clients, roles, and permissions.
+Authentication and Authorization service for managing users, application clients, roles, and permissions
 
 ## Development
 

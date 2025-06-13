@@ -25,22 +25,25 @@ class Settings(BaseSettings):
 
     # Core settings
     environment: Environment = Field(
-        default=Environment.DEVELOPMENT, json_schema_extra={"env": "ENVIRONMENT"}
+        default=Environment.DEVELOPMENT, json_schema_extra={"env": "SUPER_ID_SERVICE_ENVIRONMENT"}
     )
-    root_path: str = Field("", json_schema_extra={"env": "ROOT_PATH"})
-    log_level: str = Field("INFO", json_schema_extra={"env": "LOGGING_LEVEL"})
+    root_path: str = Field("", json_schema_extra={"env": "SUPER_ID_SERVICE_ROOT_PATH"})
+    log_level: str = Field("INFO", json_schema_extra={"env": "SUPER_ID_SERVICE_LOGGING_LEVEL"})
 
     # Database configuration
     super_id_service_database_url: str = Field(
         ..., json_schema_extra={"env": "SUPER_ID_SERVICE_DATABASE_URL"}
     )
     use_pgbouncer: bool = Field(
-        default=False, json_schema_extra={"env": "USE_PGBOUNCER"}
+        default=False, json_schema_extra={"env": "SUPER_ID_SERVICE_USE_PGBOUNCER"}
     )
 
     # Supabase configuration
     supabase_url: str = Field(
         ..., json_schema_extra={"env": "SUPER_ID_SERVICE_SUPABASE_URL"}
+    )
+    supabase_anon_key: str = Field(
+        ..., json_schema_extra={"env": "SUPER_ID_SERVICE_SUPABASE_ANON_KEY"}
     )
     supabase_service_role_key: str = Field(
         ..., json_schema_extra={"env": "SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY"}
@@ -51,20 +54,20 @@ class Settings(BaseSettings):
         ..., json_schema_extra={"env": "SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY"}
     )
     auth_service_issuer: str = Field(
-        "auth.supersami.com", json_schema_extra={"env": "AUTH_SERVICE_ISSUER"}
+        "auth.supersami.com", json_schema_extra={"env": "SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER"}
     )
 
     # Rate limiting
     rate_limit_requests_per_minute: str = Field(
-        default="60/minute", json_schema_extra={"env": "RATE_LIMIT_REQUESTS_PER_MINUTE"}
+        default="60/minute", json_schema_extra={"env": "SUPER_ID_SERVICE_RATE_LIMIT_REQUESTS_PER_MINUTE"}
     )
 
     # Redis configuration (optional, for rate limiting)
-    redis_url: Optional[str] = Field(None, json_schema_extra={"env": "REDIS_URL"})
+    redis_url: Optional[str] = Field(None, json_schema_extra={"env": "SUPER_ID_SERVICE_REDIS_URL"})
 
     # CORS settings
     cors_allow_origins: List[str] = Field(
-        default_factory=lambda: ["*"], json_schema_extra={"env": "CORS_ALLOW_ORIGINS"}
+        default_factory=lambda: ["*"], json_schema_extra={"env": "SUPER_ID_SERVICE_CORS_ALLOW_ORIGINS"}
     )
 
     @field_validator("super_id_service_database_url")
