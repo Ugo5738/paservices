@@ -162,7 +162,6 @@ jobs:
 
           # Run migration job and wait for completion
           kubectl apply -f k8s/auth/migration-job.yaml
-          kubectl wait --for=condition=complete --timeout=300s job/auth-migration-job
 
           # Apply remaining manifests
           kubectl apply -f k8s/auth/deployment.yaml
