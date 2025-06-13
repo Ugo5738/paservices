@@ -167,10 +167,11 @@ jobs:
 
       - name: Apply Auth Service K8s manifests
         run: |
-          # Always delete the migrations job to avoid immutability errors
-          echo "Cleaning up existing jobs..."
-          kubectl delete job auth-service-migrations --ignore-not-found=true
-          sleep 2 # Give k8s time to fully remove the job
+          # Cleanup existing jobs if requested
+          if [[ "${{ github.event.inputs.clean_resources }}" == "true" ]]; then
+            echo "Cleaning up existing jobs..."
+            kubectl delete job auth-service-migrations --ignore-not-found=true
+          fi
 
           # Apply secrets first
           kubectl apply -f k8s/auth/secrets.yaml
