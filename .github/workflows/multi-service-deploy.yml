@@ -1,5 +1,20 @@
 name: Multi-Service CI/CD Pipeline
 
+# Define environment variables for the workflow
+env:
+  # EKS settings
+  EKS_CLUSTER_NAME: paservices-cluster
+  AWS_REGION: us-east-1
+
+  # Docker settings
+  DOCKER_REGISTRY: docker.io
+  AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
+  SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
+
+  # Deployment settings
+  AUTH_DOMAIN: ${{ secrets.AUTH_SERVICE_DOMAIN }}
+  SUPER_ID_DOMAIN: ${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
+
 on:
   push:
     branches: [main]
@@ -20,16 +35,6 @@ on:
         required: false
         type: boolean
         default: false
-
-env:
-  # Docker settings
-  DOCKER_REGISTRY: docker.io
-  AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
-  SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
-
-  # Deployment settings
-  AUTH_DOMAIN: ${{ secrets.AUTH_SERVICE_DOMAIN }}
-  SUPER_ID_DOMAIN: ${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
 
 jobs:
   detect-changes:
@@ -113,28 +118,28 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --name my-cluster --region us-east-1
+          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
 
       - name: Process K8s manifests for Auth Service
         run: |
           # Encode secrets as base64 for K8s secrets
-          SUPABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_URL }}" | base64 -w 0)
-          SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}" | base64 -w 0)
-          SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
-          M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
+          AUTH_SERVICE_SUPABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_URL }}" | base64 -w 0)
+          AUTH_SERVICE_SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}" | base64 -w 0)
+          AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
+          AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
           # Format uses single quotes for values with spaces in options parameter per memory
           AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DATABASE_URL }}" | base64 -w 0)
           USE_PGBOUNCER_B64=$(echo -n "false" | base64 -w 0)
 
           # Replace placeholders directly in secrets.yaml
-          sed -i "s|\${SUPABASE_URL_B64}|$SUPABASE_URL_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|\${SUPABASE_ANON_KEY_B64}|$SUPABASE_ANON_KEY_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|\${SUPABASE_SERVICE_ROLE_KEY_B64}|$SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|\${M2M_JWT_SECRET_KEY_B64}|$M2M_JWT_SECRET_KEY_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_SUPABASE_URL_BASE64|$AUTH_SERVICE_SUPABASE_URL_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/auth/secrets.yaml
           sed -i "s|\${AUTH_SERVICE_DATABASE_URL_B64}|$AUTH_SERVICE_DATABASE_URL_B64|g" k8s/auth/secrets.yaml
           sed -i "s|\${USE_PGBOUNCER_B64}|$USE_PGBOUNCER_B64|g" k8s/auth/secrets.yaml
 
@@ -177,26 +182,26 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Update kubeconfig
         run: |
-          aws eks update-kubeconfig --name my-cluster --region us-east-1
+          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
 
       - name: Process K8s manifests for Super ID Service
         run: |
           # Encode secrets as base64 for K8s secrets
-          SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}" | base64 -w 0)
-          SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
-          M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
+          SUPER_ID_SERVICE_SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}" | base64 -w 0)
+          SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
+          SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
           # Format uses single quotes for values with spaces in options parameter per memory
           SUPER_ID_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}" | base64 -w 0)
 
           # Replace placeholders directly in secrets.yaml
-          sed -i "s|SUPABASE_URL_BASE64|$SUPABASE_URL_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|M2M_JWT_SECRET_KEY_BASE64|$M2M_JWT_SECRET_KEY_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_SUPABASE_URL_BASE64|$SUPER_ID_SERVICE_SUPABASE_URL_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_B64|g" k8s/super_id/secrets.yaml
 
           # Replace placeholders directly in deployment
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/deployment.yaml
@@ -237,7 +242,7 @@ jobs:
                     valueFrom:
                       secretKeyRef:
                         name: super-id-service-secrets
-                        key: SUPABASE_DB_PASSWORD
+                        key: SUPER_ID_SERVICE_SUPABASE_DB_PASSWORD
                   command:
                   - sh
                   - -c
