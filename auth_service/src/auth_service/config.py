@@ -43,14 +43,14 @@ class Settings(BaseSettings):
     # Database Configuration
     # Renamed field to 'database_url' for simplicity with the prefix
     database_url: str = Field(...)
-    use_pgbouncer: bool = False
+    use_pgbouncer: bool = Field(False, alias="USE_PGBOUNCER")
 
     # General App settings
-    root_path: str = ""
-    logging_level: str = "INFO"
-    environment: Environment = Environment.DEVELOPMENT
-    base_url: Optional[str] = None
-    redis_url: Optional[str] = None
+    root_path: str = Field("", alias="ROOT_PATH")
+    logging_level: str = Field("INFO", alias="LOGGING_LEVEL")
+    environment: Environment = Field(Environment.DEVELOPMENT, alias="ENVIRONMENT")
+    base_url: Optional[str] = Field(None, alias="BASE_URL")
+    redis_url: Optional[str] = Field(None, alias="REDIS_URL")
     email_confirmation_redirect_url: Optional[str] = None
     password_reset_redirect_url: str = "http://localhost:3000/auth/update-password"
 
@@ -92,7 +92,7 @@ class Settings(BaseSettings):
     aws_access_key_id: Optional[str] = None
     aws_secret_access_key: Optional[str] = None
 
-    # NOTE: The custom validator for auth_service_database_url will no longer work with this name.
+    # NOTE: The custom validator for database_url will no longer work with this name.
     # It has been renamed to 'database_url'
     # We will adjust the validator below.
 
@@ -129,7 +129,7 @@ class Settings(BaseSettings):
         return self.environment == Environment.TESTING
 
     model_config = SettingsConfigDict(
-        env_prefix="AUTH_SERVICE_",  # <--- THE MAIN FIX
+        env_prefix="AUTH_SERVICE_",  # <-- Prefix for most variables
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,

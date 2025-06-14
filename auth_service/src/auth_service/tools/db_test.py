@@ -96,7 +96,7 @@ async def test_direct_connection():
     print(f"\n{'='*20} DIRECT CONNECTION TEST {'='*20}")
 
     # Parse connection string to get components
-    conn_params = parse_connection_url(settings.auth_service_database_url)
+    conn_params = parse_connection_url(settings.database_url)
     username = conn_params["username"]
     password = conn_params["password"]
     host = conn_params["host"]
@@ -180,7 +180,7 @@ async def test_sqlalchemy_connection():
 
     try:
         # Parse connection URL and handle pgBouncer mode
-        conn_params = parse_connection_url(settings.auth_service_database_url)
+        conn_params = parse_connection_url(settings.database_url)
 
         # Import necessary SQLAlchemy components
         # Build clean connection URL without pgbouncer parameter
@@ -310,7 +310,7 @@ async def run_all_tests():
 
     print("\nConnection string:")
     # Mask password in connection string for security
-    masked_url = settings.auth_service_database_url
+    masked_url = settings.database_url
     if "@" in masked_url and ":" in masked_url.split("@")[0]:
         user_part, rest = masked_url.split("@", 1)
         user, password = user_part.split(":", 1)

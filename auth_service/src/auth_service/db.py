@@ -9,8 +9,6 @@ _concurrency._not_implemented = lambda *args, **kwargs: None
 import os
 import urllib.parse
 
-from auth_service.config import settings
-from auth_service.logging_config import logger
 from sqlalchemy.exc import OperationalError, SQLAlchemyError, TimeoutError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -21,6 +19,9 @@ from sqlalchemy.ext.asyncio import (
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import func, text
+
+from auth_service.config import settings
+from auth_service.logging_config import logger
 
 # Connection settings optimized for Supabase pgBouncer
 # Using minimal local pool since pgBouncer handles connection pooling
@@ -95,10 +96,10 @@ def parse_db_url(url):
 
 
 # First clean the URL of any pgbouncer parameters
-clean_db_url = parse_db_url(settings.auth_service_database_url)
+clean_db_url = parse_db_url(settings.database_url)
 
 # Check if pgbouncer=true is explicitly set in the DATABASE_URL
-has_pgbouncer_in_url = "pgbouncer=true" in settings.auth_service_database_url
+has_pgbouncer_in_url = "pgbouncer=true" in settings.database_url
 
 # Use the Settings.use_pgbouncer field - properly parsed as a boolean
 use_pgbouncer_env = settings.use_pgbouncer

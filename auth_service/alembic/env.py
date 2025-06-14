@@ -7,16 +7,16 @@ from sqlalchemy.pool import NullPool
 
 # Import the SQLAlchemy models to register them with Base.metadata
 from auth_service.db import Base
+from auth_service.models.app_client import AppClient
+from auth_service.models.app_client_refresh_token import AppClientRefreshToken
+from auth_service.models.app_client_role import AppClientRole
 
 # Explicitly import all models to ensure they're registered with Base.metadata
 from auth_service.models.permission import Permission
+from auth_service.models.profile import Profile
 from auth_service.models.role import Role
 from auth_service.models.role_permission import RolePermission
 from auth_service.models.user_role import UserRole
-from auth_service.models.profile import Profile
-from auth_service.models.app_client import AppClient
-from auth_service.models.app_client_role import AppClientRole
-from auth_service.models.app_client_refresh_token import AppClientRefreshToken
 
 # Set target_metadata for Alembic migration generation
 target_metadata = Base.metadata
@@ -29,6 +29,7 @@ config = context.config
 # This line sets up loggers basically.
 fileConfig(config.config_file_name)
 
+
 # Filter function to include only objects in the public schema
 def include_object(object, name, type_, reflected, compare_to):
     if hasattr(object, "schema") and object.schema not in (None, "public"):
@@ -40,16 +41,17 @@ def get_url():
     """Get the URL from environment variable or settings with fallback to default."""
     # Try to get from environment variable first
     db_url = os.environ.get("AUTH_SERVICE_DATABASE_URL")
-    
+
     if not db_url:
         # Fall back to auth_service settings
         try:
             from auth_service.config import settings
-            db_url = settings.auth_service_database_url
+
+            db_url = settings.database_url
         except ImportError:
             # If settings not available, use a default connection string
             db_url = "postgresql+psycopg://postgres:postgres@localhost:5432/postgres"
-    
+
     return db_url
 
 
@@ -71,7 +73,7 @@ def run_migrations_offline():
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        include_schemas=True
+        include_schemas=True,
     )
 
     with context.begin_transaction():
@@ -99,8 +101,9 @@ def run_migrations_online():
             compare_type=True,
             include_schemas=True,
             # Include only the public schema for migrations
-            include_object=lambda obj, name, type_, reflected, compare_to: 
+            include_object=lambda obj, name, type_, reflected, compare_to: (
                 obj.schema in (None, "public") if hasattr(obj, "schema") else True
+            ),
         )
 
         with context.begin_transaction():

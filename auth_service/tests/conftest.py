@@ -18,16 +18,17 @@ import alembic.config
 import pytest
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
+from fastapi import FastAPI
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import TIMESTAMP, Boolean, Column, MetaData, String, Table, event, text
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+
 from auth_service.config import Settings
 from auth_service.db import AsyncSessionLocal, Base
 from auth_service.db import engine as db_engine
 from auth_service.db import get_db
 from auth_service.dependencies import get_app_settings
 from auth_service.main import app as fastapi_app
-from fastapi import FastAPI
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import TIMESTAMP, Boolean, Column, MetaData, String, Table, event, text
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 
 # Set up logger for test diagnostics
 logger = logging.getLogger("test_setup")
@@ -55,13 +56,14 @@ from alembic.config import Config as AlembicConfig
 from alembic.runtime.environment import EnvironmentContext
 from alembic.runtime.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from auth_service.config import settings
-from auth_service.db import Base
-from auth_service.main import app
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
+
+from auth_service.config import settings
+from auth_service.db import Base
+from auth_service.main import app
 
 Table(
     "users",
@@ -99,12 +101,14 @@ if os.environ.get("TEST_DATABASE_URL"):
 
 # For CI environments, use a standard configuration
 elif os.environ.get("CI") == "true":
-    TEST_DATABASE_URL = "postgresql+psycopg://postgres:postgres@localhost:5432/auth_test_db"
+    TEST_DATABASE_URL = (
+        "postgresql+psycopg://postgres:postgres@localhost:5432/auth_test_db"
+    )
     logger.info(f"Using CI database URL: {TEST_DATABASE_URL}")
 
 # For Docker environments (when we can resolve the Docker service name)
 else:
-    base_db_url = settings.auth_service_database_url
+    base_db_url = settings.database_url
 
     # Try to detect if we're in a Docker environment
     try:
@@ -346,19 +350,19 @@ async def apply_migrations_to_test_db() -> None:
         # Setup common environment variables for both scripts
         env = os.environ.copy()
         env["DATABASE_URL"] = TEST_DATABASE_URL
-        
+
         # Parse the database URL to extract actual host used by the test environment
         url_parts = urllib.parse.urlparse(TEST_DATABASE_URL)
-        netloc_parts = url_parts.netloc.split('@')
+        netloc_parts = url_parts.netloc.split("@")
         if len(netloc_parts) > 1:
-            host_port = netloc_parts[1].split(':')[0]
+            host_port = netloc_parts[1].split(":")[0]
             logger.info(f"Using host from TEST_DATABASE_URL: {host_port}")
             env["DB_HOST"] = host_port
         else:
             # Fallback to Docker container name for database host
             env["DB_HOST"] = "supabase_db_paservices"
             logger.info(f"Using supabase_db_paservices for database host")
-        
+
         env["DB_PORT"] = "5432"
         env["DB_USER"] = "postgres"
         env["DB_PASSWORD"] = "postgres"
@@ -368,36 +372,42 @@ async def apply_migrations_to_test_db() -> None:
         # STEP 1: First, set up the auth schema before running migrations
         # This is crucial because the profiles table has a foreign key to auth.users
         logger.info("STEP 1: Setting up auth schema for test database...")
-        
+
         # Find the auth schema copy script
         project_root = Path(PROJECT_ROOT)
         if os.path.exists("/app"):  # Docker environment
             project_root = Path("/app")
-        
+
         # Start by looking for copy_auth_schema.py in the proper scripts folder
         copy_auth_script = project_root / "scripts" / "copy_auth_schema.py"
         logger.info(f"Looking for script at: {copy_auth_script}")
-        
+
         # If not found, try with auth_service prefix (might be needed in some Docker setups)
         if not copy_auth_script.exists():
-            copy_auth_script = project_root / "auth_service" / "scripts" / "copy_auth_schema.py"
+            copy_auth_script = (
+                project_root / "auth_service" / "scripts" / "copy_auth_schema.py"
+            )
             logger.info(f"Looking for script at: {copy_auth_script}")
-        
+
         # Only fall back to legacy locations if absolutely necessary
         if not copy_auth_script.exists():
             logger.warning("Script not found in preferred location, trying fallbacks")
             # Try the project root
             copy_auth_script = project_root / "copy_auth_schema.py"
-            
+
             if not copy_auth_script.exists():
                 copy_auth_script = Path(PROJECT_ROOT).parent / "copy_auth_schema.py"
-                
+
             if not copy_auth_script.exists():
-                logger.warning(f"Auth schema copy script not found at any expected location")
-                raise FileNotFoundError(f"Cannot find copy_auth_schema.py in any location")
-        
+                logger.warning(
+                    f"Auth schema copy script not found at any expected location"
+                )
+                raise FileNotFoundError(
+                    f"Cannot find copy_auth_schema.py in any location"
+                )
+
         logger.info(f"Running auth schema copy script: {copy_auth_script}")
-            
+
         # Run the auth schema copy script
         copy_result = subprocess.run(
             ["python", str(copy_auth_script)],
@@ -415,51 +425,57 @@ async def apply_migrations_to_test_db() -> None:
             logger.error(f"Error output: {copy_result.stderr}")
             logger.error(f"Standard output: {copy_result.stdout}")
             raise RuntimeError(f"Failed to set up auth schema: {copy_result.stderr}")
-            
+
         # STEP 2: Now run the Alembic migrations
         logger.info("STEP 2: Running Alembic migrations on test database...")
-            
+
         # Find the migration script in the scripts directory first
         migration_script = project_root / "scripts" / "auth_test_migrations.py"
         logger.info(f"Looking for migration script at: {migration_script}")
-        
+
         # If not found, try with auth_service prefix
         if not migration_script.exists():
-            migration_script = project_root / "auth_service" / "scripts" / "auth_test_migrations.py"
+            migration_script = (
+                project_root / "auth_service" / "scripts" / "auth_test_migrations.py"
+            )
             logger.info(f"Looking for migration script at: {migration_script}")
-        
+
         # Fall back to legacy locations only if necessary
         if not migration_script.exists():
-            logger.warning("Migration script not found in scripts directory, trying fallbacks")
+            logger.warning(
+                "Migration script not found in scripts directory, trying fallbacks"
+            )
             migration_script = project_root / "apply_test_migrations.py"
             logger.info(f"Looking for migration script at: {migration_script}")
-            
+
             if not migration_script.exists():
-                migration_script = Path(PROJECT_ROOT).parent / "apply_test_migrations.py"
+                migration_script = (
+                    Path(PROJECT_ROOT).parent / "apply_test_migrations.py"
+                )
                 logger.info(f"Looking for migration script at: {migration_script}")
-            
+
             if not migration_script.exists():
                 logger.warning(f"Migration script not found at any expected location")
                 raise FileNotFoundError(f"Cannot find migration script")
-            
+
         logger.info(f"Running migration script: {migration_script}")
 
         # Set environment variables for the script
         env = os.environ.copy()
         env["DATABASE_URL"] = TEST_DATABASE_URL
-        
+
         # Parse the database URL to extract actual host used by the test environment
         url_parts = urllib.parse.urlparse(TEST_DATABASE_URL)
-        netloc_parts = url_parts.netloc.split('@')
+        netloc_parts = url_parts.netloc.split("@")
         if len(netloc_parts) > 1:
-            host_port = netloc_parts[1].split(':')[0]
+            host_port = netloc_parts[1].split(":")[0]
             logger.info(f"Using host from TEST_DATABASE_URL: {host_port}")
             env["DB_HOST"] = host_port
         else:
             # Fallback to Docker container name for database host
             env["DB_HOST"] = "supabase_db_paservices"
             logger.info(f"Using supabase_db_paservices for database host")
-        
+
         env["DB_PORT"] = "5432"
         env["DB_USER"] = "postgres"
         env["DB_PASSWORD"] = "postgres"
@@ -478,11 +494,13 @@ async def apply_migrations_to_test_db() -> None:
         if result.returncode == 0:
             logger.info("Migration script completed successfully")
             logger.info(f"Script output: {result.stdout}")
-            
+
             # Now run the auth schema setup script
             logger.info("Setting up auth schema for test database...")
-            auth_script = project_root / "auth_service" / "scripts" / "setup_auth_schema.py"
-            
+            auth_script = (
+                project_root / "auth_service" / "scripts" / "setup_auth_schema.py"
+            )
+
             if not auth_script.exists():
                 logger.warning(f"Auth schema setup script not found at {auth_script}")
                 for path in [Path(PROJECT_ROOT), Path(os.getcwd()), Path("/app")]:
@@ -492,24 +510,37 @@ async def apply_migrations_to_test_db() -> None:
                         logger.info(f"Found auth schema setup script at {auth_script}")
                         break
                 else:
-                    logger.warning("Auth schema setup script not found, tests requiring auth.users table may fail")
+                    logger.warning(
+                        "Auth schema setup script not found, tests requiring auth.users table may fail"
+                    )
                     return
-            
+
             # Run the auth schema setup script
             auth_result = subprocess.run(
-                ["python", str(auth_script), "--db-host", env["DB_HOST"], "--db-port", env["DB_PORT"], "--db-name", "auth_test_db"],
+                [
+                    "python",
+                    str(auth_script),
+                    "--db-host",
+                    env["DB_HOST"],
+                    "--db-port",
+                    env["DB_PORT"],
+                    "--db-name",
+                    "auth_test_db",
+                ],
                 env=env,
                 text=True,
                 capture_output=True,
                 check=False,
             )
-            
+
             if auth_result.returncode == 0:
                 logger.info("Auth schema setup completed successfully")
                 logger.info(f"Auth script output: {auth_result.stdout}")
                 return
             else:
-                logger.warning(f"Auth schema setup failed with code {auth_result.returncode}")
+                logger.warning(
+                    f"Auth schema setup failed with code {auth_result.returncode}"
+                )
                 logger.warning(f"Error output: {auth_result.stderr}")
                 logger.warning(f"Standard output: {auth_result.stdout}")
                 logger.warning("Tests requiring auth.users table may fail")

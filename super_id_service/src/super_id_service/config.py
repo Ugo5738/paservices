@@ -1,3 +1,4 @@
+# super_id_service/src/super_id_service/config.py
 """
 Configuration module for loading environment variables using pydantic-settings.
 """
@@ -6,8 +7,7 @@ import os
 from enum import Enum
 from typing import Any, List, Literal, Optional
 
-# Use validation_alias for specific overrides
-from pydantic import ConfigDict, Field, field_validator
+from pydantic import ConfigDict, Field, field_validator, validation_alias
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # Database configuration
-    database_url: str = Field(...)  # Renamed for simplicity with prefix
+    database_url: str = Field(...)
     use_pgbouncer: bool = False
 
     # Supabase configuration
@@ -68,9 +68,8 @@ class Settings(BaseSettings):
     def is_testing(self) -> bool:
         return self.environment == Environment.TESTING
 
-    # Model configuration
     model_config = SettingsConfigDict(
-        env_prefix="SUPER_ID_SERVICE_",  # <-- This is the main fix
+        env_prefix="SUPER_ID_SERVICE_",  # <--- This is the main fix
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,

@@ -11,7 +11,10 @@ from auth_service.schemas.user_schemas import (
 
 
 def create_mock_supa_user(
-    email: str, id_val: UUID, confirmed: bool = False, user_roles: list[str] | None = None
+    email: str,
+    id_val: UUID,
+    confirmed: bool = False,
+    user_roles: list[str] | None = None,
 ) -> SupabaseUser:
     now_iso = "2023-01-01T00:00:00Z"
     confirmed_at_val = now_iso if confirmed else None
@@ -45,9 +48,7 @@ def create_mock_supa_session(user: SupabaseUser) -> SupabaseSession:
 
 def create_default_mock_settings():
     mock_settings = MagicMock(spec=Settings)
-    mock_settings.auth_service_database_url = (
-        "postgresql+asyncpg://test:test@localhost:5433/test_db"
-    )
+    mock_settings.database_url = "postgresql+asyncpg://test:test@localhost:5433/test_db"
     mock_settings.supabase_url = "http://mock.supabase.co"
     mock_settings.supabase_anon_key = "mock_key"
     mock_settings.jwt_secret_key = "test_secret"

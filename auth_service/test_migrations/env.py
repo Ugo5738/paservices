@@ -6,18 +6,6 @@ from logging.config import fileConfig
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from alembic import context
-from auth_service.config import settings
-from auth_service.db import Base
-from auth_service.models import AppClient  # Ensure AppClient is also imported
-from auth_service.models import (
-    AppClientRefreshToken,  # Ensure AppClientRefreshToken is also imported
-)
-from auth_service.models import AppClientRole  # Ensure AppClientRole is also imported
-from auth_service.models import Permission  # Ensure Permission is also imported
-from auth_service.models import Profile  # Ensure models are imported for autogenerate
-from auth_service.models import Role  # Ensure Role is also imported
-from auth_service.models import RolePermission  # Ensure RolePermission is also imported
-from auth_service.models import UserRole  # Ensure UserRole is also imported
 from sqlalchemy import TIMESTAMP as SATimestamp
 from sqlalchemy import Boolean as SABoolean
 from sqlalchemy import Column
@@ -30,6 +18,19 @@ from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.exc import OperationalError, SQLAlchemyError, TimeoutError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.sql import text
+
+from auth_service.config import settings
+from auth_service.db import Base
+from auth_service.models import AppClient  # Ensure AppClient is also imported
+from auth_service.models import (
+    AppClientRefreshToken,  # Ensure AppClientRefreshToken is also imported
+)
+from auth_service.models import AppClientRole  # Ensure AppClientRole is also imported
+from auth_service.models import Permission  # Ensure Permission is also imported
+from auth_service.models import Profile  # Ensure models are imported for autogenerate
+from auth_service.models import Role  # Ensure Role is also imported
+from auth_service.models import RolePermission  # Ensure RolePermission is also imported
+from auth_service.models import UserRole  # Ensure UserRole is also imported
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -45,7 +46,7 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 config.set_main_option(
-    "sqlalchemy.url", settings.auth_service_database_url
+    "sqlalchemy.url", settings.database_url
 )  # Earlier disabled for tests; conftest.py handles this.
 
 # Explicitly define or ensure auth.users table is part of Base.metadata
@@ -259,32 +260,40 @@ async def run_migrations_online_async() -> None:
         """Sanitize DB URL to remove problematic parameters"""
         parsed = urlparse(url)
         query_params = parse_qs(parsed.query)
-        
+
         # Always remove pgbouncer parameter from URL, we'll control it separately
         url_has_pgbouncer = False
         if "pgbouncer" in query_params:
             url_has_pgbouncer = query_params.pop("pgbouncer")[0].lower() == "true"
-            
+
         # Remove transaction isolation parameters that cause issues
         problematic_params = [
-            'isolation_level',
-            'default_transaction_isolation',
-            'options',
-            'connect_args'
+            "isolation_level",
+            "default_transaction_isolation",
+            "options",
+            "connect_args",
         ]
-        
+
         for param in problematic_params:
             if param in query_params:
                 logger.warning(f"Removing problematic parameter from URL: {param}")
                 del query_params[param]
-                
+
         # Build a clean URL
         clean_query = urlencode(query_params, doseq=True)
-        clean_url = urlunparse((parsed.scheme, parsed.netloc, parsed.path, 
-                              parsed.params, clean_query, parsed.fragment))
+        clean_url = urlunparse(
+            (
+                parsed.scheme,
+                parsed.netloc,
+                parsed.path,
+                parsed.params,
+                clean_query,
+                parsed.fragment,
+            )
+        )
         logger.info(f"Sanitized DB URL: {clean_url}")
         return clean_url, url_has_pgbouncer
-    
+
     # Parse the URL to understand its components and clean pgbouncer parameter
     db_url, url_has_pgbouncer = sanitize_db_url(db_url)
 
@@ -361,18 +370,20 @@ async def run_migrations_online_async() -> None:
     connect_args = {
         "connect_timeout": connect_timeout,  # Connection establishment timeout
     }
-    
+
     # For migrations, do not set options via command line params to avoid quoting issues
     # Instead, use the more reliable connect_args parameters that psycopg will handle properly
-    connect_args.update({
-        "application_name": "paservices_alembic_migrations",
-        "statement_timeout": statement_timeout * 1000,
-        "idle_in_transaction_session_timeout": idle_in_transaction_timeout * 1000
-    })
-    
+    connect_args.update(
+        {
+            "application_name": "paservices_alembic_migrations",
+            "statement_timeout": statement_timeout * 1000,
+            "idle_in_transaction_session_timeout": idle_in_transaction_timeout * 1000,
+        }
+    )
+
     # Log the connect args for debugging
     logger.info(f"Using connect args: {connect_args}")
-    
+
     # Don't use options parameter to avoid quoting issues that lead to errors
     # connect_args["options"] is removed entirely
 
@@ -401,37 +412,39 @@ async def run_migrations_online_async() -> None:
 
     # Create the async engine with our settings using direct psycopg connection parameters
     try:
-        logger.info("Creating database engine with direct psycopg connection parameters...")
-        
+        logger.info(
+            "Creating database engine with direct psycopg connection parameters..."
+        )
+
         # Parse URL components manually for direct creation
         parsed_url = urlparse(db_url)
         username = None
         password = None
-        
+
         # Extract username and password if present
-        if '@' in parsed_url.netloc:
-            userinfo, hostinfo = parsed_url.netloc.split('@', 1)
-            if ':' in userinfo:
-                username, password = userinfo.split(':', 1)
+        if "@" in parsed_url.netloc:
+            userinfo, hostinfo = parsed_url.netloc.split("@", 1)
+            if ":" in userinfo:
+                username, password = userinfo.split(":", 1)
             else:
                 username = userinfo
         else:
             hostinfo = parsed_url.netloc
-        
+
         # Extract host and port
-        if ':' in hostinfo:
-            host, port = hostinfo.split(':', 1)
+        if ":" in hostinfo:
+            host, port = hostinfo.split(":", 1)
             port = int(port)
         else:
             host = hostinfo
             port = 5432  # Default PostgreSQL port
-        
+
         # Extract database name from path
-        dbname = parsed_url.path.lstrip('/')
-        
+        dbname = parsed_url.path.lstrip("/")
+
         # Log connection parameters (masked for security)
         logger.info(f"Connecting to database: {host}:{port}/{dbname}")
-        
+
         # Create a direct psycopg-compatible connection string
         # This bypasses SQLAlchemy's URL parsing completely, avoiding the transaction isolation parameter issue
         direct_connect_args = {
@@ -443,7 +456,7 @@ async def run_migrations_online_async() -> None:
             "connect_timeout": connect_timeout,
             "application_name": "paservices_alembic_migrations",
         }
-        
+
         # Create engine with direct connection parameters
         # The format below ensures SQLAlchemy creates its URL correctly without adding problematic parameters
         connectable = create_async_engine(
@@ -451,7 +464,7 @@ async def run_migrations_online_async() -> None:
             poolclass=pool.NullPool,
             future=True,
             echo=True,
-            connect_args=direct_connect_args  # Direct connection arguments to psycopg
+            connect_args=direct_connect_args,  # Direct connection arguments to psycopg
         )
 
         # Define retry parameters
