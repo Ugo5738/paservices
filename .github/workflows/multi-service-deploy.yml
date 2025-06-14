@@ -88,6 +88,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./auth_service
+          file: ./auth_service/Dockerfile.prod
           push: true
           tags: ${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }},${{ env.AUTH_SERVICE_IMAGE }}:latest
 
@@ -112,6 +113,7 @@ jobs:
         uses: docker/build-push-action@v4
         with:
           context: ./super_id_service
+          file: ./super_id_service/Dockerfile.prod
           push: true
           tags: ${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }},${{ env.SUPER_ID_SERVICE_IMAGE }}:latest
 

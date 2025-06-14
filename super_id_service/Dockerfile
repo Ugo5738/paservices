@@ -1,48 +1,52 @@
-# Stage 1: Build the application and dependencies
+# Multi-stage build for Super ID Service
+# Stage 1: Build dependencies
 FROM python:3.12-slim AS builder
 
-ENV POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc libpq-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Poetry
+RUN pip install poetry==1.7.1
+
+# Copy only dependency-related files
+COPY pyproject.toml poetry.lock* ./
+
+# Configure Poetry to not create a virtual environment
+RUN poetry config virtualenvs.create false
+
+# Install production dependencies
+RUN poetry install --only main --no-interaction --no-ansi
+
+# Stage 2: Runtime
+FROM python:3.12-slim
+
+WORKDIR /app
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1
+    PYTHONPATH="${PYTHONPATH}:/app/src"
 
-# Install poetry
-RUN pip install poetry
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libpq5 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+# Copy Python dependencies from builder stage
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Copy only files needed for dependency installation to leverage Docker cache
-COPY pyproject.toml poetry.lock ./
+# Copy source code
+COPY . .
 
-# Install dependencies, --no-root is important as we copy the src separately
-RUN poetry install --no-root --no-dev
-
-# Copy the rest of the application source code
-COPY ./src/super_id_service ./src/super_id_service
-
-
-# Stage 2: Create the final, lean production image
-FROM python:3.12-slim AS final
-
-ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONPATH=/app/src
-
-WORKDIR /app
-
-# Create a non-root user for security
-RUN addgroup --system app && adduser --system --ingroup app app
-
-# Copy the installed dependencies from the builder stage
-COPY --from=builder /app /app
-
-# Set ownership to the non-root user
-RUN chown -R app:app /app
-
-# Switch to the non-root user
-USER app
-
+# Expose port for the application
 EXPOSE 8000
 
-# The command to run the application
-CMD ["poetry", "run", "uvicorn", "super_id_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Default command
+CMD ["uvicorn", "super_id_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
