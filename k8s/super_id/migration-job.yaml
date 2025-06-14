@@ -29,7 +29,7 @@ spec:
 
               echo "Using dedicated database for proper service isolation..."
               echo "Executing Alembic..."
-              cd /app/super_id_service && poetry run alembic upgrade head
+              poetry run alembic upgrade head
 
               # Check the exit code of the alembic command
               ALEMBIC_STATUS=$?
