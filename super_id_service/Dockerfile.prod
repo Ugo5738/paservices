@@ -21,7 +21,7 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock* ./
 
 # Install only production dependencies
-RUN poetry install --no-root --no-dev --no-interaction
+RUN poetry install --no-root --only main --no-interaction
 
 # Copy the application source code
 COPY ./src/super_id_service ./src/super_id_service
