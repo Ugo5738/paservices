@@ -230,6 +230,9 @@ jobs:
           sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/super_id/secrets.yaml
           sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_B64|g" k8s/super_id/secrets.yaml
 
+          # Replace placeholders directly in migration job
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/migration-job.yaml
+
           # Replace placeholders directly in deployment
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/deployment.yaml
 
