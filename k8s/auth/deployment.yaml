@@ -17,18 +17,17 @@ spec:
       containers:
         - name: auth-service
           image: ${DOCKER_IMAGE_TAG}
-          command: ["bash"]
-          args:
-            - "-c"
-            - |
-              echo "Starting with environment:" &&
-              echo "AUTH_SERVICE_SUPABASE_URL is set: $(if [ -n "$AUTH_SERVICE_SUPABASE_URL" ]; then echo yes; else echo no; fi)" &&
-              echo "AUTH_SERVICE_SUPABASE_ANON_KEY is set: $(if [ -n "$AUTH_SERVICE_SUPABASE_ANON_KEY" ]; then echo yes; else echo no; fi)" &&
-              echo "AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY is set: $(if [ -n "$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY" ]; then echo yes; else echo no; fi)" &&
-              echo "AUTH_SERVICE_M2M_JWT_SECRET_KEY is set: $(if [ -n "$AUTH_SERVICE_M2M_JWT_SECRET_KEY" ]; then echo yes; else echo no; fi)" &&
-              echo "AUTH_SERVICE_DATABASE_URL is set: $(if [ -n "$AUTH_SERVICE_DATABASE_URL" ]; then echo yes; else echo no; fi)" &&
-              echo "Starting application..." &&
-              cd /app && uvicorn auth_service.main:app --host 0.0.0.0 --port 8000
+          command:
+            [
+              "uvicorn",
+              "auth_service.main:app",
+              "--host",
+              "0.0.0.0",
+              "--port",
+              "8000",
+              "--workers",
+              "4",
+            ]
           ports:
             - containerPort: 8000
           resources:
