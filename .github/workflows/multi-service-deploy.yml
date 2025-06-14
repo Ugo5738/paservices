@@ -177,11 +177,11 @@ jobs:
 
           # Apply migration job
           kubectl apply -f k8s/auth/migration-job.yaml
-          
+
           # Wait for job to start
           echo "Waiting for migration job to start..."
           kubectl wait --for=condition=initialized --timeout=30s job/auth-service-migrations || true
-          
+
           # Watch job logs for diagnostics
           echo "Showing migration job logs:"
           kubectl logs -f job/auth-service-migrations --tail=50 || true
@@ -240,8 +240,29 @@ jobs:
         run: |
           # Always delete the migrations job to avoid immutability errors
           echo "Cleaning up existing jobs..."
-          kubectl delete job super-id-service-migrations --ignore-not-found=true
+          kubectl delete job super-id-service-migration --ignore-not-found=true
           sleep 2 # Give k8s time to fully remove the job
+
+          # Apply secrets and configmap first
+          kubectl apply -f k8s/super_id/secrets.yaml
+          kubectl apply -f k8s/super_id/configmap.yaml
+
+          # Apply and watch the migration job
+          echo "Applying Super ID Service migration job..."
+          kubectl apply -f k8s/super_id/migration-job.yaml
+
+          echo "Waiting for migration job to start..."
+          kubectl wait --for=condition=initialized --timeout=30s job/super-id-service-migration || true
+
+          echo "Showing migration job logs:"
+          kubectl logs -f job/super-id-service-migration --tail=50 || true
+
+          echo "Waiting for migration job to complete..."
+          if ! kubectl wait --for=condition=complete --timeout=300s job/super-id-service-migration; then
+              echo "Migration job for super-id-service failed to complete."
+              exit 1
+          fi
+          echo "Migration job completed."
 
           # Apply secrets and configmap first
           kubectl apply -f k8s/super_id/secrets.yaml
