@@ -7,7 +7,8 @@ import os
 from enum import Enum
 from typing import Any, List, Literal, Optional
 
-from pydantic import ConfigDict, Field, field_validator, validation_alias
+from pydantic import ConfigDict, Field, field_validator
+from pydantic.fields import validation_alias
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
