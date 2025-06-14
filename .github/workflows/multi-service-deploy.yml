@@ -247,15 +247,30 @@ jobs:
           sleep 2 # Give k8s time to fully remove the job
 
           # Apply secrets and configmap first
+          echo "Applying secrets and configmap..."
           kubectl apply -f k8s/super_id/secrets.yaml
           kubectl apply -f k8s/super_id/configmap.yaml
+
+          echo "Waiting for secrets and configmap to propagate..."
+          sleep 5
 
           # Apply and watch the migration job
           echo "Applying Super ID Service migration job..."
           kubectl apply -f k8s/super_id/migration-job.yaml
 
+          # Add diagnostic step
+          echo "Waiting 10s for pod to be scheduled..."
+          sleep 10
+          POD_NAME=$(kubectl get pods -l job-name=super-id-service-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+          if [ -n "$POD_NAME" ]; then
+            echo "Describing migration pod $POD_NAME:"
+            kubectl describe pod $POD_NAME
+          else
+            echo "Could not find migration pod to describe."
+          fi
+
           echo "Waiting for migration job to start..."
-          kubectl wait --for=condition=initialized --timeout=30s job/super-id-service-migration || true
+          kubectl wait --for=condition=initialized --timeout=60s job/super-id-service-migration || true
 
           echo "Showing migration job logs:"
           kubectl logs -f job/super-id-service-migration --tail=50 || true
@@ -263,13 +278,14 @@ jobs:
           echo "Waiting for migration job to complete..."
           if ! kubectl wait --for=condition=complete --timeout=300s job/super-id-service-migration; then
               echo "Migration job for super-id-service failed to complete."
+              POD_NAME=$(kubectl get pods -l job-name=super-id-service-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+              if [ -n "$POD_NAME" ]; then
+                echo "Final logs from failed job pod $POD_NAME:"
+                kubectl logs $POD_NAME
+              fi
               exit 1
           fi
           echo "Migration job completed."
-
-          # Apply secrets and configmap first
-          kubectl apply -f k8s/super_id/secrets.yaml
-          kubectl apply -f k8s/super_id/configmap.yaml
 
           # Apply main manifests
           kubectl apply -f k8s/super_id/deployment.yaml
