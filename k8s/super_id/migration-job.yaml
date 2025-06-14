@@ -6,8 +6,8 @@ metadata:
     app: super-id-service
     component: migration
 spec:
-  backoffLimit: 2  # Retry twice before failing
-  activeDeadlineSeconds: 600  # Time limit 10 minutes
+  backoffLimit: 2 # Retry twice before failing
+  activeDeadlineSeconds: 600 # Time limit 10 minutes
   template:
     metadata:
       labels:
@@ -19,22 +19,26 @@ spec:
         - name: super-id-service-migration
           image: ${DOCKER_IMAGE_TAG}
           command:
-            - sh
+            - /bin/bash
             - -c
+          args:
             - |
               echo "Running database migrations for Super ID Service..."
+              export PYTHONPATH=/app/src:$PYTHONPATH
+              echo "PYTHONPATH is now: $PYTHONPATH"
+
               echo "Using dedicated database for proper service isolation..."
-              cd /app
-              
-              # Print environment info for debugging
-              echo "Checking environment variables:"
-              echo "ENVIRONMENT is: $ENVIRONMENT"
-              echo "SUPER_ID_SERVICE_SUPABASE_URL exists: $([ ! -z "$SUPER_ID_SERVICE_SUPABASE_URL" ] && echo "yes" || echo "no")"
-              echo "SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY exists: $([ ! -z "$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY" ] && echo "yes" || echo "no")"
-              echo "SUPER_ID_SERVICE_DATABASE_URL exists: $([ ! -z "$SUPER_ID_SERVICE_DATABASE_URL" ] && echo "yes" || echo "no")"
-              
-              # Execute migrations using Alembic from the super_id_service directory
-              cd super_id_service && poetry run alembic upgrade head
+              echo "Executing Alembic..."
+              cd /app/super_id_service && poetry run alembic upgrade head
+
+              # Check the exit code of the alembic command
+              ALEMBIC_STATUS=$?
+              if [ $ALEMBIC_STATUS -ne 0 ]; then
+                echo "Alembic command failed with status $ALEMBIC_STATUS. Container will sleep for 60s for log retrieval."
+                sleep 60
+                exit $ALEMBIC_STATUS
+              fi
+              echo "Migration completed successfully."
           env:
             - name: PYTHONUNBUFFERED
               value: "1"
@@ -70,9 +74,9 @@ spec:
             - name: DB_COMMAND_TIMEOUT
               value: "60"
             - name: DB_STATEMENT_TIMEOUT
-              value: "0"  # No timeout for long operations
+              value: "0" # No timeout for long operations
             - name: DB_IDLE_TIMEOUT
-              value: "180"  # 3 minutes idle timeout
+              value: "180" # 3 minutes idle timeout
             - name: DB_POOL_SIZE
               value: "10"
           resources:
