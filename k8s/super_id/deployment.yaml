@@ -19,8 +19,6 @@ spec:
           image: ${DOCKER_IMAGE_TAG}
           command:
             [
-              "poetry",
-              "run",
               "uvicorn",
               "super_id_service.main:app",
               "--host",
