@@ -239,7 +239,7 @@ jobs:
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/deployment.yaml
 
           # Replace placeholder directly in ingress
-          sed -i "s|superid.supersami.com|${{ env.SUPER_ID_DOMAIN }}|g" k8s/super_id/ingress.yaml
+          sed -i "s|SUPER_ID_DOMAIN_VALUE|${{ env.SUPER_ID_DOMAIN }}|g" k8s/super_id/ingress.yaml
 
       - name: Apply Super ID Service K8s manifests
         run: |

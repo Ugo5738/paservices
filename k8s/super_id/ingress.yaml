@@ -12,10 +12,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - superid.supersami.com
+        - SUPER_ID_DOMAIN_VALUE
       secretName: super-id-tls
   rules:
-    - host: superid.supersami.com
+    - host: SUPER_ID_DOMAIN_VALUE
       http:
         paths:
           - path: /
