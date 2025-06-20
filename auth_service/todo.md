@@ -1,4 +1,4 @@
-# TODO List for Auth Service - For AI Agent (Cursor)
+# TODO List for Auth Service - For AI Agent
 
 This TODO list breaks down the development of the Auth Service into manageable tasks, with testing integrated into each development step. The goal is an incremental build process with high test coverage.
 
