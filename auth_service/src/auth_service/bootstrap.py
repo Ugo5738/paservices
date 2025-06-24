@@ -3,7 +3,7 @@ import uuid
 from typing import Dict, List, Optional
 
 from gotrue.errors import AuthApiError
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
@@ -13,18 +13,17 @@ from auth_service.models.permission import Permission
 from auth_service.models.role import Role
 from auth_service.models.role_permission import RolePermission
 from auth_service.models.user_role import UserRole
-from auth_service.routers.user_auth_routes import create_profile_in_db
 from auth_service.schemas.user_schemas import ProfileCreate, SupabaseUser
 from auth_service.supabase_client import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 
 # Core roles to be created during bootstrapping
-CORE_ROLES = [
-    {"name": "admin", "description": "Full system access"},
-    {"name": "user", "description": "Basic authenticated user access"},
-    {"name": "service", "description": "For machine-to-machine communication"},
-]
+CORE_ROLES = {
+    "admin": "Full system access",
+    "user": "Basic authenticated user access",
+    "service": "For machine-to-machine communication",
+}
 
 # Core permissions to be created during bootstrapping
 CORE_PERMISSIONS = [
@@ -42,15 +41,7 @@ CORE_PERMISSIONS = [
 
 # Role-permission mapping for initial setup
 ROLE_PERMISSIONS_MAP = {
-    "admin": [
-        "users:read",
-        "users:write",
-        "roles:read",
-        "roles:write",
-        "permissions:read",
-        "permissions:write",
-        "role:admin_manage",
-    ],
+    "admin": [p["name"] for p in CORE_PERMISSIONS],  # Admin gets all permissions
     "user": ["users:read"],  # Users can only view their own profile
     "service": [],  # Empty by default, to be configured based on specific service needs
 }
@@ -60,26 +51,26 @@ async def create_core_roles(db: AsyncSession) -> Dict[str, uuid.UUID]:
     """Create the core roles if they don't exist yet."""
     role_ids = {}
 
-    for role_data in CORE_ROLES:
+    for role_name, role_description in CORE_ROLES.items():
         # Check if role already exists
-        stmt = select(Role).where(Role.name == role_data["name"])
+        stmt = select(Role).where(Role.name == role_name)
         result = await db.execute(stmt)
         existing_role = result.scalars().first()
 
         if existing_role:
-            logger.info(f"Role '{role_data['name']}' already exists")
-            role_ids[role_data["name"]] = existing_role.id
+            logger.info(f"Role '{role_name}' already exists")
+            role_ids[role_name] = existing_role.id
         else:
             # Create new role
             new_role = Role(
                 id=uuid.uuid4(),
-                name=role_data["name"],
-                description=role_data["description"],
+                name=role_name,
+                description=role_description,
             )
             db.add(new_role)
             await db.flush()  # Flush to get the ID
-            role_ids[role_data["name"]] = new_role.id
-            logger.info(f"Created new role: {role_data['name']}")
+            role_ids[role_name] = new_role.id
+            logger.info(f"Created new role: {role_name}")
 
     await db.commit()
     return role_ids
@@ -160,141 +151,79 @@ async def assign_permissions_to_roles(
     await db.commit()
 
 
-async def create_admin_user(email: str, password: str) -> Optional[SupabaseUser]:
-    """Create an admin user in Supabase if one doesn't exist."""
-    logger.info(f"Attempting to create or verify admin user: {email}")
-
+async def create_admin_user(
+    db: AsyncSession, email: str, password: str
+) -> Optional[SupabaseUser]:
+    """Efficiently checks for and creates an admin user in Supabase if one doesn't exist."""
+    logger.info(f"Attempting to verify or create admin user: {email}")
     try:
-        # Use the admin client specifically for this operation
-        # Don't use async with since the client doesn't support async context manager protocol
-        admin_supabase = await get_supabase_admin_client()
-        logger.debug(
-            "Admin Supabase client obtained. Listing users to check existence."
-        )
+        stmt = text("SELECT id, raw_app_meta_data FROM auth.users WHERE email = :email")
+        result = await db.execute(stmt, {"email": email})
+        existing_user = result.mappings().first()
 
-        user_list_response = await admin_supabase.auth.admin.list_users(per_page=1000)
-
-        existing_admin_user_data = None
-        # The response is a list directly, not an object with a users property
-        if user_list_response:
-            logger.debug(f"Got {len(user_list_response)} users from Supabase")
-            for user_data in user_list_response:
-                if hasattr(user_data, "email") and user_data.email == email:
-                    logger.info(
-                        f"Admin user with email '{email}' already exists (ID: {user_data.id})."
-                    )
-                    existing_admin_user_data = user_data
-                    break
-
-        if existing_admin_user_data:
-            # Map to your SupabaseUser Pydantic model
+        if existing_user:
+            logger.info(
+                f"Admin user with email '{email}' already exists in the database (ID: {existing_user['id']})."
+            )
             return SupabaseUser(
-                id=existing_admin_user_data.id,
-                aud=existing_admin_user_data.aud or "",
-                role=existing_admin_user_data.role,  # This is Supabase 'role', not your custom app roles
-                email=existing_admin_user_data.email,
-                phone=existing_admin_user_data.phone,
-                email_confirmed_at=existing_admin_user_data.email_confirmed_at,
-                phone_confirmed_at=existing_admin_user_data.phone_confirmed_at,
-                confirmed_at=getattr(
-                    existing_admin_user_data,
-                    "confirmed_at",
-                    existing_admin_user_data.email_confirmed_at
-                    or existing_admin_user_data.phone_confirmed_at,
-                ),
-                last_sign_in_at=existing_admin_user_data.last_sign_in_at,
-                app_metadata=existing_admin_user_data.app_metadata or {},
-                user_metadata=existing_admin_user_data.user_metadata
-                or {},  # RBAC roles go here
-                identities=existing_admin_user_data.identities or [],
-                created_at=existing_admin_user_data.created_at,
-                updated_at=existing_admin_user_data.updated_at,
+                id=existing_user["id"],
+                email=email,
+                app_metadata=existing_user.get("raw_app_meta_data", {}),
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+                aud="",
+                role="",
             )
 
-        # If not found, create a new admin user
-        logger.info(f"Admin user '{email}' not found. Attempting to create.")
+        logger.info(f"Admin user '{email}' not found. Creating via Supabase API.")
+        admin_supabase = get_supabase_admin_client()
         signup_response = await admin_supabase.auth.admin.create_user(
             {
                 "email": email,
                 "password": password,
-                "email_confirm": True,  # Auto-confirm email for admin
-                "user_metadata": {
-                    "roles": ["admin"]
-                },  # Add initial RBAC role directly here
+                "email_confirm": True,
+                "user_metadata": {"roles": ["admin"]},
             }
         )
 
         if not signup_response or not signup_response.user:
             logger.error(
-                "Failed to create admin user - no user object returned from Supabase."
+                "Failed to create admin user: no user object returned from Supabase."
             )
             return None
 
-        logger.info(
-            f"Successfully created new admin user: {signup_response.user.email} (ID: {signup_response.user.id})"
-        )
-        # Map to Pydantic model
-        return SupabaseUser(
-            id=signup_response.user.id,
-            aud=signup_response.user.aud or "",
-            role=signup_response.user.role,
-            email=signup_response.user.email,
-            phone=signup_response.user.phone,
-            email_confirmed_at=signup_response.user.email_confirmed_at,
-            phone_confirmed_at=signup_response.user.phone_confirmed_at,
-            confirmed_at=getattr(
-                signup_response.user,
-                "confirmed_at",
-                signup_response.user.email_confirmed_at
-                or signup_response.user.phone_confirmed_at,
-            ),
-            last_sign_in_at=signup_response.user.last_sign_in_at,
-            app_metadata=signup_response.user.app_metadata or {},
-            user_metadata=signup_response.user.user_metadata or {},
-            identities=signup_response.user.identities or [],
-            created_at=signup_response.user.created_at,
-            updated_at=signup_response.user.updated_at,
-        )
+        return SupabaseUser.model_validate(signup_response.user)
 
-    except AuthApiError as e:
-        logger.error(
-            f"Supabase API error during admin user creation/verification for '{email}': {e.message} (Status: {getattr(e, 'status', 'N/A')})"
-        )
-        return None
     except Exception as e:
         logger.error(
-            f"Unexpected error during admin user creation/verification for '{email}': {e}",
+            f"Unexpected error during admin user creation for '{email}': {e}",
             exc_info=True,
         )
         return None
 
 
 async def assign_admin_role_to_user(
-    db: AsyncSession, user_id: str, admin_role_id: uuid.UUID
+    db: AsyncSession, user_id: uuid.UUID, admin_role_id: uuid.UUID
 ) -> bool:
-    """Assign the admin role to a user."""
+    """Assigns the admin role to a user in the local database."""
     try:
-        # Check if assignment already exists
         stmt = select(UserRole).where(
             UserRole.user_id == user_id, UserRole.role_id == admin_role_id
         )
         result = await db.execute(stmt)
-        existing_assignment = result.scalars().first()
-
-        if existing_assignment:
+        if result.scalars().first():
             logger.info(f"Admin role already assigned to user '{user_id}'")
             return True
 
-        # Create new assignment
         new_assignment = UserRole(user_id=user_id, role_id=admin_role_id)
         db.add(new_assignment)
-        await db.commit()
-
+        await db.flush()
         logger.info(f"Assigned admin role to user '{user_id}'")
         return True
-
     except Exception as e:
-        logger.error(f"Error assigning admin role to user '{user_id}': {e}")
+        logger.error(
+            f"Error assigning admin role to user '{user_id}': {e}", exc_info=True
+        )
         await db.rollback()
         return False
 
@@ -302,59 +231,36 @@ async def assign_admin_role_to_user(
 async def create_admin_profile(db: AsyncSession, admin_supa_user: SupabaseUser) -> bool:
     """Creates a local profile for the admin user if it doesn't exist."""
     if not admin_supa_user or not admin_supa_user.id or not admin_supa_user.email:
-        logger.error("Invalid SupabaseUser data provided for profile creation.")
-        return None
+        logger.error("Invalid SupabaseUser data for profile creation.")
+        return False
 
-    logger.info(
-        f"Checking or creating local profile for admin user ID: {admin_supa_user.id}"
-    )
     existing_profile = await user_crud.get_profile_by_user_id_from_db(
         db, admin_supa_user.id
     )
-    if not existing_profile:
-        logger.info(
-            f"Local profile for admin user {admin_supa_user.id} not found, creating..."
-        )
-        profile_data = ProfileCreate(
-            user_id=admin_supa_user.id,
-            email=admin_supa_user.email,
-            username=f"admin_{str(admin_supa_user.id)[:8]}",
-            first_name="Admin",
-            last_name="User",
-            # is_active is True by default in model
-        )
-        created_profile = await user_crud.create_profile_in_db(db, profile_data)
-        if created_profile:
-            logger.info(f"Local profile created for admin {admin_supa_user.id}")
-            # Convert ORM to dictionary, then to Pydantic
-            profile_dict = {
-                "user_id": str(created_profile.user_id),
-                "email": created_profile.email,
-                "username": created_profile.username,
-                "first_name": created_profile.first_name,
-                "last_name": created_profile.last_name,
-                "is_active": created_profile.is_active,
-            }
-            return ProfileCreate.model_validate(profile_dict)
-        else:
-            logger.error(
-                f"Failed to create local profile for admin {admin_supa_user.id}"
-            )
-            return None
-    else:
+    if existing_profile:
         logger.info(
             f"Local profile for admin user {admin_supa_user.id} already exists."
         )
-        # Convert ORM to dictionary, then to Pydantic
-        profile_dict = {
-            "user_id": str(existing_profile.user_id),
-            "email": existing_profile.email,
-            "username": existing_profile.username,
-            "first_name": existing_profile.first_name,
-            "last_name": existing_profile.last_name,
-            "is_active": existing_profile.is_active,
-        }
-        return ProfileCreate.model_validate(profile_dict)
+        return True
+
+    logger.info(
+        f"Local profile for admin user {admin_supa_user.id} not found, creating..."
+    )
+    profile_data = ProfileCreate(
+        user_id=admin_supa_user.id,
+        email=admin_supa_user.email,
+        username=f"admin_{str(admin_supa_user.id)[:8]}",
+        first_name="Admin",
+        last_name="User",
+    )
+    created_profile = await user_crud.create_profile_in_db(db, profile_data)
+
+    if created_profile:
+        logger.info(f"Local profile created for admin {admin_supa_user.id}")
+        return True
+    else:
+        logger.error(f"Failed to create local profile for admin {admin_supa_user.id}")
+        return False
 
 
 async def bootstrap_admin_and_rbac(db: AsyncSession) -> bool:
@@ -376,47 +282,35 @@ async def bootstrap_admin_and_rbac(db: AsyncSession) -> bool:
         )
 
         # 4. Create admin user if environment variables are set
-        if app_settings.initial_admin_email and app_settings.initial_admin_password:
-            logger.info(
-                f"Bootstrap: Processing initial Supabase admin user: {app_settings.initial_admin_email}"
-            )
-            admin_supa_user_data = await create_admin_user(
-                app_settings.initial_admin_email,
-                app_settings.initial_admin_password,
+        if app_settings.INITIAL_ADMIN_EMAIL and app_settings.INITIAL_ADMIN_PASSWORD:
+            admin_supa_user = await create_admin_user(
+                db,
+                app_settings.INITIAL_ADMIN_EMAIL,
+                app_settings.INITIAL_ADMIN_PASSWORD,
             )
 
-            if admin_supa_user_data and admin_supa_user_data.id:
+            if admin_supa_user and admin_supa_user.id:
                 logger.info(
-                    f"Bootstrap: Supabase admin user '{admin_supa_user_data.email}' processed (ID: {admin_supa_user_data.id})."
+                    f"Bootstrap: Supabase admin user '{admin_supa_user.email}' processed (ID: {admin_supa_user.id})."
                 )
                 # 5. Create admin profile
-                await create_admin_profile(db, admin_supa_user_data)
+                await create_admin_profile(db, admin_supa_user)
 
                 # 6. Assign admin role to user
                 if "admin" in role_ids and role_ids["admin"]:
                     await assign_admin_role_to_user(
-                        db, admin_supa_user_data.id, role_ids["admin"]
+                        db, admin_supa_user.id, role_ids["admin"]
                     )
                 else:
                     logger.error(
                         "Bootstrap: 'admin' role ID not found in local DB. Cannot assign to Supabase admin user."
                     )
-            else:
-                logger.warning(
-                    f"Bootstrap: Initial Supabase admin user processing failed for {app_settings.initial_admin_email}."
-                )
-        else:
-            logger.info(
-                "Bootstrap: Initial Supabase admin user creation skipped (email or password not set in config)."
-            )
-
-        logger.info("Bootstrap: Admin and RBAC setup completed.")
+            await db.commit()  # Final commit for the bootstrap session
+        logger.info("Bootstrap process completed successfully.")
         return True
-
     except Exception as e:
-        logger.error(
-            f"Bootstrap: Error during admin and RBAC setup: {e}", exc_info=True
-        )
+        await db.rollback()
+        logger.error(f"Bootstrap process failed: {e}", exc_info=True)
         return False
 
 

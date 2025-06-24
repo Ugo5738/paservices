@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import os
 import sys
 import time
 from contextlib import asynccontextmanager
@@ -17,28 +18,18 @@ from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
 from auth_service.bootstrap import bootstrap_admin_and_rbac
 from auth_service.config import settings
-from auth_service.db import get_db, is_pgbouncer
+from auth_service.db import get_db
 from auth_service.logging_config import LoggingMiddleware, logger, setup_logging
 from auth_service.rate_limiting import limiter, setup_rate_limiting
-from auth_service.routers import (
-    admin_client_role_routes,
-    admin_client_routes,
-    admin_permission_routes,
-    admin_role_permission_routes,
-    admin_role_routes,
-    admin_user_role_routes,
-)
+from auth_service.routers.admin_routes import router as admin_router
 from auth_service.routers.token_routes import router as token_router
-from auth_service.routers.user_auth_routes import user_auth_router
+from auth_service.routers.user_auth_routes import router as user_auth_router
 from auth_service.schemas import MessageResponse
-from auth_service.supabase_client import (
-    close_supabase_client,
-    get_supabase_admin_client,
-)
+from auth_service.supabase_client import close_supabase_clients
 from auth_service.supabase_client import (
     get_supabase_client as get_general_supabase_client,
 )
-from auth_service.supabase_client import init_supabase_client
+from auth_service.supabase_client import init_supabase_clients
 
 
 @asynccontextmanager
@@ -55,82 +46,27 @@ async def lifespan(app: FastAPI):
 
     # 1. Initialize app-wide resources (like the global Supabase client)
     try:
-        await init_supabase_client()
-        logger.info("Supabase client initialized successfully")
+        await init_supabase_clients()
+        logger.info("Supabase clients initialized successfully")
     except Exception as e:
         logger.error(
-            f"Failed to initialize Supabase client: {e.__class__.__name__}: {str(e)}"
+            f"Failed to initialize Supabase clients: {e.__class__.__name__}: {str(e)}"
         )
-        # Continue anyway - the health checks will report the issue
 
     # 2. Run bootstrap process with retry logic
     logger.info("Running bootstrap process...")
     db_session_for_bootstrap = None
-    bootstrap_success = False
-
-    # Define max retries and delays for bootstrap
-    max_retries = 5
-    base_delay = 2.0
-
-    # Try to bootstrap with retries
-    for attempt in range(max_retries):
-        try:
-            # Get a DB session specifically for bootstrap
-            db_session_for_bootstrap = None
-            async for session in get_db():  # This already has retry logic built in
-                db_session_for_bootstrap = session
-                break
-
-            if not db_session_for_bootstrap:
-                raise RuntimeError("Failed to get database session for bootstrap")
-
-            # Run the actual bootstrap process
-            bootstrap_success = await bootstrap_admin_and_rbac(db_session_for_bootstrap)
-
-            if bootstrap_success:
-                logger.info(
-                    f"Bootstrap process completed successfully on attempt {attempt + 1}"
-                )
-                break
-            else:
-                logger.warning(
-                    "Bootstrap process completed but reported non-success status"
-                )
-                # We'll consider this a success anyway to avoid unnecessary retries
-                bootstrap_success = True
-                break
-
-        except Exception as e:
-            if db_session_for_bootstrap:
-                try:
-                    # Ensure we release the session resources
-                    await db_session_for_bootstrap.close()
-                except Exception:
-                    pass  # Ignore close errors
-
-            # Determine if we should retry
-            if attempt < max_retries - 1:
-                retry_delay = base_delay * (2**attempt)  # Exponential backoff
-                logger.warning(
-                    f"Bootstrap attempt {attempt + 1} failed: {e.__class__.__name__}: {str(e)}. "
-                    f"Retrying in {retry_delay:.1f}s..."
-                )
-                await asyncio.sleep(retry_delay)
-            else:
-                logger.error(
-                    f"Bootstrap process failed after {max_retries} attempts. "
-                    f"Last error: {e.__class__.__name__}: {str(e)}"
-                )
-                # Continue anyway - the application can still function without bootstrap
-
-    # Report final bootstrap status
-    if bootstrap_success:
-        logger.info("Bootstrap process successful, application ready to serve requests")
-    else:
-        logger.warning(
-            "Bootstrap process did not complete successfully. "
-            "The application will start but may have limited functionality."
-        )
+    try:
+        async for session in get_db():
+            db_session_for_bootstrap = session
+            break
+        if db_session_for_bootstrap:
+            await bootstrap_admin_and_rbac(db_session_for_bootstrap)
+    except Exception as e:
+        logger.error(f"Bootstrap process failed: {e}", exc_info=True)
+    finally:
+        if db_session_for_bootstrap:
+            await db_session_for_bootstrap.close()
 
     # Application is now ready to serve requests
     logger.info("Application startup complete.")
@@ -143,10 +79,10 @@ async def lifespan(app: FastAPI):
 
     # Close Supabase client connections
     try:
-        await close_supabase_client()
-        logger.info("Supabase client closed successfully.")
+        await close_supabase_clients()
+        logger.info("Supabase clients closed successfully.")
     except Exception as e:
-        logger.error(f"Error closing Supabase client: {str(e)}")
+        logger.error(f"Error closing Supabase clients: {str(e)}", exc_info=True)
 
     logger.info("Application shutdown complete.")
 
@@ -155,7 +91,7 @@ app = FastAPI(
     title="Authentication Service API",
     description="Authentication and Authorization service for managing users, application clients, roles, and permissions.",
     version="1.0.0",
-    root_path=settings.root_path,
+    root_path=settings.ROOT_PATH,
     lifespan=lifespan,
     openapi_tags=[
         {
@@ -291,14 +227,9 @@ app.add_middleware(
 )
 
 # Include Routers
-app.include_router(user_auth_router)
-app.include_router(admin_client_routes.router)
-app.include_router(token_router)
-app.include_router(admin_role_routes.router, prefix="/auth/admin")
-app.include_router(admin_permission_routes.router, prefix="/auth/admin")
-app.include_router(admin_role_permission_routes.router, prefix="/auth/admin")
-app.include_router(admin_user_role_routes.router, prefix="/auth/admin")
-app.include_router(admin_client_role_routes.router, prefix="/auth/admin")
+app.include_router(user_auth_router, prefix="/api/v1", tags=["User Authentication"])
+app.include_router(token_router, prefix="/api/v1", tags=["M2M - Token Acquisition"])
+app.include_router(admin_router, prefix="/api/v1/admin", tags=["Administration"])
 
 
 # Exception handlers
@@ -382,13 +313,10 @@ async def health(
     response = {
         "status": "ok",
         "version": app.version,
-        "environment": str(settings.environment),
+        "environment": str(settings.ENVIRONMENT),
         "timestamp": current_time.isoformat(),
         "components": {"api": {"status": "ok"}},
     }
-
-    # Add pgBouncer info to help diagnose issues
-    response["pgbouncer_mode"] = is_pgbouncer
 
     # Use cache if available and not expired, but skip cache in diagnostic mode
     cache = _health_check_cache
@@ -539,7 +467,7 @@ async def detailed_health(
     response = {
         "status": "ok",
         "version": app.version,
-        "environment": str(settings.environment),
+        "environment": str(settings.ENVIRONMENT),
         "timestamp": current_time.isoformat(),
         "uptime": (
             time.time() - app.startup_time if hasattr(app, "startup_time") else None
@@ -552,9 +480,10 @@ async def detailed_health(
 
     # Always perform database check for detailed health
     try:
-        result = await db.execute(text("SELECT 1"))
-        row = await result.first()
-        if row and getattr(row, "1", None) == 1:
+        # Execute query and fetch result properly for async SQLAlchemy
+        result = await db.execute(text("SELECT 1 as value"))
+        row = result.fetchone()
+        if row and row.value == 1:
             response["components"]["database"] = {"status": "ok"}
         else:
             response["components"]["database"] = {
@@ -580,8 +509,9 @@ async def detailed_health(
             }
             response["status"] = "degraded"
         else:
-            # Check Supabase URL configuration
-            supabase_url = getattr(supabase_general_client, "_url", "")
+            # Check Supabase URL configuration directly from settings
+            # instead of trying to extract it from the client which may vary by implementation
+            supabase_url = settings.SUPABASE_URL
             if not supabase_url or not supabase_url.startswith("http"):
                 response["components"]["supabase"] = {
                     "status": "error",

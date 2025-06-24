@@ -1,36 +1,27 @@
-# Multi-stage Dockerfile for production deployment
-
-###############
-# BUILD STAGE #
-###############
+# auth_service/Dockerfile.prod
+# --- Builder Stage ---
 FROM python:3.12-slim AS builder
 
-# Set environment variables
 ENV POETRY_NO_INTERACTION=1 \
-    POETRY_VIRTUALENVS_IN_PROJECT=true \
-    POETRY_VIRTUALENVS_CREATE=true \
+    POETRY_VIRTUALENVS_CREATE=false \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
 
 # Install poetry
 RUN pip install poetry
 
-WORKDIR /app
-
-# Copy only files needed for dependency installation
+# Copy only dependency files
 COPY pyproject.toml poetry.lock ./
 
-# Install only production dependencies into the project's .venv folder
-# The --no-root flag tells poetry to only install dependencies, not the project itself.
-RUN poetry install --no-root --only main --no-interaction --no-ansi
+# Install only production dependencies
+RUN poetry install --no-root --only main
 
 
-################
-# RUNTIME STAGE #
-################
+# --- Final Stage ---
 FROM python:3.12-slim AS final
 
-# Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app/src
@@ -40,16 +31,13 @@ WORKDIR /app
 # Create a non-root user for security
 RUN addgroup --system app && adduser --system --ingroup app app
 
-# Copy the virtual environment from the builder stage
-COPY --from=builder /app/.venv /app/.venv
+# Copy the installed dependencies from the builder stage
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 
 # Copy the application source code
 COPY ./src ./src
-COPY ./alembic.ini ./alembic.ini
 COPY ./alembic ./alembic
-
-# Activate the virtual environment by adding it to the PATH
-ENV PATH="/app/.venv/bin:$PATH"
+COPY alembic.ini .
 
 # Set ownership to the non-root user
 RUN chown -R app:app /app
@@ -59,6 +47,5 @@ USER app
 
 EXPOSE 8000
 
-# The command to run the application using the venv's python.
-# No 'poetry run' is needed. Using 4 workers for production.
-CMD ["uvicorn", "auth_service.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# Command to run the production server with multiple workers
+CMD ["uvicorn", "src.auth_service.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]

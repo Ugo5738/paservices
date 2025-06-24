@@ -3,8 +3,7 @@ import uuid
 from sqlalchemy import Column, DateTime, String, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-
-from auth_service.db import Base
+from src.auth_service.db import Base
 
 
 class Role(Base):
@@ -25,10 +24,21 @@ class Role(Base):
     )
 
     # Relationships
-    user_roles = relationship(
-        "UserRole", back_populates="role", cascade="all, delete-orphan"
+    # Properly define overlaps to address all relationship conflicts
+    users = relationship(
+        "Profile",
+        secondary="user_roles",
+        back_populates="roles",
+        overlaps="user_roles,role,user_profile",
     )
-    # app_client_roles = relationship("AppClientRole", back_populates="role", cascade="all, delete-orphan")
+
+    user_roles = relationship(
+        "UserRole",
+        back_populates="role",
+        cascade="all, delete-orphan",
+        overlaps="users,profile_role,profile,user_profile",
+    )
+
     app_clients = relationship(
         "AppClient",
         secondary="app_client_roles",
@@ -39,6 +49,7 @@ class Role(Base):
     app_client_association_objects = relationship(
         "AppClientRole", back_populates="role", overlaps="app_clients"
     )
+    permissions = relationship("Permission", secondary="role_permissions")
 
     def __repr__(self):
         return f"<Role(id='{self.id}', name='{self.name}')>"

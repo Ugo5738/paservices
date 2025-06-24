@@ -1,4 +1,3 @@
-import datetime  # For potential timestamp updates
 import logging
 from uuid import UUID
 
@@ -8,13 +7,13 @@ from gotrue.errors import AuthApiError as SupabaseAPIError
 from gotrue.types import UserAttributes
 from sqlalchemy.exc import SQLAlchemyError  # Added
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
-from supabase.lib.client_options import ClientOptions
 
+from auth_service.config import Environment
 from auth_service.config import Settings as AppSettingsType  # For type hinting settings
+from auth_service.crud import user_crud
 from auth_service.db import get_db
-from auth_service.dependencies import (  # Import for logout, settings, and token dependency
+from auth_service.dependencies import (
     get_app_settings,
     get_current_supabase_user,
     oauth2_scheme,
@@ -25,32 +24,10 @@ from auth_service.rate_limiting import (
     REGISTRATION_LIMIT,
     limiter,
 )
-from auth_service.schemas.user_schemas import PasswordUpdateResponse  # Added
-from auth_service.schemas.user_schemas import (
-    UserProfileUpdateRequest,  # Added for profile updates
-)
-from auth_service.schemas.user_schemas import (  # Ensure all are present
-    MagicLinkLoginRequest,
-    MagicLinkSentResponse,
-    OAuthProvider,
-    OAuthRedirectResponse,
-    PasswordResetRequest,
-    PasswordResetResponse,
-    PasswordUpdateRequest,
-    ProfileCreate,
-    ProfileResponse,
-    SupabaseSession,
-    SupabaseUser,
-    UserCreate,
-    UserLoginRequest,
-    UserResponse,
-)
+from auth_service.schemas.common_schemas import MessageResponse
+from auth_service.schemas.user_schemas import *
+from auth_service.security_audit import *
 from auth_service.supabase_client import get_supabase_client
-
-from ..crud import user_crud
-from ..models.profile import Profile  # For type hinting
-
-# Removed redundant ProfileCreate import as it's in the block above
 
 logger = logging.getLogger(__name__)
 
@@ -60,72 +37,8 @@ router = APIRouter(
 )
 
 
-# --- Profile CRUD Operations (Workaround: Placed here due to file creation issues) ---
-async def create_profile_in_db(
-    db_session: AsyncSession,
-    profile_data: ProfileCreate,
-    user_id: UUID,  # user_id param is kept for logging, but Profile uses profile_data.user_id
-) -> Profile:
-    logger.info(
-        f"Creating profile for user_id: {profile_data.user_id}"
-    )  # Log using consistent ID
-    db_profile = Profile(
-        user_id=profile_data.user_id,  # Use user_id from Pydantic model
-        email=profile_data.email,  # Add email from Pydantic model
-        username=profile_data.username,
-        first_name=profile_data.first_name,
-        last_name=profile_data.last_name,
-        is_active=True,  # Default from model is True, this is fine
-    )
-    db_session.add(db_profile)
-    try:
-        await db_session.commit()
-        await db_session.refresh(db_profile)
-        logger.info(f"Profile created successfully for user_id: {user_id}")
-        return db_profile
-    except Exception as e:
-        await db_session.rollback()
-        logger.error(f"Error creating profile for user_id {user_id}: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error creating user profile after registration.",
-        )
-
-
-async def get_profile_by_user_id_from_db(
-    db_session: AsyncSession, user_id: UUID
-) -> Profile | None:
-    logger.debug(f"Fetching profile for user_id: {user_id}")
-    result = await db_session.execute(
-        select(Profile).filter(Profile.user_id == user_id)
-    )
-    profile = result.scalars().first()
-    if profile:
-        logger.debug(f"Profile found for user_id: {user_id}")
-    else:
-        logger.debug(f"No profile found for user_id: {user_id}")
-    return profile
-
-
-# --- User Authentication Endpoints ---
-from auth_service.schemas.user_schemas import (  # Added for login and magic link
-    MagicLinkLoginRequest,
-    MagicLinkSentResponse,
-    UserLoginRequest,
-)
-from auth_service.security_audit import (
-    log_login_attempt,
-    log_login_failure,
-    log_login_success,
-    log_oauth_event,
-    log_password_change,
-    log_password_reset_request,
-    log_security_event,
-)
-
-
 @router.post("/login", response_model=SupabaseSession, status_code=status.HTTP_200_OK)
-@limiter.limit(LOGIN_LIMIT, key_func=lambda request: request.client.host)
+@limiter.limit(LOGIN_LIMIT)
 async def login_user(
     request: Request,
     login_data: UserLoginRequest,
@@ -150,81 +63,27 @@ async def login_user(
         supa_session = response.session
         supa_user = response.user
 
-        # Log successful login with security audit
-        log_login_success(request, supa_user.id, login_data.email)
-
-        logger.info(f"User login successful for email: {login_data.email}")
         if not supa_user or not supa_session:
-            logger.error("Supabase sign_in did not return a user or session object.")
-            # This case should ideally be caught by SupabaseAPIError for invalid creds
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Login failed: Invalid response from authentication provider.",
-            )
+            raise SupabaseAPIError("Invalid login credentials", status=401)
 
         # Check for email confirmation if required by settings
         if (
-            settings.supabase_email_confirmation_required
+            settings.SUPABASE_EMAIL_CONFIRMATION_REQUIRED
             and not supa_user.email_confirmed_at
         ):
-            logger.warning(f"Login attempt for unconfirmed email: {login_data.email}")
-            raise SupabaseAPIError(
-                "Email not confirmed", status=401
-            )  # Simulate Supabase-like error
-
-        # Map to Pydantic models for response
-        mapped_supa_user = SupabaseUser(
-            id=supa_user.id,
-            aud=supa_user.aud or "",
-            role=supa_user.role,
-            email=supa_user.email,
-            phone=supa_user.phone,
-            email_confirmed_at=supa_user.email_confirmed_at,
-            phone_confirmed_at=supa_user.phone_confirmed_at,
-            confirmed_at=getattr(
-                supa_user,
-                "confirmed_at",
-                supa_user.email_confirmed_at or supa_user.phone_confirmed_at,
-            ),
-            last_sign_in_at=supa_user.last_sign_in_at,
-            app_metadata=supa_user.app_metadata or {},
-            user_metadata=supa_user.user_metadata or {},
-            identities=supa_user.identities or [],
-            created_at=supa_user.created_at,
-            updated_at=supa_user.updated_at,
-        )
-        session_response_data = SupabaseSession(
-            access_token=supa_session.access_token,
-            token_type=supa_session.token_type,
-            expires_in=supa_session.expires_in,
-            expires_at=supa_session.expires_at,
-            refresh_token=supa_session.refresh_token,
-            user=mapped_supa_user,
-        )
-        logger.info(f"User {login_data.email} logged in successfully.")
-        return session_response_data
-
-    except SupabaseAPIError as e:
-        logger.warning(
-            f"Supabase API error during login for {login_data.email}: {e.message} (Status: {e.status})"
-        )
-        detail = e.message
-        http_status_code = status.HTTP_401_UNAUTHORIZED  # Default for login failures
-
-        if e.message == "Invalid login credentials":
-            # Log failed login due to invalid credentials
-            log_login_failure(request, login_data.email, "Invalid credentials")
-            detail = "Invalid login credentials"
-        elif e.message == "Email not confirmed":
-            # Log failed login due to unconfirmed email
             log_login_failure(request, login_data.email, "Email not confirmed")
-            detail = "Email not confirmed. Please check your inbox."
-        else:
-            # Log other authentication failures
-            log_login_failure(request, login_data.email, f"Auth error: {e.message}")
-        # Add more specific error message handling if needed based on Supabase responses
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email not confirmed. Please check your inbox.",
+            )
 
-        raise HTTPException(status_code=http_status_code, detail=detail)
+        log_login_success(request, supa_user.id, login_data.email)
+        return supa_session
+    except SupabaseAPIError as e:
+        log_login_failure(request, login_data.email, reason=e.message)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid login credentials"
+        )
     except Exception as e:
         logger.error(
             f"Unexpected error during login for {login_data.email}: {e}", exc_info=True
@@ -284,7 +143,7 @@ async def login_magic_link(
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-@limiter.limit(REGISTRATION_LIMIT, key_func=lambda request: request.client.host)
+@limiter.limit(REGISTRATION_LIMIT)
 async def register_user(
     request: Request,
     user_in: UserCreate,
@@ -318,138 +177,76 @@ async def register_user(
                 detail="User registration failed: No user object returned from authentication provider.",
             )
 
-        profile_create_data = ProfileCreate(
-            user_id=supa_user.id,
-            email=supa_user.email,  # Ensured email from Supabase user
-            username=user_in.username,
-            first_name=user_in.first_name,
-            last_name=user_in.last_name,
-        )
-        logger.info(
-            f"DEBUG routers.register_user: profile_create_data.email='{profile_create_data.email}', type='{type(profile_create_data.email)}'"
-        )
-
-        # created_profile = await create_profile_in_db(
-        #     db_session=db_session,
-        #     profile_data=profile_create_data,
-        #     user_id=supa_user.id,
-        # )
-
+        profile_data = ProfileCreate(user_id=supa_user.id, **user_in.model_dump())
         created_profile = await user_crud.create_profile_in_db(
-            db_session=db_session, profile_in=profile_create_data
+            db_session=db_session, profile_in=profile_data
         )
 
         if not created_profile:
             logger.error(
                 f"Failed to create profile for user_id {supa_user.id} after registration."
             )
-            # Potentially roll back Supabase user creation or mark as incomplete
-            # For now, raising an error:
+            # Here, you might want to attempt to delete the Supabase user to avoid orphaned accounts.
+            # await supabase.auth.admin.delete_user(supa_user.id) # Requires admin client
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Error creating user profile after registration.",
+                status_code=500,
+                detail="Failed to create user profile after registration.",
             )
 
-        session_response_data = None
-        if supa_session:
-            mapped_supa_user = SupabaseUser(
-                id=supa_user.id,
-                aud=supa_user.aud or "",
-                role=supa_user.role,
-                email=supa_user.email,
-                phone=supa_user.phone,
-                email_confirmed_at=supa_user.email_confirmed_at,
-                phone_confirmed_at=supa_user.phone_confirmed_at,
-                confirmed_at=getattr(
-                    supa_user,
-                    "confirmed_at",
-                    supa_user.email_confirmed_at or supa_user.phone_confirmed_at,
-                ),
-                last_sign_in_at=supa_user.last_sign_in_at,
-                app_metadata=supa_user.app_metadata or {},
-                user_metadata=supa_user.user_metadata or {},
-                identities=supa_user.identities or [],
-                created_at=supa_user.created_at,
-                updated_at=supa_user.updated_at,
-            )
-            session_response_data = SupabaseSession(
-                access_token=supa_session.access_token,
-                token_type=supa_session.token_type,
-                expires_in=supa_session.expires_in,
-                expires_at=supa_session.expires_at,
-                refresh_token=supa_session.refresh_token,
-                user=mapped_supa_user,
-            )
-
-        # Determine response message based on confirmation status and settings
-        if settings.supabase_auto_confirm_new_users and supa_user.email_confirmed_at:
-            # Scenario: App is configured to auto-confirm, and Supabase user is confirmed.
-            message = "User registered and auto-confirmed successfully."
-        elif (
-            settings.supabase_email_confirmation_required
+        message = "User registered successfully."
+        if (
+            settings.SUPABASE_EMAIL_CONFIRMATION_REQUIRED
             and not supa_user.email_confirmed_at
         ):
-            # Scenario: App requires email confirmation, and Supabase user is not yet confirmed.
             message = "User registration initiated. Please check your email to confirm your account."
-        elif (
-            not settings.supabase_email_confirmation_required
-            and supa_user.email_confirmed_at
-        ):
-            # Scenario: App does NOT require email confirmation, and Supabase user is confirmed.
-            message = "User registered successfully."
-        else:
-            # Fallback for any other combination or unexpected state.
-            message = "User registered successfully."
 
-        logger.info(
-            f"User {user_in.email} registered. Status: {message} Profile created."
+        log_security_event(
+            event_type="registration",
+            user_id=supa_user.id,
+            request=request,
+            status="success",
+            detail=message,
         )
+
         return UserResponse(
             message=message,
-            session=session_response_data,
-            profile=ProfileResponse.model_validate(created_profile),
+            session=supa_session,
+            profile=ProfileResponse.model_validate(
+                created_profile, from_attributes=True
+            ),
         )
 
     except SupabaseAPIError as e:
-        logger.warning(
-            f"Supabase API error during registration for {user_in.email}: {e.message} (Status: {e.status})"
+        log_security_event(
+            event_type="registration",
+            request=request,
+            status="failure",
+            detail=e.message,
+            additional_data={"email": user_in.email},
         )
-        detail = f"Registration failed: {e.message}"
-        http_status_code = status.HTTP_400_BAD_REQUEST
-        if "already registered" in e.message.lower():
-            http_status_code = status.HTTP_409_CONFLICT
-            detail = "User with this email already exists. Please use a different email or log in."
-        elif "password" in e.message.lower() and (
-            "characters" in e.message.lower() or "format" in e.message.lower()
-        ):
-            http_status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
-            detail = f"Invalid password: {e.message}"
-        elif e.status and 400 <= e.status < 500:
-            http_status_code = e.status
-
-        raise HTTPException(status_code=http_status_code, detail=detail)
-    except HTTPException as e:
-        raise e
+        http_status_code = (
+            status.HTTP_409_CONFLICT
+            if "already registered" in e.message.lower()
+            else status.HTTP_400_BAD_REQUEST
+        )
+        raise HTTPException(
+            status_code=http_status_code, detail=f"Registration failed: {e.message}"
+        )
     except Exception as e:
         logger.error(
             f"Unexpected error during registration for {user_in.email}: {e}",
             exc_info=True,
         )
-        # Specific handling for the "Supabase down" mock scenario for test_register_user_supabase_service_unavailable
-        if str(e) == "Supabase down":
-            http_status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-            detail_message = "Service unavailable or unexpected error with Supabase. Please try again later."
-        else:
-            # For other unexpected errors, maintain the 500 response
-            http_status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-            detail_message = "An unexpected error occurred during user registration."
-
-        raise HTTPException(status_code=http_status_code, detail=detail_message)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An unexpected error occurred during registration.",
+        )
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
 async def logout_user(
     request: Request,
+    token: str = Depends(oauth2_scheme),
     current_user: SupabaseUser = Depends(get_current_supabase_user),
     supabase: AsyncSupabaseClient = Depends(get_supabase_client),
 ):
@@ -457,87 +254,30 @@ async def logout_user(
 
     # Log logout attempt with security audit
     log_security_event(
-        event_type="logout",
-        user_id=current_user.id,
-        ip_address=request.client.host if request and request.client else None,
-        request=request,
-        status="attempt",
+        event_type="logout", user_id=current_user.id, request=request, status="attempt"
     )
-
-    auth_header = request.headers.get("Authorization")
-    if not auth_header or not auth_header.startswith("Bearer "):
-        # This case should ideally be caught by get_current_supabase_user if token is missing/malformed,
-        # but as a safeguard or if get_current_supabase_user is bypassed/fails early.
-        logger.warning("Logout attempt with missing or malformed Authorization header.")
-
-        # Log failed logout attempt
-        log_security_event(
-            event_type="logout",
-            user_id=current_user.id,
-            ip_address=request.client.host if request and request.client else None,
-            request=request,
-            status="failure",
-            detail="Missing or malformed authorization header",
-        )
-
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorization header missing or malformed.",
-        )
-
-    token = auth_header.split("Bearer ")[1]
 
     try:
         await supabase.auth.sign_out(jwt=token)
-
-        # Log successful logout
         log_security_event(
             event_type="logout",
             user_id=current_user.id,
-            ip_address=request.client.host if request and request.client else None,
             request=request,
             status="success",
         )
-
-        logger.info(f"User {current_user.email} logged out successfully.")
-        return {"message": "Successfully logged out"}
-    except SupabaseAPIError as e:
-        logger.warning(
-            f"Supabase API error during logout for user {current_user.email}: {e.message} (Status: {e.status})"
-        )
-
-        # Log failed logout due to API error
+        return MessageResponse(message="Successfully logged out")
+    except Exception as e:
         log_security_event(
             event_type="logout",
             user_id=current_user.id,
-            ip_address=request.client.host if request and request.client else None,
             request=request,
             status="failure",
-            detail=f"API error: {e.message}",
+            detail=str(e),
         )
-
-        # Supabase sign_out might not typically raise errors unless the token is already invalid
-        # or there's a service issue. If token is invalid, get_current_supabase_user should catch it.
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,  # Or e.status if appropriate
-            detail=f"Logout failed: {e.message}",
-        )
-    except Exception as e:
         logger.error(
             f"Unexpected error during logout for user {current_user.email}: {e}",
             exc_info=True,
         )
-
-        # Log failed logout due to unexpected error
-        log_security_event(
-            event_type="logout",
-            user_id=current_user.id,
-            ip_address=request.client.host if request and request.client else None,
-            request=request,
-            status="failure",
-            detail="Unexpected error",
-        )
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred during logout.",
@@ -584,15 +324,21 @@ async def request_password_reset(
             exc_info=True,
         )
 
-        # Log failed password reset request
+        # Log failed password reset request (no user_id since this is unauthenticated)
         log_security_event(
             event_type="password_reset_failure",
-            ip_address=request.client.host if request and request.client else None,
-            additional_data={"email": payload.email},
             request=request,
             status="failure",
             detail=f"API error: {e.message}",
+            additional_data={"email": payload.email},
         )
+
+        # Handle specific Supabase errors if necessary, e.g., rate limiting
+        if e.status == 429:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many password reset requests. Please try again later.",
+            )
 
         # Handle specific Supabase errors if necessary, e.g., rate limiting
         if e.status == 429:
@@ -611,14 +357,13 @@ async def request_password_reset(
             exc_info=True,
         )
 
-        # Log failed password reset due to unexpected error
+        # Log failed password reset due to unexpected error (no user_id since this is unauthenticated)
         log_security_event(
             event_type="password_reset_failure",
-            ip_address=request.client.host if request and request.client else None,
-            additional_data={"email": payload.email},
             request=request,
             status="failure",
             detail="Unexpected error",
+            additional_data={"email": payload.email},
         )
 
         raise HTTPException(
@@ -696,6 +441,7 @@ async def update_user_password(
 
 @router.get("/me", response_model=ProfileResponse, status_code=status.HTTP_200_OK)
 async def get_current_user_profile(
+    request_data: UserProfileUpdateRequest,
     current_user: SupabaseUser = Depends(get_current_supabase_user),
     db_session: AsyncSession = Depends(get_db),
 ):
@@ -706,20 +452,34 @@ async def get_current_user_profile(
 
     # Use the user_crud function to get the profile
     profile = await user_crud.get_profile_by_user_id_from_db(
-        db_session=db_session, user_id=current_user.id
+        db_session, current_user.id
     )
-
     if not profile:
-        logger.warning(f"Profile not found for user_id: {current_user.id}")
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Profile not found for user {current_user.id}",
+            status_code=status.HTTP_404_NOT_FOUND, detail="User profile not found."
         )
 
-    logger.info(f"Profile found for user_id: {current_user.id}. Returning profile.")
-    # FastAPI will automatically convert the SQLAlchemy 'profile' model
-    # to the 'ProfileResponse' Pydantic model due to the response_model annotation.
-    return ProfileResponse.model_validate(profile)
+    update_data = request_data.model_dump(exclude_unset=True)
+    if not update_data:
+        return profile
+
+    if "username" in update_data and update_data["username"] is not None:
+        if update_data["username"] != profile.username:
+            existing_profile = await user_crud.get_profile_by_username(
+                db_session, update_data["username"]
+            )
+            if existing_profile and existing_profile.user_id != current_user.id:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Username '{update_data['username']}' already exists.",
+                )
+
+    for field, value in update_data.items():
+        setattr(profile, field, value)
+
+    await db_session.flush()
+    await db_session.refresh(profile)
+    return profile
 
 
 @router.put("/me", response_model=ProfileResponse, status_code=status.HTTP_200_OK)
@@ -829,97 +589,46 @@ async def update_current_user_profile(
 # --- OAuth Endpoints ---
 
 
-@router.get(
-    "/login/{provider}",
-    response_model=OAuthRedirectResponse,
-    status_code=status.HTTP_200_OK,
-)
+@router.get("/login/{provider}", response_class=RedirectResponse)
 async def oauth_login_initiate(
     provider: OAuthProvider,  # Path parameter, validated by Pydantic enum
-    request: Request,  # To get base URL or other request details
     supabase: AsyncSupabaseClient = Depends(get_supabase_client),
     settings: AppSettingsType = Depends(get_app_settings),
 ):
-    logger.info(f"OAuth login initiation requested for provider: {provider.value}")
-    # Actual Supabase call: supabase.auth.sign_in_with_oauth()
-    # This will redirect the user to the provider's auth page.
-    # The redirect_to URL must be configured in Supabase dashboard and match settings.OAUTH_REDIRECT_URI
+    log_security_event(
+        event_type="oauth_initiate",
+        request=None,
+        status="attempt",
+        additional_data={"provider": provider.value},
+    )
     try:
-        # Example: Constructing redirect_to URL if not fully static
-        # base_redirect_uri = settings.OAUTH_REDIRECT_URI
-        # if not base_redirect_uri.endswith(f"/{provider.value}/callback"):
-        #     effective_redirect_uri = f"{base_redirect_uri.rstrip('/')}/{provider.value}/callback"
-        # else:
-        #     effective_redirect_uri = base_redirect_uri
-        # For now, assume OAUTH_REDIRECT_URI is the full callback URL for any provider or handled by Supabase config
-
-        # The redirect_to URL must be configured in your Supabase project's auth settings for the provider.
-        # It should match the full URL of your /callback endpoint.
-        # Example: http://localhost:8000/auth/users/login/google/callback
-        # For Supabase, this is often configured in their dashboard.
-        # The `settings.OAUTH_REDIRECT_URI` should ideally be the base part, and we append provider/callback,
-        # or it's the full callback URL if it's generic enough or Supabase handles it.
-        # Let's assume settings.OAUTH_REDIRECT_URI is the full callback URL for this provider.
-        # Note: Supabase's sign_in_with_oauth generates a state parameter for CSRF protection.
-        # This state will be returned by the provider in the callback URL.
-        # We will need to handle state storage (e.g., in a cookie) and verification later.
-
         oauth_response = await supabase.auth.sign_in_with_oauth(
-            provider=provider.value,
-            options={
-                "redirect_to": settings.OAUTH_REDIRECT_URI
-            },  # Ensure this URI is correct and whitelisted
+            provider.value,
+            options={"redirect_to": settings.OAUTH_REDIRECT_URI},
         )
-        # oauth_response is a dict like: {'provider': 'google', 'url': 'https://...', 'state': '...'}
-        logger.info(
-            f"Supabase sign_in_with_oauth for {provider.value} successful. Redirecting to: {oauth_response.url}"
-        )
-
-        # Store oauth_response.state in an HTTPOnly, secure cookie for verification in the callback.
-        # The user's browser will be redirected to oauth_response.url by FastAPI's RedirectResponse.
-        # The cookie will be sent back by the browser when the OAuth provider redirects to our /callback endpoint.
-        response = RedirectResponse(
-            url=oauth_response.url, status_code=status.HTTP_307_TEMPORARY_REDIRECT
-        )
+        response = RedirectResponse(url=oauth_response.url)
         response.set_cookie(
             key=settings.OAUTH_STATE_COOKIE_NAME,
             value=oauth_response.state,
             httponly=True,
-            secure=settings.ENVIRONMENT != "development",  # Secure flag in prod/staging
+            secure=settings.ENVIRONMENT != Environment.DEVELOPMENT,
             samesite="lax",
-            max_age=300,  # 5 minutes
-            path="/",  # Set cookie path to root
-        )
-        logger.info(
-            f"OAuth state cookie '{settings.OAUTH_STATE_COOKIE_NAME}' set. Redirecting user to provider."
+            max_age=settings.OAUTH_STATE_COOKIE_MAX_AGE_SECONDS,
+            path="/",
         )
         return response
-
-    except SupabaseAPIError as e:
-        logger.error(
-            f"Supabase API error during OAuth initiation for {provider.value}: {e.message}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Failed to initiate OAuth with {provider.value}: {e.message}",
-        )
     except Exception as e:
         logger.error(
-            f"Unexpected error during OAuth initiation for {provider.value}: {e}",
+            f"Error during OAuth initiation for provider {provider.value}: {e}",
             exc_info=True,
         )
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred during OAuth initiation with {provider.value}.",
+            status_code=500,
+            detail=f"Failed to initiate OAuth with provider {provider.value}.",
         )
 
 
-@router.get(
-    "/login/{provider}/callback",
-    response_model=SupabaseSession,
-    status_code=status.HTTP_200_OK,
-)
+@router.get("/login/{provider}/callback", response_class=JSONResponse)
 async def oauth_login_callback(
     provider: OAuthProvider,  # Path parameter
     request: Request,  # To access query parameters like code, state, error
@@ -928,278 +637,93 @@ async def oauth_login_callback(
     settings: AppSettingsType = Depends(get_app_settings),
 ):
     auth_code = request.query_params.get("code")
-    error = request.query_params.get("error")
-    error_description = request.query_params.get("error_description")
     provider_state = request.query_params.get("state")
     stored_state = request.cookies.get(settings.OAUTH_STATE_COOKIE_NAME)
 
-    logger.info(
-        f"OAuth callback for {provider.value}. Code: {'******' if auth_code else 'N/A'}, "
-        f"Provider State: {provider_state}, Stored State: {stored_state}, Error: {error}"
+    # Prepare a response object to clear the cookie in all paths (success or fail)
+    response = JSONResponse(content={})
+    response.delete_cookie(
+        key=settings.OAUTH_STATE_COOKIE_NAME,
+        httponly=True,
+        secure=settings.ENVIRONMENT != Environment.DEVELOPMENT,
+        samesite="lax",
+        path="/",
     )
 
-    if not provider_state or not stored_state or provider_state != stored_state:
-        logger.warning(
-            f"Invalid OAuth state for {provider.value}. Provider: '{provider_state}', Stored: '{stored_state}'."
+    if not provider_state or provider_state != stored_state:
+        log_oauth_event(
+            request, provider.value, status="failure", detail="Invalid OAuth state."
         )
-        # It's good practice to clear the invalid cookie if it exists
-        response = HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OAuth state. CSRF check failed or state expired.",
-        )
-        # Cannot directly set cookie on HTTPException, this needs to be handled by returning a Response object.
-        # For now, the test expects a 400, so this is the primary goal.
-        # If we wanted to clear cookie, we'd return a JSONResponse with the cookie clear instruction.
-        raise response
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        response.body = JSONResponse(
+            {"detail": "Invalid OAuth state. CSRF check failed or state expired."}
+        ).body
+        return response
 
-    # Clear the state cookie once it has been successfully validated and used.
-    # This will be done on the successful response object later.
-
-    # First, check if the OAuth provider returned an error
-    if error:
-        error_detail = error_description or error
-        logger.warning(
-            f"OAuth provider returned an error for {provider.value}: {error} - {error_detail}"
-        )
-        # Clear the state cookie even if there's a provider error
-        error_response = JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": f"OAuth provider error: {error_detail}"},
-        )
-        error_response.delete_cookie(
-            key=settings.OAUTH_STATE_COOKIE_NAME,
-            httponly=True,
-            secure=settings.ENVIRONMENT != "development",
-            samesite="lax",
-        )
-        # To make the test pass, we need to raise HTTPException directly for now.
-        # In a real app, returning the JSONResponse above might be preferable.
-        error_detail_msg = error_description or error
-        full_error_message = f"OAuth provider error: {error_detail_msg}"
-        if error_description and error != error_description:
-            full_error_message += f" (code: {error})"
-
-        # Prepare to delete cookie via headers
-        temp_response_for_cookie = (
-            Response()
-        )  # fastapi.Response is starlette.responses.Response
-        temp_response_for_cookie.delete_cookie(
-            key=settings.OAUTH_STATE_COOKIE_NAME,
-            httponly=True,
-            secure=settings.ENVIRONMENT != "development",
-            samesite="lax",
-            path="/",  # Match the path used when setting
-        )
-        delete_cookie_header = temp_response_for_cookie.headers.get("set-cookie")
-        headers_for_exception = {}
-        if delete_cookie_header:
-            headers_for_exception["Set-Cookie"] = delete_cookie_header
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=full_error_message,
-            headers=headers_for_exception,
-        )
-
-    # If no provider error, then check for the authorization code
     if not auth_code:
-        logger.error(
-            f"No authorization code provided in callback for {provider.value} and no provider error reported."
+        log_oauth_event(
+            request,
+            provider.value,
+            status="failure",
+            detail="Authorization code missing.",
         )
-        # Also clear cookie here if code is missing and no provider error
-        missing_code_response = JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "Authorization code missing from OAuth callback."},
-        )
-        missing_code_response.delete_cookie(
-            key=settings.OAUTH_STATE_COOKIE_NAME,
-            httponly=True,
-            secure=settings.ENVIRONMENT != "development",
-            samesite="lax",
-        )
-        # To make the test pass, we need to raise HTTPException directly for now.
-        # Prepare to delete cookie via headers
-        temp_response_for_cookie = (
-            Response()
-        )  # fastapi.Response is starlette.responses.Response
-        temp_response_for_cookie.delete_cookie(
-            key=settings.OAUTH_STATE_COOKIE_NAME,
-            httponly=True,
-            secure=settings.ENVIRONMENT != "development",
-            samesite="lax",
-            path="/",  # Match the path used when setting
-        )
-        delete_cookie_header = temp_response_for_cookie.headers.get("set-cookie")
-        headers_for_exception = {}
-        if delete_cookie_header:
-            headers_for_exception["Set-Cookie"] = delete_cookie_header
-
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Authorization code missing from OAuth callback.",
-            headers=headers_for_exception,
-        )
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        response.body = JSONResponse(
+            {"detail": "Authorization code missing from OAuth callback."}
+        ).body
+        return response
 
     try:
-        # Attempt to exchange the authorization code for a session
-        # PKCE is not explicitly handled here yet; if needed, code_verifier would be passed.
-        supa_response = await supabase.auth.exchange_code_for_session(
-            auth_code=auth_code,
-            # pkce_code_verifier= # TODO: Handle PKCE if used
+        supa_session = await supabase.auth.exchange_code_for_session(
+            auth_code=auth_code
         )
-        logger.debug(f"Supabase exchange_code_for_session response: {supa_response}")
+        supa_user = supa_session.user
 
-        supa_user = supa_response.user
-        supa_session = supa_response  # supa_response IS the session object
-
-        if not supa_user or not supa_session:
-            logger.error(
-                f"OAuth callback for {provider.value} did not return a user or session."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Authentication provider did not return valid session information.",
+        if not supa_user:
+            raise Exception(
+                "Authentication provider did not return valid user information."
             )
 
-        existing_profile: Profile | None = (
-            await user_crud.get_profile_by_user_id_from_db(
-                db_session=db_session, user_id=str(supa_user.id)
+        existing_profile = await user_crud.get_profile_by_user_id_from_db(
+            db_session, supa_user.id
+        )
+        if not existing_profile:
+            profile_data = ProfileCreate(
+                user_id=supa_user.id,
+                email=supa_user.email,
+                username=supa_user.email.split("@")[0],
+                first_name=supa_user.user_metadata.get("full_name", "").split(" ")[0],
+                last_name=" ".join(
+                    supa_user.user_metadata.get("full_name", "").split(" ")[1:]
+                ),
             )
-        )
+            await user_crud.create_profile_in_db(db_session, profile_in=profile_data)
 
-        if existing_profile:
-            logger.info(
-                f"OAuth login: Existing profile found for user_id: {supa_user.id}"
-            )
-            # Optional: Update last_login_at or other details
-            # existing_profile.last_login_at = datetime.datetime.now(datetime.timezone.utc)
-            # await db_session.commit()
-            # await db_session.refresh(existing_profile)
-        else:
-            logger.info(
-                f"OAuth login: No existing profile for user_id: {supa_user.id}. Creating new profile."
-            )
-
-            email = supa_user.email
-            username_parts = email.split("@", 1)
-            username = username_parts[0]
-
-            first_name = ""
-            last_name = ""
-            full_name = supa_user.user_metadata.get(
-                "full_name", ""
-            ) or supa_user.user_metadata.get("name", "")
-
-            if full_name:
-                name_parts = full_name.split(" ", 1)
-                first_name = name_parts[0]
-                if len(name_parts) > 1:
-                    last_name = name_parts[1]
-
-            profile_to_create = ProfileCreate(
-                user_id=str(supa_user.id),
-                username=username,
-                email=email,
-                first_name=first_name,
-                last_name=last_name,
-            )
-            try:
-                new_profile = await user_crud.create_profile_in_db(
-                    db_session=db_session, profile_in=profile_to_create
-                )
-                logger.info(
-                    f"OAuth login: New profile created for user_id: {new_profile.user_id}, username: {new_profile.username}"
-                )
-            except Exception as db_exc:
-                logger.error(
-                    f"OAuth login: Database error creating profile for user_id {supa_user.id}: {db_exc}",
-                    exc_info=True,
-                )
-                error_json_response = JSONResponse(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    content={
-                        "detail": "Failed to create user profile after OAuth login."
-                    },
-                )
-                error_json_response.delete_cookie(
-                    key=settings.OAUTH_STATE_COOKIE_NAME,
-                    httponly=True,
-                    secure=settings.ENVIRONMENT != "development",
-                    samesite="lax",
-                )
-                # Raising HTTPException here means the response_model is still SupabaseSession for other paths,
-                # but this specific error path won't match it. Tests for this case would need to expect 500.
-                # Alternatively, the whole function could return Response, but that's a bigger change.
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to create user profile.",
-                ) from db_exc
-
-        response_content = supa_session.model_dump(mode="json")
-        successful_response = JSONResponse(content=response_content)
-
-        successful_response.delete_cookie(
-            key=settings.OAUTH_STATE_COOKIE_NAME,
-            httponly=True,
-            secure=settings.ENVIRONMENT != "development",
-            samesite="lax",
-        )
-        logger.info(
-            f"OAuth successful for user {supa_user.id}. State cookie '{settings.OAUTH_STATE_COOKIE_NAME}' cleared. Returning session."
-        )
-        return successful_response
-
-    except SQLAlchemyError as db_exc:
-        logger.error(
-            f"Database error creating profile for OAuth user {supa_user.id}: {db_exc}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create user profile.",
-        ) from db_exc
-        # Log successful OAuth login
-        log_oauth_event(request, supa_user.id, provider.value, "success")
-
-        logger.info(
-            f"OAuth successful for user {supa_user.id}. State cookie '{settings.OAUTH_STATE_COOKIE_NAME}' cleared. Returning session."
-        )
-        return successful_response
+        log_oauth_event(request, provider.value, user_id=supa_user.id, status="success")
+        response.status_code = status.HTTP_200_OK
+        response.body = JSONResponse(supa_session.model_dump(mode="json")).body
+        return response
 
     except SupabaseAPIError as e:
-        logger.warning(
-            f"Supabase API error during OAuth callback for {provider.value} - {e.message}"
-        )
-
-        # Log failed OAuth attempt
-        log_oauth_event(request, None, provider.value, "failure", e.message)
-
-        if e.code == "invalid_grant" or (isinstance(e.status, int) and e.status == 400):
-            # This specifically handles the case where the auth code is invalid/expired
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid or expired authorization code: {e.message}",
-            )
-        # For other Supabase/GoTrue errors during code exchange
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Authentication provider error during code exchange: {e.message}",
-        )
-
+        log_oauth_event(request, provider.value, status="failure", detail=e.message)
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        response.body = JSONResponse(
+            {"detail": f"Authentication provider error: {e.message}"}
+        ).body
+        return response
     except Exception as e:
         logger.error(
             f"Unexpected error during OAuth callback for {provider.value}: {e}",
             exc_info=True,
         )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An unexpected error occurred during the OAuth callback process.",
-        )
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        response.body = JSONResponse(
+            {"detail": "An unexpected server error occurred."}
+        ).body
+        return response
 
 
 # --- Email Verification Endpoints ---
-
-from auth_service.schemas.user_schemas import EmailVerificationRequest, MessageResponse
 
 
 @router.post(
@@ -1271,7 +795,3 @@ async def resend_email_verification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An unexpected error occurred while processing your request.",
         )
-
-
-# Export the router to be used in main.py
-user_auth_router = router

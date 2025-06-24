@@ -19,8 +19,9 @@ class ProfileCreate(ProfileBase):
     # For now, assuming email is part of Supabase user and ProfileBase might not need it directly
 
 
-class ProfileUpdate(ProfileBase):
-    # All fields are optional for an update
+class ProfileUpdate(BaseModel):
+    # All fields are optional for an update - not inheriting from ProfileBase
+    email: Optional[EmailStr] = None
     username: Optional[str] = Field(None, max_length=50)
     first_name: Optional[str] = Field(None, max_length=100)
     last_name: Optional[str] = Field(None, max_length=100)

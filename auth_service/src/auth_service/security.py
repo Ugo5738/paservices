@@ -1,8 +1,8 @@
 # src/auth_service/security.py
+import secrets  # For generating client secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-import secrets # For generating client secrets
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
@@ -49,20 +49,20 @@ def create_m2m_access_token(
     if expires_delta:
         expire = now + expires_delta
     else:
-        expire = now + timedelta(minutes=settings.m2m_jwt_access_token_expire_minutes)
+        expire = now + timedelta(minutes=settings.M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
     to_encode: Dict[str, Any] = {
         "sub": client_id,
         "exp": expire,
         "iat": now,
-        "iss": settings.m2m_jwt_issuer,
-        "aud": settings.m2m_jwt_audience,
+        "iss": settings.M2M_JWT_ISSUER,
+        "aud": settings.M2M_JWT_AUDIENCE,
         "roles": roles,
         "permissions": permissions,
         "token_type": "m2m_access",  # Custom claim to identify token type
     }
     encoded_jwt = jwt.encode(
-        to_encode, settings.m2m_jwt_secret_key, algorithm=settings.m2m_jwt_algorithm
+        to_encode, settings.M2M_JWT_SECRET_KEY, algorithm=settings.M2M_JWT_ALGORITHM
     )
     return encoded_jwt
 
@@ -75,10 +75,10 @@ def decode_m2m_access_token(token: str) -> Optional[Dict[str, Any]]:
     try:
         payload = jwt.decode(
             token,
-            settings.m2m_jwt_secret_key,
-            algorithms=[settings.m2m_jwt_algorithm],
-            audience=settings.m2m_jwt_audience,
-            issuer=settings.m2m_jwt_issuer,
+            settings.M2M_JWT_SECRET_KEY,
+            algorithms=[settings.M2M_JWT_ALGORITHM],
+            audience=settings.M2M_JWT_AUDIENCE,
+            issuer=settings.M2M_JWT_ISSUER,
             options={
                 "verify_signature": True,
                 "verify_aud": True,

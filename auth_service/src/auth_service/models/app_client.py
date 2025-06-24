@@ -3,10 +3,7 @@ import uuid
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import relationship
-
-from auth_service.db import Base
-from auth_service.models.app_client_role import AppClientRole
-from auth_service.models.role import Role
+from src.auth_service.db import Base
 
 
 class AppClient(Base):
