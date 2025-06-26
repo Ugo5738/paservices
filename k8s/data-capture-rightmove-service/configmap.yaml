@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: data-capture-rightmove-config
+data:
+  # Non-sensitive configuration values
+  environment: "production"
+  root_path: "/api/v1"
+  logging_level: "INFO"
+  auth_service_url: "http://auth-service/api/v1"
+  super_id_service_url: "http://super-id-service/api/v1"
+  rate_limit: "60/minute"
+  allowed_origins: "https://app.example.com"

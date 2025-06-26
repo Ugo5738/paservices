@@ -1,92 +1,32 @@
 services:
   # Auth Service
-  auth-service:
-    build:
-      context: ./auth_service
-      dockerfile: Dockerfile
-    entrypoint: ["/app/docker-entrypoint.sh"]
-    environment:
-      # Connect directly to the Supabase postgres container with new project name
-      - AUTH_SERVICE_DATABASE_URL=postgresql+psycopg://postgres:postgres@supabase_db_paservices:5432/postgres
-      - USE_PGBOUNCER=false
-      - LOGGING_LEVEL=DEBUG
-      # Supabase services - use the Kong API gateway on the Supabase network
-      - AUTH_SERVICE_SUPABASE_URL=http://supabase_kong_paservices:8000
-      # Default Supabase CLI keys
-      - AUTH_SERVICE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
-      - AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
-      - AUTH_SERVICE_M2M_JWT_SECRET_KEY=your_default_secret_key_for_testing
-      - PYTHONPATH=/app/src
-    env_file:
-      - ./auth_service/.env.dev
+  auth_service:
+    extends:
+      file: auth_service/docker-compose.dev.yml
+      service: auth_service_dev
     ports:
-      - "8000:8000" # Exposes auth_service on host port 8000
-    volumes:
-      # Mount the application source code
-      - ./auth_service/src:/app/src
-      # Mount the tests directory
-      - ./auth_service/tests:/app/tests
-      - ./auth_service/test_migrations:/app/test_migrations
-      # Mount the scripts directory
-      - ./auth_service/scripts:/app/scripts
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - default
-      - supabase_network_paservices # Connect to the Supabase network
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # For accessing Supabase on the host
+      - "8001:8000"
 
   # Super ID Service
-  super-id-service:
-    build:
-      context: ./super_id_service
-      dockerfile: Dockerfile.test
-    environment:
-      - ALEMBIC_DIR=/app/migrations
-      - PYTHONPATH=/app:/app/src
-    env_file:
-      - ./super_id_service/.env.dev
-      # - ./super_id_service/.env.test
+  super_id_service:
+    extends:
+      file: super_id_service/docker-compose.dev.yml
+      service: super_id_service_dev
     ports:
-      - "8001:8000" # Exposes super_id_service on host port 8001
-    volumes:
-      # Mount the application source code
-      - ./super_id_service/src:/app/src
-      # Mount the tests directory
-      - ./super_id_service/tests:/app/tests
-      - ./super_id_service/scripts:/app/scripts
-      - ./super_id_service/migrations:/app/migrations
-      - ./super_id_service/alembic.ini:/app/alembic.ini
-    networks:
-      - default
-      - supabase_network_paservices # Connect to the Supabase network
-    depends_on:
-      redis:
-        condition: service_healthy
-    extra_hosts:
-      - "host.docker.internal:host-gateway" # For accessing Supabase on the host
+      - "8002:8000"
 
-  # Redis for rate limiting and caching
-  redis:
-    image: redis:7-alpine
+  # Data Capture Rightmove Service
+  data_capture_rightmove_service:
+    extends:
+      file: data_capture_rightmove_service/docker-compose.dev.yml
+      service: data_capture_rightmove_service_dev
     ports:
-      - "6380:6379" # Map to port 6380 on host to avoid conflict
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-# Make sure Docker creates the volume if it doesn't exist
-volumes:
-  redis-data:
+      - "8003:8000"
 
 networks:
+  paservices_network:
+    name: paservices_network
+    driver: bridge
   supabase_network_paservices:
-    external: true # Use the existing Supabase network
+    external: true
+    # The actual network name as created by Supabase CLI

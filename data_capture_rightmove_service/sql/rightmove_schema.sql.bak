@@ -1,0 +1,233 @@
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+--
+-- This schema defines tables for storing data from Rightmove API endpoints
+--
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: rightmove; Type: SCHEMA; Schema: -; Owner: -
+--
+CREATE SCHEMA rightmove;
+
+--
+-- Tables for storing property data from properties/details API endpoint
+--
+
+-- Base mixin table for super_id tracking
+CREATE TABLE rightmove.super_id_mixin (
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Main property details table
+CREATE TABLE rightmove.apipropertiesdetailsv2 (
+    id BIGINT PRIMARY KEY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    transaction_type VARCHAR(50),
+    channel VARCHAR(50),
+    bedrooms INTEGER,
+    bathrooms INTEGER,
+    address TEXT,
+    contact_method VARCHAR(50),
+    property_disclaimer TEXT,
+    property_phrase VARCHAR(255),
+    full_description TEXT,
+    listing_update_reason VARCHAR(255),
+    property_url TEXT,
+    school_checker_url TEXT,
+    lettings_info TEXT,
+    property_display_type VARCHAR(100),
+    telephone_number VARCHAR(50),
+    saved BOOLEAN,
+    sold_prices_url TEXT,
+    market_info_url TEXT,
+    note TEXT,
+    link_to_glossary TEXT,
+    enquired_timestamp VARCHAR,
+    key_features TEXT[],
+    tags TEXT[],
+    virtual_tours JSONB
+);
+
+-- Property agent information
+CREATE TABLE rightmove.apipropertiesdetailsagent (
+    id BIGINT PRIMARY KEY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertiesdetailsv2(id) ON DELETE CASCADE,
+    branch_id BIGINT,
+    branch_name VARCHAR(255),
+    branch_logo_url TEXT,
+    branch_email VARCHAR(255),
+    company_name VARCHAR(255),
+    company_type VARCHAR(50),
+    branch_display_address TEXT
+);
+
+-- Property price information
+CREATE TABLE rightmove.apipropertiesdetailsprice (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertiesdetailsv2(id) ON DELETE CASCADE,
+    amount INTEGER,
+    currency_code VARCHAR(3),
+    frequency VARCHAR(50),
+    qualifier VARCHAR(50),
+    display_price VARCHAR(100)
+);
+
+-- Property location information
+CREATE TABLE rightmove.apipropertiesdetailslocation (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertiesdetailsv2(id) ON DELETE CASCADE,
+    latitude FLOAT,
+    longitude FLOAT,
+    street_name VARCHAR(255),
+    town VARCHAR(255),
+    postal_code VARCHAR(20),
+    country_code VARCHAR(2)
+);
+
+-- Property images
+CREATE TABLE rightmove.apipropertiesdetailsimage (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertiesdetailsv2(id) ON DELETE CASCADE,
+    url TEXT,
+    caption VARCHAR(255),
+    order_index INTEGER
+);
+
+-- Property floorplans
+CREATE TABLE rightmove.apipropertiesdetailsfloorplan (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertiesdetailsv2(id) ON DELETE CASCADE,
+    url TEXT,
+    caption VARCHAR(255),
+    order_index INTEGER
+);
+
+-- Property nearest stations
+CREATE TABLE rightmove.apipropertiesdetailsneareststation (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertiesdetailsv2(id) ON DELETE CASCADE,
+    name VARCHAR(255),
+    distance FLOAT,
+    unit VARCHAR(10)
+);
+
+--
+-- Tables for storing property data from property-for-sale/detail API endpoint
+--
+
+-- Main property for sale details table
+CREATE TABLE rightmove.apipropertydetails (
+    id BIGINT PRIMARY KEY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_type VARCHAR(100),
+    property_subtype VARCHAR(100),
+    bedrooms INTEGER,
+    bathrooms INTEGER,
+    summary TEXT,
+    description TEXT,
+    location VARCHAR(255),
+    post_code VARCHAR(20),
+    latitude FLOAT,
+    longitude FLOAT,
+    status VARCHAR(50),
+    date_added VARCHAR(50),
+    feature_list TEXT[]
+);
+
+-- Property for sale price information
+CREATE TABLE rightmove.apipropertydetailsprice (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertydetails(id) ON DELETE CASCADE,
+    amount INTEGER,
+    currency_code VARCHAR(3),
+    price_qualifier VARCHAR(50)
+);
+
+-- Property for sale agent information
+CREATE TABLE rightmove.apipropertydetailsagent (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertydetails(id) ON DELETE CASCADE,
+    branch_id BIGINT,
+    branch_name VARCHAR(255),
+    phone_number VARCHAR(50),
+    email VARCHAR(255),
+    website VARCHAR(255)
+);
+
+-- Property for sale images
+CREATE TABLE rightmove.apipropertydetailsimage (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertydetails(id) ON DELETE CASCADE,
+    url TEXT,
+    caption VARCHAR(255),
+    order_index INTEGER
+);
+
+-- Property for sale floorplans
+CREATE TABLE rightmove.apipropertydetailsfloorplan (
+    id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+    super_id UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    property_id BIGINT NOT NULL REFERENCES rightmove.apipropertydetails(id) ON DELETE CASCADE,
+    url TEXT,
+    caption VARCHAR(255),
+    order_index INTEGER
+);
+
+-- Indexes for better performance
+CREATE INDEX idx_apipropertiesdetailsv2_id ON rightmove.apipropertiesdetailsv2(id);
+CREATE INDEX idx_apipropertiesdetailsv2_super_id ON rightmove.apipropertiesdetailsv2(super_id);
+CREATE INDEX idx_apipropertiesdetailsagent_property_id ON rightmove.apipropertiesdetailsagent(property_id);
+CREATE INDEX idx_apipropertiesdetailsprice_property_id ON rightmove.apipropertiesdetailsprice(property_id);
+CREATE INDEX idx_apipropertiesdetailslocation_property_id ON rightmove.apipropertiesdetailslocation(property_id);
+
+CREATE INDEX idx_apipropertydetails_id ON rightmove.apipropertydetails(id);
+CREATE INDEX idx_apipropertydetails_super_id ON rightmove.apipropertydetails(super_id);
+CREATE INDEX idx_apipropertydetailsagent_property_id ON rightmove.apipropertydetailsagent(property_id);
+CREATE INDEX idx_apipropertydetailsprice_property_id ON rightmove.apipropertydetailsprice(property_id);
+CREATE INDEX idx_apipropertydetailsimage_property_id ON rightmove.apipropertydetailsimage(property_id);

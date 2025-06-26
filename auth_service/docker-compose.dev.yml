@@ -3,7 +3,7 @@ services:
   auth_service_dev:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
       - "8001:8000"
     volumes:
@@ -11,7 +11,6 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
       - ./tests:/app/tests
-      - ./init_database.sh:/app/init_database.sh
       - ./scripts:/app/scripts
     env_file:
       - ./.env.dev # Load development environment variables

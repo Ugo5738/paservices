@@ -30,27 +30,58 @@ DATABASE_URL = settings.DATABASE_URL
 # All engine and pool settings are consolidated here for clarity.
 # These settings are chosen for a balance of performance and resilience,
 # especially in a containerized environment like Docker or Kubernetes.
+
+# Adjust configuration for cloud vs. local database
+is_cloud_db = "supabase.com" in DATABASE_URL
+logger.info(f"Initializing database connection with psycopg3 driver: {DATABASE_URL}")
+logger.info(f"Database type detected: {'Cloud' if is_cloud_db else 'Local'}")
+
+# Setup cloud-optimized connection arguments
+connect_args = {
+    "application_name": "data_capture_rightmove_service",
+    # For psycopg v3, we use options parameter instead of server_settings
+    "options": "-c timezone=UTC"
+    + (
+        "" if settings.ENVIRONMENT == "testing" else " -c statement_timeout=30000"
+    ),  # Increased timeout for cloud
+}
+
+# Add SSL settings for cloud databases
+if is_cloud_db:
+    connect_args.update(
+        {
+            "sslmode": "require",
+        }
+    )
+
+    # Reduced pool size for cloud connections to prevent connection saturation
+    pool_size = 5
+    max_overflow = 10
+    pool_recycle = 300  # More aggressive connection recycling for cloud
+    pool_timeout = 60  # Longer timeout for cloud connections
+else:
+    # Local database can have more generous settings
+    pool_size = 10
+    max_overflow = 20
+    pool_recycle = 1800
+    pool_timeout = 30
+
 engine: AsyncEngine = create_async_engine(
     DATABASE_URL,
     # Log SQL statements in DEBUG mode only.
     echo=settings.LOGGING_LEVEL.upper() == "DEBUG",
     # --- Connection Pool Settings ---
-    pool_size=10,  # The number of connections to keep open in the pool.
-    max_overflow=20,  # The number of "extra" connections that can be opened.
-    pool_timeout=30,  # Seconds to wait before giving up on getting a connection from the pool.
-    pool_recycle=1800,  # Recycle connections every 30 minutes to prevent stale connections.
+    pool_size=pool_size,
+    max_overflow=max_overflow,
+    pool_timeout=pool_timeout,
+    pool_recycle=pool_recycle,
     # --- CRITICAL OPTIMIZATION ---
     # This is the most important setting for resilience. It runs a simple 'SELECT 1'
     # on a connection before it's checked out from the pool. If the connection is dead,
     # it's discarded and a new one is established. This eliminates most connection errors.
     pool_pre_ping=True,
     # Connection arguments passed directly to the psycopg v3 driver
-    connect_args={
-        "application_name": "auth_service",
-        # For psycopg v3, we use options parameter instead of server_settings
-        "options": "-c timezone=UTC"
-        + ("" if settings.ENVIRONMENT == "testing" else " -c statement_timeout=5000"),
-    },
+    connect_args=connect_args,
 )
 
 # --- 3. Standard Session Factory ---

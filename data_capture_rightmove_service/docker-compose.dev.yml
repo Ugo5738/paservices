@@ -1,0 +1,25 @@
+services:
+  data_capture_rightmove_service_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "8003:8000"
+    volumes:
+      - ./src:/app/src
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+    env_file:
+      - ./.env.dev
+    networks:
+      - paservices_network
+      - supabase_network_paservices # Connect to Supabase network from root compose
+
+networks:
+  paservices_network:
+    name: paservices_network
+    driver: bridge
+  supabase_network_paservices:
+    external: true

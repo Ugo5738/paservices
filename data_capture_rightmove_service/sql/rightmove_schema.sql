@@ -1,0 +1,805 @@
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 1: property-for-sale/detail endpoint schema
+--
+
+-- Use a transaction to ensure all commands succeed or fail together
+BEGIN;
+
+-- Drop the schema if it exists, along with all its tables (CASCADE)
+-- This allows the script to be run multiple times without errors.
+DROP SCHEMA IF EXISTS rightmove CASCADE;
+
+-- Recreate the schema
+CREATE SCHEMA rightmove;
+
+
+-- Set session-specific settings
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+-- Set the search path for this session to include the new schema
+SELECT pg_catalog.set_config('search_path', 'rightmove, public', false);
+
+--
+-- Tables for property-for-sale/detail endpoint
+--
+
+CREATE TABLE rightmove.api_property_details (
+    id BIGINT PRIMARY KEY,
+    super_id UUID,
+    affordable_buying_scheme BOOLEAN,
+    ai_location_info TEXT,
+    bathrooms INT,
+    bedrooms INT,
+    business_for_sale BOOLEAN,
+    channel VARCHAR(50),
+    commercial BOOLEAN,
+    country_guide TEXT,
+    enc_id TEXT,
+    fees_apply TEXT,
+    lettings TEXT,
+    property_sub_type TEXT,
+    show_school_info BOOLEAN,
+    sold_property_type VARCHAR(100),
+    terms_of_use TEXT,
+    transaction_type VARCHAR(50),
+    brochures JSONB,
+    commercial_use_classes TEXT[],
+    epc_graphs JSONB,
+    key_features TEXT[],
+    nearest_airports TEXT[],
+    rooms TEXT[],
+    sizings JSONB,
+    tags TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE rightmove.api_property_detail_addresses (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    country_code VARCHAR(10),
+    delivery_point_id BIGINT,
+    display_address TEXT,
+    incode VARCHAR(10),
+    outcode VARCHAR(10),
+    uk_country VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_broadbands (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    broadband_checker_url TEXT,
+    disclaimer TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_contact_infos (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    contact_method VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_contact_info_telephone_numbers (
+    contact_info_detail_id BIGINT PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    disclaimer_description TEXT,
+    disclaimer_text TEXT,
+    disclaimer_title TEXT,
+    international_number VARCHAR(50),
+    local_number VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (contact_info_detail_id) REFERENCES rightmove.api_property_detail_contact_infos(api_property_detail_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_customers (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    banner_ad TEXT,
+    branch_display_name VARCHAR(255),
+    branch_id INT,
+    branch_name VARCHAR(255),
+    build_to_rent BOOLEAN,
+    build_to_rent_benefits TEXT[],
+    commercial BOOLEAN,
+    company_name VARCHAR(255),
+    company_trading_name VARCHAR(255),
+    customer_banner_ad_profile_url TEXT,
+    customer_mpu_ad_profile_url TEXT,
+    customer_profile_url TEXT,
+    customer_properties_url TEXT,
+    display_address TEXT,
+    is_new_home_developer BOOLEAN,
+    logo_path TEXT,
+    mpu_ad TEXT,
+    show_brochure_lead_modal BOOLEAN,
+    spotlight TEXT,
+    valuation_form_url TEXT,
+    video_enabled BOOLEAN,
+    video_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_customer_descriptions (
+    customer_api_property_detail_id BIGINT PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    description_html TEXT,
+    is_truncated BOOLEAN,
+    truncated_description_html TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (customer_api_property_detail_id) REFERENCES rightmove.api_property_detail_customers(api_property_detail_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 2: Additional property-for-sale/detail endpoint schema tables
+--
+
+CREATE TABLE rightmove.api_property_detail_customer_development_infos (
+    customer_api_property_detail_id BIGINT PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    site_plan_uri TEXT,
+    microsite_features TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (customer_api_property_detail_id) REFERENCES rightmove.api_property_detail_customers(api_property_detail_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_customer_products (
+    customer_api_property_detail_id BIGINT PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    has_microsite BOOLEAN,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (customer_api_property_detail_id) REFERENCES rightmove.api_property_detail_customers(api_property_detail_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_dfp_ad_infos (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    channel VARCHAR(50),
+    targeting JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_floorplans (
+    id SERIAL PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    caption VARCHAR(255),
+    type VARCHAR(50),
+    url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_floorplan_resized_floorplan_urls (
+    floorplan_id INT PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    size_296x197 TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (floorplan_id) REFERENCES rightmove.api_property_detail_floorplans(id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_images (
+    id SERIAL PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    caption VARCHAR(255),
+    url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_image_resized_image_urls (
+    image_id INT PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    size_135x100 TEXT,
+    size_476x317 TEXT,
+    size_656x437 TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (image_id) REFERENCES rightmove.api_property_detail_images(id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_industry_affiliations (
+    id SERIAL PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    image_path TEXT,
+    name TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_info_reel_items (
+    id SERIAL PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    primary_text TEXT,
+    secondary_text TEXT,
+    title TEXT,
+    tooltip_text TEXT,
+    type TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 3: More tables for property-for-sale/detail endpoint
+--
+
+CREATE TABLE rightmove.api_property_detail_listing_history (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    listing_update_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_living_costs (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    annual_ground_rent TEXT,
+    annual_service_charge TEXT,
+    council_tax_band VARCHAR(10),
+    council_tax_exempt BOOLEAN,
+    council_tax_included BOOLEAN,
+    domestic_rates TEXT,
+    ground_rent_percentage_increase TEXT,
+    ground_rent_review_period_in_years TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_locations (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    circle_radius_on_map INT,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    pin_type VARCHAR(50),
+    show_map BOOLEAN,
+    zoom_level INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_mis_infos (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    branch_id INT,
+    brand_plus BOOLEAN,
+    featured_property BOOLEAN,
+    offer_advert_stamp_type_id TEXT,
+    premium_display BOOLEAN,
+    premium_display_stamp_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_mortgage_calculators (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    price BIGINT,
+    property_type_alias VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_nearest_stations (
+    id SERIAL PRIMARY KEY,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    distance DECIMAL(18, 16),
+    name TEXT,
+    unit TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_nearest_station_types (
+    id SERIAL PRIMARY KEY,
+    station_id INT NOT NULL,
+    api_property_detail_id BIGINT NOT NULL,
+    super_id UUID,
+    type VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (station_id) REFERENCES rightmove.api_property_detail_nearest_stations(id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_prices (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    display_price_qualifier VARCHAR(255),
+    exchange_rate TEXT,
+    message TEXT,
+    price_per_sq_ft VARCHAR(100),
+    primary_price VARCHAR(100),
+    secondary_price TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 4: Final tables for property-for-sale/detail endpoint
+--
+
+CREATE TABLE rightmove.api_property_detail_property_urls (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    nearby_sold_properties_url TEXT,
+    similar_properties_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_shared_ownerships (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    ownership_percentage DECIMAL(10, 4),
+    rent_frequency VARCHAR(100),
+    rent_price DECIMAL(12, 2),
+    shared_ownership_flag BOOLEAN,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_static_map_img_urls (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    static_map_img_url_desktop_large TEXT,
+    static_map_img_url_desktop_small TEXT,
+    static_map_img_url_mobile TEXT,
+    static_map_img_url_tablet TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_status (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    archived BOOLEAN,
+    published BOOLEAN,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_street_views (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    heading TEXT,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    pitch TEXT,
+    zoom TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_tenures (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    message TEXT,
+    tenure_type VARCHAR(100),
+    years_remaining_on_lease INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_property_detail_texts (
+    api_property_detail_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    auction_fees_disclaimer TEXT,
+    description TEXT,
+    disclaimer TEXT,
+    guide_price_disclaimer TEXT,
+    new_homes_brochure_disclaimer TEXT,
+    page_title TEXT,
+    property_phrase VARCHAR(255),
+    reserve_price_disclaimer TEXT,
+    share_description TEXT,
+    share_text TEXT,
+    short_description TEXT,
+    static_map_disclaimer_text TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_detail_id) REFERENCES rightmove.api_property_details(id) ON DELETE CASCADE
+);
+
+-- Indexes for property-for-sale/detail endpoint tables
+CREATE INDEX idx_api_property_details_id ON rightmove.api_property_details(id);
+CREATE INDEX idx_api_property_details_super_id ON rightmove.api_property_details(super_id);
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 5: properties/details v2 endpoint schema
+--
+
+--
+-- Tables for properties/details v2 endpoint
+--
+
+CREATE TABLE rightmove.api_properties_details_v2 (
+    id BIGINT PRIMARY KEY,
+    super_id UUID,
+    transaction_type VARCHAR(50),
+    channel VARCHAR(50),
+    bedrooms INT,
+    bathrooms INT,
+    address TEXT,
+    contact_method VARCHAR(50),
+    property_disclaimer TEXT,
+    property_phrase VARCHAR(255),
+    full_description TEXT,
+    listing_update_reason VARCHAR(255),
+    property_url TEXT,
+    school_checker_url TEXT,
+    lettings_info TEXT,
+    property_display_type VARCHAR(100),
+    telephone_number VARCHAR(50),
+    saved BOOLEAN,
+    sold_prices_url TEXT,
+    market_info_url TEXT,
+    note TEXT,
+    link_to_glossary TEXT,
+    enquired_timestamp TIMESTAMPTZ,
+    key_features TEXT[],
+    tags TEXT[],
+    virtual_tours JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_mis_info (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    branch_id INT,
+    offer_advert_stamp_type_id TEXT,
+    brand_plus BOOLEAN,
+    featured_property BOOLEAN,
+    channel VARCHAR(50),
+    premium_display BOOLEAN,
+    premium_display_stamp_id TEXT,
+    country_code VARCHAR(10),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_status (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    available BOOLEAN,
+    label TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_stamp_duty (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    country VARCHAR(100),
+    price BIGINT,
+    buyer_type TEXT,
+    result TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_features (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    electricity JSONB,
+    broadband JSONB,
+    water JSONB,
+    sewerage JSONB,
+    heating JSONB,
+    accessibility JSONB,
+    parking JSONB,
+    garden JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_branch (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    identifier INT,
+    name VARCHAR(255),
+    brand_name VARCHAR(255),
+    display_name VARCHAR(255),
+    address TEXT,
+    logo TEXT,
+    developer BOOLEAN,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 6: More tables for properties/details v2 endpoint
+--
+
+CREATE TABLE rightmove.api_properties_details_v2_brochure (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    title VARCHAR(255),
+    show_brochure_lead BOOLEAN,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_price (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    primary_price VARCHAR(100),
+    secondary_price VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_local_tax (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    type VARCHAR(100),
+    status TEXT,
+    value VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_location (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    pin_type VARCHAR(100),
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    map_preview_url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_sales_info (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    tenure_type VARCHAR(100),
+    tenure_display_type VARCHAR(100),
+    ground_rent TEXT,
+    annual_service_charge TEXT,
+    estate_charge TEXT,
+    length_of_lease TEXT,
+    shared_ownership_percentage TEXT,
+    shared_ownership_rent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_size (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    primary_size VARCHAR(100),
+    secondary_size TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_mortgage (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    price BIGINT,
+    property_type_alias VARCHAR(100),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 7: Final tables for properties/details v2 endpoint
+--
+
+CREATE TABLE rightmove.api_properties_details_v2_analytics_info (
+    api_property_id BIGINT PRIMARY KEY,
+    super_id UUID,
+    branch_id VARCHAR(50),
+    property_id VARCHAR(50),
+    online_viewing VARCHAR(10),
+    image_count VARCHAR(10),
+    floorplan_count VARCHAR(10),
+    beds VARCHAR(10),
+    postcode VARCHAR(20),
+    property_type VARCHAR(100),
+    property_sub_type VARCHAR(100),
+    added VARCHAR(20),
+    price VARCHAR(50),
+    tenure VARCHAR(100),
+    bathrooms VARCHAR(10),
+    shared_ownership VARCHAR(10),
+    electricity VARCHAR(50),
+    broadband VARCHAR(50),
+    water VARCHAR(50),
+    sewerage VARCHAR(50),
+    heating VARCHAR(50),
+    accessibility VARCHAR(50),
+    parking VARCHAR(50),
+    garden VARCHAR(50),
+    flood_history VARCHAR(50),
+    flood_defences VARCHAR(50),
+    flood_risk VARCHAR(50),
+    listed VARCHAR(50),
+    restrictions VARCHAR(50),
+    private_access VARCHAR(50),
+    public_access VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_stations (
+    id SERIAL PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    station VARCHAR(255),
+    distance DECIMAL(8, 2),
+    type VARCHAR(50),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_photos (
+    id SERIAL PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    url TEXT,
+    thumbnail_url TEXT,
+    max_size_url TEXT,
+    caption TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_epcs (
+    id SERIAL PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    url TEXT,
+    caption VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_floorplans (
+    id SERIAL PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    url TEXT,
+    thumbnail_url TEXT,
+    caption VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_feature_risks (
+    feature_api_property_id BIGINT PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    flood_history JSONB,
+    flood_defences JSONB,
+    flood_risk JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (feature_api_property_id) REFERENCES rightmove.api_properties_details_v2_features(api_property_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_feature_obligations (
+    feature_api_property_id BIGINT PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    listed JSONB,
+    restrictions JSONB,
+    private_access JSONB,
+    public_access JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (feature_api_property_id) REFERENCES rightmove.api_properties_details_v2_features(api_property_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_brochure_items (
+    id SERIAL PRIMARY KEY,
+    brochure_api_property_id BIGINT NOT NULL,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    url TEXT,
+    caption VARCHAR(255),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (brochure_api_property_id) REFERENCES rightmove.api_properties_details_v2_brochure(api_property_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+CREATE TABLE rightmove.api_properties_details_v2_location_street_view (
+    location_api_property_id BIGINT PRIMARY KEY,
+    api_property_id BIGINT NOT NULL,
+    super_id UUID,
+    latitude DECIMAL(10, 8),
+    longitude DECIMAL(11, 8),
+    heading TEXT,
+    pitch TEXT,
+    zoom TEXT,
+    url TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (location_api_property_id) REFERENCES rightmove.api_properties_details_v2_location(api_property_id) ON DELETE CASCADE,
+    FOREIGN KEY (api_property_id) REFERENCES rightmove.api_properties_details_v2(id) ON DELETE CASCADE
+);
+
+-- Indexes for properties/details v2 endpoint tables
+CREATE INDEX idx_api_properties_details_v2_id ON rightmove.api_properties_details_v2(id);
+CREATE INDEX idx_api_properties_details_v2_super_id ON rightmove.api_properties_details_v2(super_id);

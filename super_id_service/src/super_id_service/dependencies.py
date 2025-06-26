@@ -64,7 +64,12 @@ async def validate_token(
             token, 
             settings.jwt_secret_key, 
             algorithms=["HS256"],
-            options={"verify_sub": True}
+            # Disable audience validation since the Auth Service sends 'paservices_microservices'
+            # but we're not configured to validate it specifically
+            options={
+                "verify_sub": True,
+                "verify_aud": False  # Disable audience validation
+            }
         )
         
         # Extract and validate required claims

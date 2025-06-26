@@ -1,0 +1,21 @@
+# data_capture_rightmove_service/docker-compose.test.yml
+services:
+  data_capture_rightmove_service_test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - ENVIRONMENT=testing
+    env_file:
+      - ./.env.test
+    networks:
+      - paservices_network
+      - supabase_network_paservices
+    command: ["pytest", "-v", "tests/"]
+
+networks:
+  paservices_network:
+    name: paservices_network
+    driver: bridge
+  supabase_network_paservices:
+    external: true

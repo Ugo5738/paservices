@@ -33,17 +33,19 @@ class Settings(BaseSettings):
     database_url: str = Field(...)
     use_pgbouncer: bool = False
 
-    # Supabase configuration
-    supabase_url: str = Field(...)
-    supabase_anon_key: str = Field(...)
-    supabase_service_role_key: str = Field(...)
+    # Supabase configuration with standardized service-specific prefixes
+    supabase_url: str = Field(..., validation_alias="SUPER_ID_SERVICE_SUPABASE_URL")
+    supabase_anon_key: str = Field(..., validation_alias="SUPER_ID_SERVICE_SUPABASE_ANON_KEY")
+    supabase_service_role_key: str = Field(..., validation_alias="SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY")
 
     # JWT configuration (for validating auth_service JWTs)
     # Use validation_alias to specify the exact environment variable name
     jwt_secret_key: str = Field(
         ..., validation_alias="SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY"
     )
-    auth_service_issuer: str = "auth.supersami.com"
+    auth_service_issuer: str = Field(
+        "paservices_auth_service", validation_alias="SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER"
+    )
 
     # Rate limiting
     rate_limit_requests_per_minute: str = "60/minute"

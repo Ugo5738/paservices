@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: data-capture-rightmove-service
+  labels:
+    app: data-capture-rightmove-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: data-capture-rightmove-service
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: data-capture-rightmove-service
+    spec:
+      containers:
+      - name: api
+        image: ${CONTAINER_REGISTRY}/data-capture-rightmove-service:${IMAGE_TAG}
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            cpu: "1"
+            memory: "512Mi"
+          requests:
+            cpu: "200m"
+            memory: "256Mi"
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        env:
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: data-capture-rightmove-config
+              key: environment
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_ROOT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: data-capture-rightmove-config
+              key: root_path
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_LOGGING_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: data-capture-rightmove-config
+              key: logging_level
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: data-capture-rightmove-secrets
+              key: database_url
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: data-capture-rightmove-config
+              key: auth_service_url
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: data-capture-rightmove-config
+              key: super_id_service_url
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: data-capture-rightmove-secrets
+              key: m2m_client_id
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: data-capture-rightmove-secrets
+              key: m2m_client_secret
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: data-capture-rightmove-secrets
+              key: jwt_secret_key
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL
+          valueFrom:
+            secretKeyRef:
+              name: data-capture-rightmove-secrets
+              key: redis_url
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_RATE_LIMIT
+          valueFrom:
+            configMapKeyRef:
+              name: data-capture-rightmove-config
+              key: rate_limit
+        - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPIDAPI_KEY
+          valueFrom:
+            secretKeyRef:
+              name: data-capture-rightmove-secrets
+              key: rapidapi_key
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      imagePullSecrets:
+      - name: container-registry-credentials

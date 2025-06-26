@@ -3,13 +3,13 @@ services:
   auth_service_test:
     build:
       context: .
-      dockerfile: Dockerfile # Can reuse dev Dockerfile for testing
+      dockerfile: Dockerfile.dev # Can reuse dev Dockerfile for testing
     environment:
       - ENVIRONMENT=testing
       # Override database URL for an isolated test database
       - AUTH_SERVICE_DATABASE_URL=postgresql+asyncpg://postgres:postgres@supabase_db_paservices:54322/auth_test_db
     env_file:
-      - ./.env.dev
+      - ./.env.test
     networks:
       - paservices_network
       - supabase_network_paservices

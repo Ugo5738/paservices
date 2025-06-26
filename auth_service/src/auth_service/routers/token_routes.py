@@ -199,7 +199,7 @@ async def get_client_token(
         permissions = {perm.name for perm in perms}
     
     # Create access token
-    token_expiry_minutes = settings.m2m_jwt_access_token_expire_minutes
+    token_expiry_minutes = settings.M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES
     token_expiry_seconds = token_expiry_minutes * 60  # Convert to seconds for the response
     expires_delta = timedelta(minutes=token_expiry_minutes)
     

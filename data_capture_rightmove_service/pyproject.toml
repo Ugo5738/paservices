@@ -1,0 +1,92 @@
+# This file now uses the modern PEP 621 standard for project metadata.
+[project]
+name = "data-capture-rightmove-service" 
+
+version = "0.1.0"
+description = "Handles data capture from Rightmove for the Paservices platform."
+authors = [
+    {name = "daniel", email = "danielnwachukwu5738@gmail.com"},
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+  # Core web framework
+  "fastapi>=0.111.0,<1.0.0",
+  "uvicorn[standard]>=0.30.1,<1.0.0",
+
+  # Settings and data validation (with email support)
+  "pydantic[email]>=2.5.0,<3.0.0",
+  "pydantic-settings>=2.3.4,<3.0.0",
+
+  # Database (switched to psycopg3 for consistency and modern features)
+  "sqlalchemy[asyncio]>=2.0.31,<3.0.0",
+  "psycopg[binary,pool]>=3.1.8,<4.0.0", # Replaced asyncpg
+  "alembic>=1.13.1,<2.0.0",
+
+  # Security and Authentication
+  "python-jose[cryptography]>=3.3.0,<4.0.0",
+  "passlib[bcrypt]>=1.7.4,<2.0.0",
+
+  # External Services and Utilities
+  "supabase[async]>=2.5.0,<3.0.0", # Switched to the official async client
+  "fastapi-limiter>=0.1.6,<1.0.0",
+  "slowapi>=0.1.9,<1.0.0", # Required for rate limiting
+]
+
+# Modern way to declare optional dependency groups like 'dev'.
+# This is a placeholder; Poetry uses its own 'tool.poetry.group' table below.
+[project.optional-dependencies]
+dev = []
+
+
+# --- Poetry Specific Configuration ---
+
+[tool.poetry]
+# Metadata is now in [project], but poetry needs these for its own commands.
+name = "data-capture-rightmove-service" 
+version = "0.1.0"
+description = "Handles data capture from Rightmove for the Paservices platform."
+authors = ["daniel <danielnwachukwu5738@gmail.com>"]
+readme = "README.md"
+# Defines where your actual Python package is located.
+packages = [{include = "data_capture_rightmove_service", from = "src"}]
+
+
+# Poetry's dependency management section (mirrors [project] table for poetry commands)
+[tool.poetry.dependencies]
+python = ">=3.12,<4.0"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.30.1"}
+pydantic = {extras = ["email"], version = "^2.7.4"}
+pydantic-settings = "^2.3.4"
+sqlalchemy = {extras = ["asyncio"], version = "^2.0.31"}
+psycopg = {extras = ["binary", "pool"], version = "^3.1.19"}
+alembic = "^1.13.1"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}
+passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+supabase = {extras = ["async"], version = "^2.5.0"}
+fastapi-limiter = "^0.1.6"
+slowapi = "^0.1.9"
+
+
+# A comprehensive set of development dependencies
+[tool.poetry.group.dev.dependencies]
+# Testing
+pytest = "^8.2.2"
+pytest-asyncio = "^0.23.7"
+pytest-cov = "^5.0.0"      # For checking test coverage
+httpx = "^0.27.0"           # For making HTTP requests in tests
+asgi-lifespan = "^2.1.0"    # For testing FastAPI startup/shutdown events
+
+# Code Quality & Formatting
+ruff = "^0.4.10"            # Fast linter and formatter
+black = "^24.4.2"           # Opinionated code formatter
+mypy = "^1.10.0"            # Static type checker
+
+# Development Workflow
+pre-commit = "^3.7.1"       # For running checks before git commits
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
