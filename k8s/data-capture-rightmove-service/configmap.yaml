@@ -4,6 +4,6 @@ metadata:
   name: data-capture-rightmove-config
 data:
   # Use internal service names for communication within the cluster
-  AUTH_SERVICE_URL: "http://auth-service/api/v1"
-  SUPER_ID_SERVICE_URL: "http://super-id-service/api/v1"
-  RATE_LIMIT_REQUESTS_PER_MINUTE: "100/minute"
+  DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL: "http://auth-service/api/v1"
+  DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL: "http://super-id-service/api/v1"
+  DATA_CAPTURE_RIGHTMOVE_SERVICE_RATE_LIMIT_REQUESTS_PER_MINUTE: "100/minute"

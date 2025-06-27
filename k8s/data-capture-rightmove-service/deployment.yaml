@@ -31,48 +31,48 @@ spec:
               valueFrom:
                 configMapKeyRef:
                   name: data-capture-rightmove-config
-                  key: AUTH_SERVICE_URL
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL
             - name: SUPER_ID_SERVICE_URL
               valueFrom:
                 configMapKeyRef:
                   name: data-capture-rightmove-config
-                  key: SUPER_ID_SERVICE_URL
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL
             - name: RATE_LIMIT_REQUESTS_PER_MINUTE
               valueFrom:
                 configMapKeyRef:
                   name: data-capture-rightmove-config
-                  key: RATE_LIMIT_REQUESTS_PER_MINUTE
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_RATE_LIMIT_REQUESTS_PER_MINUTE
             # Values from Secrets
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATABASE_URL
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: M2M_CLIENT_ID
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: M2M_CLIENT_SECRET
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: JWT_SECRET_KEY
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: REDIS_URL
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: RAPIDAPI_KEY
+                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY
           resources:
             limits:
               cpu: "1"
