@@ -54,7 +54,7 @@ class AuthServiceClient:
             and self._token_expiry
             and datetime.utcnow() < self._token_expiry
         ):
-            logger.debug("Using cached auth token")
+            logger.debug("Using cached auth token.")
             return self._token
 
         logger.info("Fetching new M2M token from Auth Service")
@@ -95,7 +95,7 @@ class AuthServiceClient:
     async def get_auth_header(self, force_refresh: bool = False) -> Dict[str, str]:
         """
         Get the Authorization header with a valid JWT token.
-        
+
         Args:
             force_refresh: Force token refresh even if the current token is still valid
 
