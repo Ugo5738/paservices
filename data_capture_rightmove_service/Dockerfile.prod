@@ -34,6 +34,9 @@ RUN addgroup --system app && adduser --system --ingroup app app
 # Copy the installed dependencies from the builder stage
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 
+# Copy the executables (like alembic, uvicorn) from the builder stage
+COPY --from=builder /usr/local/bin /usr/local/bin
+
 # Copy the application source code
 COPY ./src ./src
 COPY ./alembic ./alembic
