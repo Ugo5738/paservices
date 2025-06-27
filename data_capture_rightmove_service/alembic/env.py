@@ -13,23 +13,32 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Add the src directory to the path to enable proper imports
-project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_path)
-
-from src.data_capture_rightmove_service.config import settings
-from src.data_capture_rightmove_service.db import Base
+sys.path.insert(
+    0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
+# --- Explicitly set the sqlalchemy.url from the environment variable ---
+# This ensures that the URL provided by Kubernetes secrets is always used.
+db_url = os.environ.get("DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
+else:
+    # This will now clearly fail if the env var isn't set, which is good.
+    raise ValueError(
+        "DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL environment variable not set for Alembic."
+    )
+
+from src.data_capture_rightmove_service.config import settings
+from src.data_capture_rightmove_service.db import Base
+
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
-
-# Override the URL in alembic.ini with the database URL from our settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
