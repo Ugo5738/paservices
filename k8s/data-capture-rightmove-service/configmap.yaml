@@ -3,11 +3,7 @@ kind: ConfigMap
 metadata:
   name: data-capture-rightmove-config
 data:
-  # Non-sensitive configuration values
-  environment: "production"
-  root_path: "/api/v1"
-  logging_level: "INFO"
-  auth_service_url: "http://auth-service/api/v1"
-  super_id_service_url: "http://super-id-service/api/v1"
-  rate_limit: "60/minute"
-  allowed_origins: "https://app.example.com"
+  # Use internal service names for communication within the cluster
+  AUTH_SERVICE_URL: "http://auth-service/api/v1"
+  SUPER_ID_SERVICE_URL: "http://super-id-service/api/v1"
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "100/minute"

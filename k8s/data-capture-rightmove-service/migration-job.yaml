@@ -1,0 +1,27 @@
+# k8s/data-capture-rightmove-service/migration-job.yaml
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: data-capture-rightmove-migration
+  labels:
+    app: data-capture-rightmove-service
+    component: migration
+spec:
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: data-capture-rightmove-migration
+          image: ${DOCKER_IMAGE_TAG}
+          command: ["alembic", "upgrade", "head"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: data-capture-rightmove-secrets
+                  key: DATABASE_URL
+            # Add any other env vars required by your migration script/Alembic env.py
+            - name: ENVIRONMENT
+              value: "production"
+      backoffLimit: 2

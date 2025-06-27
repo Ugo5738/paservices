@@ -10,10 +10,12 @@ env:
   DOCKER_REGISTRY: docker.io
   AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
   SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
+  DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
 
   # Deployment settings
   AUTH_DOMAIN: auth.supersami.com
   SUPER_ID_DOMAIN: superid.supersami.com
+  DATA_CAPTURE_RIGHTMOVE_DOMAIN: data-capture-rightmove.supersami.com
 
 on:
   push:
@@ -21,6 +23,7 @@ on:
     paths:
       - "auth_service/**"
       - "super_id_service/**"
+      - "data_capture_rightmove_service/**"
       - "k8s/**"
       - ".github/workflows/multi-service-deploy.yml"
   workflow_dispatch:
@@ -32,6 +35,11 @@ on:
         default: true
       deploy_super_id:
         description: "Deploy Super ID Service"
+        required: false
+        type: boolean
+        default: true
+      deploy_data_capture_rightmove:
+        description: "Deploy Data Capture Rightmove Service"
         required: false
         type: boolean
         default: true
@@ -52,6 +60,7 @@ jobs:
     outputs:
       auth_service: ${{ steps.filter.outputs.auth_service }}
       super_id_service: ${{ steps.filter.outputs.super_id_service }}
+      data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
       k8s: ${{ steps.filter.outputs.k8s }}
     steps:
       - uses: actions/checkout@v3
@@ -64,6 +73,8 @@ jobs:
               - 'auth_service/**'
             super_id_service:
               - 'super_id_service/**'
+            data_capture_rightmove_service:
+              - 'data_capture_rightmove_service/**'
             k8s:
               - 'k8s/**'
 
@@ -116,6 +127,28 @@ jobs:
           file: ./super_id_service/Dockerfile.prod
           push: true
           tags: ${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }},${{ env.SUPER_ID_SERVICE_IMAGE }}:latest
+
+  build-data-capture-rightmove-service:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || github.event.inputs.deploy_data_capture_rightmove == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Login to DockerHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOCKERHUB_TOKEN }}
+      - name: Build and push Data Capture Rightmove Service
+        uses: docker/build-push-action@v4
+        with:
+          context: ./data_capture_rightmove_service
+          file: ./data_capture_rightmove_service/Dockerfile.prod
+          push: true
+          tags: ${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }},${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:latest
 
   deploy-auth-service:
     needs: [detect-changes, build-auth-service]
@@ -310,3 +343,76 @@ jobs:
           # Wait for deployment rollout with shorter timeout
           echo "Waiting for deployment rollout..."
           kubectl rollout status deployment/super-id-service --timeout=120s || echo "Deployment rollout timed out, check pod status manually"
+
+  deploy-data-capture-rightmove-service:
+    needs: [detect-changes, build-data-capture-rightmove-service]
+    if: ${{ needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_data_capture_rightmove == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Update kubeconfig
+        run: |
+          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+      - name: Process K8s manifests for Data Capture Service
+        run: |
+          # Encode secrets as base64 for K8s secrets
+          DATABASE_URL_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}" | base64 -w 0)
+          M2M_CLIENT_ID_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID }}" | base64 -w 0)
+          M2M_CLIENT_SECRET_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET }}" | base64 -w 0)
+          JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY }}" | base64 -w 0)
+          REDIS_URL_B64=$(echo -n "${{ secrets.REDIS_URL }}" | base64 -w 0)
+          RAPIDAPI_KEY_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPIDAPI_KEY }}" | base64 -w 0)
+
+          # Substitute placeholders in secrets.yaml
+          sed -i "s|DATABASE_URL_BASE64|$DATABASE_URL_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|M2M_CLIENT_ID_BASE64|$M2M_CLIENT_ID_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|M2M_CLIENT_SECRET_BASE64|$M2M_CLIENT_SECRET_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|JWT_SECRET_KEY_BASE64|$JWT_SECRET_KEY_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|RAPIDAPI_KEY_BASE64|$RAPIDAPI_KEY_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+
+          # Substitute image tag in deployment and migration job
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/deployment.yaml
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/migration-job.yaml
+
+          # Substitute domain in ingress
+          sed -i "s|\${DATA_CAPTURE_DOMAIN}|${{ env.DATA_CAPTURE_DOMAIN }}|g" k8s/data-capture-rightmove-service/ingress.yaml
+
+      - name: Apply Data Capture Service K8s manifests
+        run: |
+          # Clean up any old migration job
+          kubectl delete job data-capture-rightmove-migration --ignore-not-found=true
+          sleep 5
+
+          # Apply ConfigMap and Secrets
+          kubectl apply -f k8s/data-capture-rightmove-service/configmap.yaml
+          kubectl apply -f k8s/data-capture-rightmove-service/secrets.yaml
+
+          # Run the migration job
+          kubectl apply -f k8s/data-capture-rightmove-service/migration-job.yaml
+
+          # Wait for the migration job to complete
+          echo "Waiting for migration job to complete..."
+          if ! kubectl wait --for=condition=complete --timeout=300s job/data-capture-rightmove-migration; then
+            echo "Migration job for data-capture-rightmove-service failed to complete."
+            # Get logs from the failed pod
+            POD_NAME=$(kubectl get pods -l job-name=data-capture-rightmove-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+            if [ -n "$POD_NAME" ]; then kubectl logs "$POD_NAME"; fi
+            exit 1
+          fi
+          echo "Migration job completed."
+
+          # Deploy the main application
+          kubectl apply -f k8s/data-capture-rightmove-service/deployment.yaml
+          kubectl apply -f k8s/data-capture-rightmove-service/service.yaml
+          kubectl apply -f k8s/data-capture-rightmove-service/ingress.yaml
+
+      - name: Verify Deployment Rollout
+        run: kubectl rollout status deployment/data-capture-rightmove-service --timeout=300s

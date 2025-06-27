@@ -8,45 +8,51 @@ update the environment variables to use known good values.
 import os
 import sys
 
+
 def update_credentials(env_file, client_id, client_secret):
     """Update the client credentials in the .env file"""
-    with open(env_file, 'r') as f:
+    with open(env_file, "r") as f:
         lines = f.readlines()
-    
+
     m2m_client_id_found = False
     m2m_client_secret_found = False
-    
+
     for i, line in enumerate(lines):
-        if line.startswith('DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID='):
-            lines[i] = f'DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID={client_id}\n'
+        if line.startswith("DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID="):
+            lines[i] = f"DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID={client_id}\n"
             m2m_client_id_found = True
-        elif line.startswith('DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET='):
-            lines[i] = f'DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET={client_secret}\n'
+        elif line.startswith("DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET="):
+            lines[i] = (
+                f"DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET={client_secret}\n"
+            )
             m2m_client_secret_found = True
-    
+
     if not m2m_client_id_found:
-        lines.append(f'DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID={client_id}\n')
-    
+        lines.append(f"DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID={client_id}\n")
+
     if not m2m_client_secret_found:
-        lines.append(f'DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET={client_secret}\n')
-    
-    with open(env_file, 'w') as f:
+        lines.append(
+            f"DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET={client_secret}\n"
+        )
+
+    with open(env_file, "w") as f:
         f.writelines(lines)
-    
+
     print(f"Updated client credentials in {env_file}")
+
 
 if __name__ == "__main__":
     # Use hardcoded known good values for our dev environment
     # In production, these would be securely generated and stored
     client_id = "rightmove-data-capture-service"
     client_secret = "dev-rightmove-service-secret"
-    
-    env_file = os.path.join('data_capture_rightmove_service', '.env.dev')
-    
+
+    env_file = os.path.join("data_capture_rightmove_service", ".env.dev")
+
     if not os.path.exists(env_file):
         print(f"Error: Environment file {env_file} not found!")
         sys.exit(1)
-    
+
     update_credentials(env_file, client_id, client_secret)
     print("\nAlso need to update the auth service database!")
     print("\nRun the following commands to update the auth service database:")
@@ -71,20 +77,28 @@ if __name__ == "__main__":
     print("    async with get_db_session() as db:")
     print("        # Create super_id:generate permission if it doesn't exist")
     print("        permission_name = 'super_id:generate'")
-    print("        result = await db.execute(select(Permission).where(Permission.name == permission_name))")
+    print(
+        "        result = await db.execute(select(Permission).where(Permission.name == permission_name))"
+    )
     print("        permission = result.scalars().first()")
     print("        if not permission:")
-    print("            permission = Permission(name=permission_name, description='Permission to generate Super IDs')")
+    print(
+        "            permission = Permission(name=permission_name, description='Permission to generate Super IDs')"
+    )
     print("            db.add(permission)")
     print("            await db.flush()")
     print("            print(f'Created permission: {permission_name}')")
     print("")
     print("        # Create role if it doesn't exist")
     print("        role_name = 'rightmove_service_role'")
-    print("        result = await db.execute(select(Role).where(Role.name == role_name))")
+    print(
+        "        result = await db.execute(select(Role).where(Role.name == role_name))"
+    )
     print("        role = result.scalars().first()")
     print("        if not role:")
-    print("            role = Role(name=role_name, description='Role for Rightmove Service')")
+    print(
+        "            role = Role(name=role_name, description='Role for Rightmove Service')"
+    )
     print("            db.add(role)")
     print("            await db.flush()")
     print("            print(f'Created role: {role_name}')")
@@ -99,7 +113,9 @@ if __name__ == "__main__":
     print("            )")
     print("            role_permission = result.scalars().first()")
     print("            if not role_permission:")
-    print("                role_permission = RolePermission(role_id=role.id, permission_id=permission.id)")
+    print(
+        "                role_permission = RolePermission(role_id=role.id, permission_id=permission.id)"
+    )
     print("                db.add(role_permission)")
     print("                await db.flush()")
     print("                print(f'Attached permission to role')")
@@ -107,7 +123,9 @@ if __name__ == "__main__":
     print("        # Create or update client")
     print("        client_id = 'rightmove-data-capture-service'")
     print("        client_secret = 'dev-rightmove-service-secret'")
-    print("        result = await db.execute(select(AppClient).where(AppClient.client_id == client_id))")
+    print(
+        "        result = await db.execute(select(AppClient).where(AppClient.client_id == client_id))"
+    )
     print("        client = result.scalars().first()")
     print("        if client:")
     print("            # Update existing client")
@@ -124,7 +142,9 @@ if __name__ == "__main__":
     print("                name='Data Capture Rightmove Service',")
     print("                client_id=client_id,")
     print("                client_secret_hash=hashed.decode('utf-8'),")
-    print("                description='Machine-to-machine client for Rightmove Data Capture'")
+    print(
+        "                description='Machine-to-machine client for Rightmove Data Capture'"
+    )
     print("            )")
     print("            db.add(client)")
     print("            await db.flush()")
@@ -140,7 +160,9 @@ if __name__ == "__main__":
     print("            )")
     print("            client_role = result.scalars().first()")
     print("            if not client_role:")
-    print("                client_role = AppClientRole(app_client_id=client.id, role_id=role.id)")
+    print(
+        "                client_role = AppClientRole(app_client_id=client.id, role_id=role.id)"
+    )
     print("                db.add(client_role)")
     print("                await db.flush()")
     print("                print(f'Attached role to client')")
@@ -155,4 +177,6 @@ if __name__ == "__main__":
     print("   python /app/scripts/add_client.py")
     print("\n4. Restart the Rightmove service:")
     print("   exit")
-    print("   docker-compose -f docker-compose.yml restart data_capture_rightmove_service")
+    print(
+        "   docker-compose -f docker-compose.yml restart data_capture_rightmove_service"
+    )
