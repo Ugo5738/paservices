@@ -8,14 +8,52 @@ metadata:
     app: data-capture-rightmove-service
     component: migration
 spec:
-  backoffLimit: 2
+  # Increase the timeout for debugging purposes
+  activeDeadlineSeconds: 600 # 10 minutes
+  backoffLimit: 1
   template:
     spec:
       restartPolicy: OnFailure
       containers:
         - name: data-capture-rightmove-migration
           image: ${DOCKER_IMAGE_TAG}
-          command: ["alembic", "upgrade", "head"]
+          # command: ["alembic", "upgrade", "head"]
+          # --- START: DEBUGGING COMMAND ---
+          # Temporarily override the command to debug the environment
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              echo "--- STARTING DEBUGGING SESSION ---"
+              echo "Alembic will NOT run. This pod will sleep for 10 minutes."
+
+              echo ""
+              echo "--- PRINTING ALL ENVIRONMENT VARIABLES ---"
+              printenv | sort
+
+              echo ""
+              echo "--- CHECKING SPECIFIC DATABASE URL VARIABLE ---"
+              if [ -n "$DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL" ]; then
+                # Only print the start of the URL to avoid logging the password
+                echo "DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL is set."
+                echo "Value starts with: $(echo $DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL | cut -c 1-40)..."
+              else
+                echo "ERROR: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL is NOT set."
+              fi
+
+              echo ""
+              echo "--- CHECKING alembic.ini CONTENTS ---"
+              if [ -f "alembic.ini" ]; then
+                cat alembic.ini
+              else
+                echo "alembic.ini not found in the current directory."
+              fi
+
+              echo ""
+              echo "--- POD IS NOW SLEEPING ---"
+              echo "Use 'kubectl logs <pod-name>' to see this output."
+              echo "Use 'kubectl exec -it <pod-name> -- /bin/sh' to get a shell inside the pod."
+              sleep 600
+          # --- END: DEBUGGING COMMAND ---
           env:
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
               valueFrom:
