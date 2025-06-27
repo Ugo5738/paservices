@@ -8,6 +8,7 @@ metadata:
     app: data-capture-rightmove-service
     component: migration
 spec:
+  backoffLimit: 2
   template:
     spec:
       restartPolicy: OnFailure
@@ -24,4 +25,3 @@ spec:
             # Add any other env vars required by your migration script/Alembic env.py
             - name: ENVIRONMENT
               value: "production"
-      backoffLimit: 2

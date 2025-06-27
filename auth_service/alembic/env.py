@@ -9,12 +9,25 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 # Add the parent directory to sys.path to allow imports
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-sys.path.append(parent_dir)
+# --- Ensure the src directory is in the path for module resolution ---
+sys.path.insert(
+    0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# --- Explicitly set the sqlalchemy.url from the environment variable ---
+# This ensures that the URL provided by Kubernetes secrets is always used.
+db_url = os.environ.get("AUTH_SERVICE_DATABASE_URL")
+if db_url:
+    config.set_main_option("sqlalchemy.url", db_url)
+else:
+    # This will now clearly fail if the env var isn't set, which is good.
+    raise ValueError(
+        "AUTH_SERVICE_DATABASE_URL environment variable not set for Alembic."
+    )
 
 # Import all models to ensure they're registered with Base.metadata
 # We're importing the __init__.py which should import all models
