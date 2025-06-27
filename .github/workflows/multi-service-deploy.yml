@@ -171,25 +171,23 @@ jobs:
 
       - name: Process K8s manifests for Auth Service
         run: |
-          # Encode secrets as base64 for K8s secrets
-          AUTH_SERVICE_SUPABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_URL }}" | base64 -w 0)
-          AUTH_SERVICE_SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}" | base64 -w 0)
-          AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
-          AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
-          # Format uses single quotes for values with spaces in options parameter per memory
-          AUTH_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DATABASE_URL }}" | base64 -w 0)
-          USE_PGBOUNCER_B64=$(echo -n "false" | base64 -w 0)
+          # Use raw, unencoded secret values
+          AUTH_SERVICE_SUPABASE_URL_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_URL }}"
+          AUTH_SERVICE_SUPABASE_ANON_KEY_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}"
+          AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}"
+          AUTH_SERVICE_M2M_JWT_SECRET_KEY_VAL="${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}"
+          AUTH_SERVICE_DATABASE_URL_VAL="${{ secrets.AUTH_SERVICE_DATABASE_URL }}"
+          REDIS_URL_VAL="${{ secrets.REDIS_URL }}"
+          BASE_URL_VAL="${{ secrets.AUTH_SERVICE_DOMAIN }}"
 
           # Replace placeholders directly in secrets.yaml
-          sed -i "s|AUTH_SERVICE_SUPABASE_URL_BASE64|$AUTH_SERVICE_SUPABASE_URL_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_B64|g" k8s/auth/secrets.yaml
-          REDIS_URL_B64=$(echo -n "${{ secrets.REDIS_URL }}" | base64 -w 0)
-          BASE_URL_B64=$(echo -n "${{ secrets.AUTH_SERVICE_DOMAIN }}" | base64 -w 0)
-          sed -i "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" k8s/auth/secrets.yaml
-          sed -i "s|BASE_URL_BASE64|$BASE_URL_B64|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_SUPABASE_URL_BASE64|$AUTH_SERVICE_SUPABASE_URL_VAL|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_VAL|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_VAL|g" k8s/auth/secrets.yaml
+          sed -i "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_VAL|g" k8s/auth/secrets.yaml
+          sed -i "s|REDIS_URL_BASE64|$REDIS_URL_VAL|g" k8s/auth/secrets.yaml
+          sed -i "s|BASE_URL_BASE64|$BASE_URL_VAL|g" k8s/auth/secrets.yaml
 
           # Replace placeholders directly in migration job
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/migration-job.yaml
@@ -250,20 +248,19 @@ jobs:
 
       - name: Process K8s manifests for Super ID Service
         run: |
-          # Encode secrets as base64 for K8s secrets
-          SUPER_ID_SERVICE_SUPABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}" | base64 -w 0)
-          SUPER_ID_SERVICE_SUPABASE_ANON_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_ANON_KEY }}" | base64 -w 0)
-          SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}" | base64 -w 0)
-          SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}" | base64 -w 0)
-          # Format uses single quotes for values with spaces in options parameter per memory
-          SUPER_ID_SERVICE_DATABASE_URL_B64=$(echo -n "${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}" | base64 -w 0)
+          # Use raw, unencoded secret values
+          SUPER_ID_SERVICE_SUPABASE_URL_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}"
+          SUPER_ID_SERVICE_SUPABASE_ANON_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_ANON_KEY }}"
+          SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}"
+          SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}"
+          SUPER_ID_SERVICE_DATABASE_URL_VAL="${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}"
 
           # Replace placeholders directly in secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_SUPABASE_URL_BASE64|$SUPER_ID_SERVICE_SUPABASE_URL_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_SUPABASE_ANON_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_ANON_KEY_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_B64|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_B64|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_SUPABASE_URL_BASE64|$SUPER_ID_SERVICE_SUPABASE_URL_VAL|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_SUPABASE_ANON_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_ANON_KEY_VAL|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_VAL|g" k8s/super_id/secrets.yaml
+          sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_VAL|g" k8s/super_id/secrets.yaml
 
           # Replace placeholders directly in migration job
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/migration-job.yaml
@@ -362,21 +359,21 @@ jobs:
           aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
       - name: Process K8s manifests for Data Capture Service
         run: |
-          # Encode secrets as base64 for K8s secrets
-          DATABASE_URL_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}" | base64 -w 0)
-          M2M_CLIENT_ID_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID }}" | base64 -w 0)
-          M2M_CLIENT_SECRET_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET }}" | base64 -w 0)
-          JWT_SECRET_KEY_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY }}" | base64 -w 0)
-          REDIS_URL_B64=$(echo -n "${{ secrets.REDIS_URL }}" | base64 -w 0)
-          RAPIDAPI_KEY_B64=$(echo -n "${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY }}" | base64 -w 0)
+          DATABASE_URL_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}"
+          M2M_CLIENT_ID_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID }}"
+          M2M_CLIENT_SECRET_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET }}"
+          JWT_SECRET_KEY_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY }}"
+          REDIS_URL_VAL="${{ secrets.REDIS_URL }}"
+          RAPIDAPI_KEY_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY }}"
 
           # Substitute placeholders in secrets.yaml
-          sed -i "s|DATABASE_URL_BASE64|$DATABASE_URL_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|M2M_CLIENT_ID_BASE64|$M2M_CLIENT_ID_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|M2M_CLIENT_SECRET_BASE64|$M2M_CLIENT_SECRET_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|JWT_SECRET_KEY_BASE64|$JWT_SECRET_KEY_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|REDIS_URL_BASE64|$REDIS_URL_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|RAPIDAPI_KEY_BASE64|$RAPIDAPI_KEY_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
+          # NOTE: Using '|' as the sed delimiter to avoid conflicts with special characters in URLs/secrets
+          sed -i "s|DATABASE_URL_BASE64|$DATABASE_URL_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|M2M_CLIENT_ID_BASE64|$M2M_CLIENT_ID_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|M2M_CLIENT_SECRET_BASE64|$M2M_CLIENT_SECRET_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|JWT_SECRET_KEY_BASE64|$JWT_SECRET_KEY_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|REDIS_URL_BASE64|$REDIS_URL_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+          sed -i "s|RAPIDAPI_KEY_BASE64|$RAPIDAPI_KEY_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
 
           # Substitute image tag in deployment and migration job
           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/deployment.yaml
