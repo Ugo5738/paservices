@@ -12,29 +12,28 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Add the src directory to the path to enable proper imports
-project_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, project_path)
+# Add the 'src' directory to the Python path to allow imports from your app
+sys.path.insert(
+    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
+)
 
-from src.data_capture_rightmove_service.config import settings
-from src.data_capture_rightmove_service.db import Base
+from data_capture_rightmove_service.config import settings
+from data_capture_rightmove_service.db import Base
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
+
+# Override the URL in alembic.ini with the database URL from our settings
+config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Override the URL in alembic.ini with the database URL from our settings
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-
 # add your model's MetaData object here
 # for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -96,7 +95,7 @@ async def run_async_migrations() -> None:
 
 async def run_migrations_online():
     """Run migrations in 'online' mode."""
-    
+
     await run_async_migrations()
 
 
