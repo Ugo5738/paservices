@@ -17,7 +17,7 @@ spec:
           image: ${DOCKER_IMAGE_TAG}
           command: ["alembic", "upgrade", "head"]
           env:
-            - name: DATABASE_URL
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
