@@ -379,11 +379,11 @@ jobs:
           sed -i "s|RAPIDAPI_KEY_BASE64|$RAPIDAPI_KEY_B64|g" k8s/data-capture-rightmove-service/secrets.yaml
 
           # Substitute image tag in deployment and migration job
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/deployment.yaml
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/migration-job.yaml
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/deployment.yaml
+          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/migration-job.yaml
 
           # Substitute domain in ingress
-          sed -i "s|\${DATA_CAPTURE_DOMAIN}|${{ env.DATA_CAPTURE_DOMAIN }}|g" k8s/data-capture-rightmove-service/ingress.yaml
+          sed -i "s|\${DATA_CAPTURE_RIGHTMOVE_DOMAIN}|${{ env.DATA_CAPTURE_RIGHTMOVE_DOMAIN }}|g" k8s/data-capture-rightmove-service/ingress.yaml
 
       - name: Apply Data Capture Service K8s manifests
         run: |

@@ -176,7 +176,7 @@ if __name__ == "__main__":
     print("\n3. Run the script:")
     print("   python /app/scripts/add_client.py")
     print("\n4. Restart the Rightmove service:")
-    print("   exit")
+    print("   exit ")
     print(
         "   docker-compose -f docker-compose.yml restart data_capture_rightmove_service"
     )
