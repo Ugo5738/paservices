@@ -44,13 +44,6 @@ if config.config_file_name is not None:
 # Set target_metadata to our SQLAlchemy Base.metadata for autogenerate support
 target_metadata = Base.metadata
 
-# We'll use the database URL from alembic.ini directly
-
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
-
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
