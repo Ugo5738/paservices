@@ -21,7 +21,6 @@ sys.path.insert(
 config = context.config
 
 # --- Explicitly set the sqlalchemy.url from the environment variable ---
-# This ensures that the URL provided by Kubernetes secrets is always used.
 db_url = os.environ.get("DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
