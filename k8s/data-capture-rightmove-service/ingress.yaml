@@ -10,10 +10,10 @@ metadata:
 spec:
   tls:
     - hosts:
-        - ${DATA_CAPTURE_DOMAIN} # This will be replaced by the CI/CD pipeline
+        - ${DATA_CAPTURE_RIGHTMOVE_DOMAIN} # This will be replaced by the CI/CD pipeline
       secretName: data-capture-rightmove-tls
   rules:
-    - host: ${DATA_CAPTURE_DOMAIN}
+    - host: ${DATA_CAPTURE_RIGHTMOVE_DOMAIN}
       http:
         paths:
           - path: /

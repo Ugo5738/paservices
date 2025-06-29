@@ -12,7 +12,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# Add the src directory to the path to enable proper imports
+# Add the parent directory to sys.path to allow imports
+# --- Ensure the src directory is in the path for module resolution ---
 sys.path.insert(
     0, os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "src"))
 )
