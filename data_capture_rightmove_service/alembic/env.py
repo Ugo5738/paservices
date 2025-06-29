@@ -20,7 +20,6 @@ sys.path.insert(
 # access to the values within the .ini file in use.
 config = context.config
 
-# --- Explicitly set the sqlalchemy.url from the environment variable ---
 db_url = os.environ.get("DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)

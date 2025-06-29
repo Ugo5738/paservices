@@ -8,7 +8,6 @@ metadata:
     app: data-capture-rightmove-service
     component: migration
 spec:
-  activeDeadlineSeconds: 600
   backoffLimit: 2
   template:
     spec:
@@ -16,12 +15,7 @@ spec:
       containers:
         - name: data-capture-rightmove-migration
           image: ${DOCKER_IMAGE_TAG}
-          # command: ["alembic", "upgrade", "head"]
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              echo "--- DEBUGGING: Pod is sleeping for 10 minutes. ---"
-              sleep 600
+          command: ["alembic", "upgrade", "head"]
           env:
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
               valueFrom:
