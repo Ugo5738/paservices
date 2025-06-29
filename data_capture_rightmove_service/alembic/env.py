@@ -26,7 +26,6 @@ db_url = os.environ.get("DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
 else:
-    # This will now clearly fail if the env var isn't set, which is good.
     raise ValueError(
         "DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL environment variable not set for Alembic."
     )
