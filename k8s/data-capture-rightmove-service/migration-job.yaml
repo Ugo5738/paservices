@@ -21,37 +21,41 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
+                  key: DATABASE_URL
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_URL
+                  key: SUPABASE_URL
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_ANON_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_ANON_KEY
+                  key: SUPABASE_ANON_KEY
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_SERVICE_ROLE_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_SERVICE_ROLE_KEY
+                  key: SUPABASE_SERVICE_ROLE_KEY
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
+                  key: M2M_CLIENT_ID
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
+                  key: M2M_CLIENT_SECRET
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY
-            # Add any other env vars required by your migration script/Alembic env.py
+                  key: RAPIDAPI_KEY
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: data-capture-rightmove-secrets
+                  key: JWT_SECRET_KEY
             - name: ENVIRONMENT
               value: "production"

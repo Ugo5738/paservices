@@ -27,52 +27,52 @@ spec:
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_LOGGING_LEVEL
               value: "INFO"
             # Values from ConfigMap
-            - name: AUTH_SERVICE_URL
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL
               valueFrom:
                 configMapKeyRef:
                   name: data-capture-rightmove-config
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL
-            - name: SUPER_ID_SERVICE_URL
+                  key: AUTH_SERVICE_URL
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL
               valueFrom:
                 configMapKeyRef:
                   name: data-capture-rightmove-config
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL
-            - name: RATE_LIMIT_REQUESTS_PER_MINUTE
+                  key: SUPER_ID_SERVICE_URL
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_RATE_LIMIT_REQUESTS_PER_MINUTE
               valueFrom:
                 configMapKeyRef:
                   name: data-capture-rightmove-config
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_RATE_LIMIT_REQUESTS_PER_MINUTE
+                  key: RATE_LIMIT_REQUESTS_PER_MINUTE
             # Values from Secrets
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL
+                  key: DATABASE_URL
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
+                  key: M2M_CLIENT_ID
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET
+                  key: M2M_CLIENT_SECRET
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY
+                  key: JWT_SECRET_KEY
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL
+                  key: REDIS_URL
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY
               valueFrom:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
-                  key: DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY
+                  key: RAPIDAPI_KEY
           resources:
             limits:
               cpu: "1"
