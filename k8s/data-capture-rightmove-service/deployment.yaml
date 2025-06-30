@@ -48,6 +48,21 @@ spec:
                 secretKeyRef:
                   name: data-capture-rightmove-secrets
                   key: DATABASE_URL
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: data-capture-rightmove-secrets
+                  key: SUPABASE_URL
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_ANON_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: data-capture-rightmove-secrets
+                  key: SUPABASE_ANON_KEY
+            - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPABASE_SERVICE_ROLE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: data-capture-rightmove-secrets
+                  key: SUPABASE_SERVICE_ROLE_KEY
             - name: DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID
               valueFrom:
                 secretKeyRef:
