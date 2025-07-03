@@ -25,7 +25,8 @@ dependencies = [
 
   # Security and Authentication
   "python-jose[cryptography]>=3.3.0,<4.0.0",
-  "passlib[bcrypt]>=1.7.4,<2.0.0",
+  "passlib>=1.7.4,<2.0.0",
+  "bcrypt>=3.2.0,<4.0.0",
 
   # External Services and Utilities
   "supabase[async]>=2.5.0,<3.0.0", # Switched to the official async client
@@ -63,7 +64,8 @@ sqlalchemy = {extras = ["asyncio"], version = "^2.0.31"}
 psycopg = {extras = ["binary", "pool"], version = "^3.1.19"}
 alembic = "^1.13.1"
 python-jose = {extras = ["cryptography"], version = "^3.3.0"}
-passlib = {extras = ["bcrypt"], version = "^1.7.4"}
+passlib = "^1.7.4"
+bcrypt = "^3.2.0"
 supabase = {extras = ["async"], version = "^2.5.0"}
 fastapi-limiter = "^0.1.6"
 slowapi = "^0.1.9"

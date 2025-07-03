@@ -12,7 +12,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
-from src.auth_service.db import Base
+from auth_service.db import Base
 
 # Define a placeholder for Supabase's auth.users table.
 # This makes SQLAlchemy's metadata aware of the table and its schema

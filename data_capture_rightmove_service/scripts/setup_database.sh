@@ -13,7 +13,7 @@
 #     (Run `supabase start` from the project's root directory).
 #
 # Usage:
-#   ./setup_dev_env.sh
+#   ./setup_database.sh
 # ==============================================================================
 
 # Exit immediately if a command exits with a non-zero status.
@@ -21,11 +21,11 @@ set -e
 
 # --- Configuration ---
 DEV_COMPOSE_FILE="docker-compose.dev.yml"
-ROOT_PROJECT_DIR=".." # Assumes this script is run from inside the auth_service directory
+ROOT_PROJECT_DIR=".." # Assumes this script is run from inside the service directory
 SUPABASE_DB_CONTAINER="supabase_db_paservices"
-DEV_DB_NAME="rightmove_dev_db"
-TEST_DB_NAME="rightmove_test_db"
-SCHEMA_DUMP_FILE="data_capture_rightmove_service/sql/rightmove_schema.sql"
+DEV_DB_NAME="data_capture_rightmove_dev_db"
+TEST_DB_NAME="data_capture_rightmove_test_db"
+SCHEMA_DUMP_FILE="sql/rightmove_schema.sql"
 
 # --- Helper Functions ---
 print_header() {
@@ -51,6 +51,12 @@ echo "✅ Supabase container '${SUPABASE_DB_CONTAINER}' is running."
 # This ensures a completely clean environment for every run.
 print_header "Step 2: Re-creating databases '${DEV_DB_NAME}' and '${TEST_DB_NAME}' (dropping if they exist)"
 
+# First, clean up old databases with previous names (if they exist)
+echo "Cleaning up old databases with previous names..."
+docker exec "${SUPABASE_DB_CONTAINER}" psql -U postgres -c "DROP DATABASE IF EXISTS rightmove_dev_db WITH (FORCE);"
+docker exec "${SUPABASE_DB_CONTAINER}" psql -U postgres -c "DROP DATABASE IF EXISTS rightmove_test_db WITH (FORCE);"
+echo "✅ Old databases cleaned up."
+
 # Using `DROP DATABASE IF EXISTS ... WITH (FORCE)` terminates any active connections
 # and prevents errors if the database doesn't exist, making the script robust.
 docker exec "${SUPABASE_DB_CONTAINER}" psql -U postgres -c "DROP DATABASE IF EXISTS ${DEV_DB_NAME} WITH (FORCE);"
@@ -62,21 +68,46 @@ docker exec "${SUPABASE_DB_CONTAINER}" psql -U postgres -c "CREATE DATABASE ${TE
 echo "✅ Test database '${TEST_DB_NAME}' re-created."
 
 
-# Step 3: Apply the 'rightmove' schema to our new databases
-print_header "Step 3: Applying 'rightmove' schema to dev and test databases"
-# We run this from the parent directory context to ensure the paths are correct
-(cd "${ROOT_PROJECT_DIR}" && docker exec -i "${SUPABASE_DB_CONTAINER}" psql -U postgres -d "${DEV_DB_NAME}" < "data_capture_rightmove_service/${SCHEMA_DUMP_FILE}")
-(cd "${ROOT_PROJECT_DIR}" && docker exec -i "${SUPABASE_DB_CONTAINER}" psql -U postgres -d "${TEST_DB_NAME}" < "data_capture_rightmove_service/${SCHEMA_DUMP_FILE}")
-echo "✅ 'rightmove' schema applied."
+# Step 3: Drop all tables in the rightmove schema if it exists
+print_header "Step 3: Dropping existing tables in rightmove schema"
 
+# Drop all tables in the rightmove schema
+DROP_SCHEMA_SQL="DROP SCHEMA IF EXISTS rightmove CASCADE; CREATE SCHEMA rightmove;"
+docker exec -i "${SUPABASE_DB_CONTAINER}" psql -U postgres -d "${DEV_DB_NAME}" -c "${DROP_SCHEMA_SQL}"
+docker exec -i "${SUPABASE_DB_CONTAINER}" psql -U postgres -d "${TEST_DB_NAME}" -c "${DROP_SCHEMA_SQL}"
+echo "✅ Schema 'rightmove' reset."
 
-# Step 4: Run Alembic migrations to create our application's tables
-print_header "Step 4: Running Alembic migrations for application tables"
+# First check if there are any existing migration files
+MIGRATION_DIR="alembic/versions"
+if [ -n "$(ls -A ${MIGRATION_DIR} 2>/dev/null)" ]; then
+    echo "Removing existing migration files to ensure clean generation..."
+    rm -f ${MIGRATION_DIR}/*.py
+    echo "✅ Existing migration files removed."
+fi
+
 # We first need to build the service container to run commands in it
 docker-compose -f "${DEV_COMPOSE_FILE}" build data_capture_rightmove_service_dev
-# Now execute the alembic command
+
+# Generate a migration that will create all tables based on SQLAlchemy models
+echo "Generating migration from SQLAlchemy models..."
+docker-compose -f "${DEV_COMPOSE_FILE}" run --rm data_capture_rightmove_service_dev alembic revision --autogenerate -m "initial schema with all tables"
+echo "✅ Migration file generated from SQLAlchemy models."
+
+# Step 4: Apply the Alembic migration to create all tables
+print_header "Step 4: Applying Alembic migration to create all tables"
 docker-compose -f "${DEV_COMPOSE_FILE}" run --rm data_capture_rightmove_service_dev alembic upgrade head
-echo "✅ Alembic migrations applied."
+echo "✅ Tables created via Alembic migration."
+
+# Step 5: Apply custom SQL for any elements not captured in SQLAlchemy models
+print_header "Step 5: Applying additional SQL customizations"
+echo "Note: This step is for any SQL that can't be represented in SQLAlchemy models"
+echo "      (like custom types, functions, procedures, etc.)"
+
+# Apply any custom SQL elements that might not be captured in SQLAlchemy models
+# Uncomment and modify if needed
+# (cd "${ROOT_PROJECT_DIR}" && docker exec -i "${SUPABASE_DB_CONTAINER}" psql -U postgres -d "${DEV_DB_NAME}" < "data_capture_rightmove_service/sql/custom_elements.sql")
+# (cd "${ROOT_PROJECT_DIR}" && docker exec -i "${SUPABASE_DB_CONTAINER}" psql -U postgres -d "${TEST_DB_NAME}" < "data_capture_rightmove_service/sql/custom_elements.sql")
+echo "✅ No custom SQL elements needed at this time."
 
 print_header "Setup Complete!"
 echo "Your development environment is ready."

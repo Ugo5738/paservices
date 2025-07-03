@@ -58,14 +58,14 @@ class Settings(BaseSettings):
 
     # Auth Service connection
     AUTH_SERVICE_URL: str = Field(
-        "http://auth-service:8000/api/v1",
+        "http://auth_service:8000/api/v1",
         alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL",
         description="Auth Service URL for token acquisition",
     )
 
     # Super ID Service connection
     SUPER_ID_SERVICE_URL: str = Field(
-        "http://super-id-service:8000/api/v1",
+        "http://super_id_service:8000/api/v1",
         alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL",
         description="Super ID Service URL for UUID generation",
     )

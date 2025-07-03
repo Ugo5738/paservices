@@ -845,4 +845,56 @@ CREATE TABLE rightmove.api_properties_details_v2_location_street_view (
 CREATE INDEX idx_api_properties_details_v2_id ON rightmove.api_properties_details_v2(id);
 CREATE INDEX idx_api_properties_details_v2_super_id ON rightmove.api_properties_details_v2(super_id);
 
+--
+-- PostgreSQL database schema for Data Capture Rightmove Service
+-- Part 8: The Scrape Event Log (THE NEW PART)
+--
+
+-- This ENUM defines the different types of events we can log.
+CREATE TYPE rightmove.scrape_event_type AS ENUM (
+    'REQUEST_RECEIVED',
+    'API_CALL_ATTEMPT',
+    'API_CALL_SUCCESS',
+    'API_CALL_FAILURE',
+    'DATA_PARSED_SUCCESS',
+    'DATA_PARSED_FAILURE',
+    'DATA_STORED_SUCCESS',
+    'DATA_STORED_FAILURE'
+);
+
+-- This is the new "Captain's Log" table.
+CREATE TABLE rightmove.scrape_events (
+    id BIGSERIAL PRIMARY KEY,
+    super_id UUID NOT NULL,
+    rightmove_property_id BIGINT,
+
+    -- Event-specific details
+    event_type rightmove.scrape_event_type NOT NULL,
+    event_timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
+
+    -- Context for the event
+    source_service_name TEXT,
+    api_endpoint_called TEXT,
+
+    -- Data payload and errors
+    http_status_code INT,
+    error_code TEXT,
+    error_message TEXT,
+
+    -- Full JSON dump, as requested by the owner
+    payload JSONB,
+
+    -- Data completeness metrics, as requested
+    response_item_count INT,
+    response_null_item_count INT,
+
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Indexes for efficient querying of the log
+CREATE INDEX idx_scrape_events_super_id ON rightmove.scrape_events(super_id);
+CREATE INDEX idx_scrape_events_rightmove_property_id ON rightmove.scrape_events(rightmove_property_id);
+CREATE INDEX idx_scrape_events_event_type ON rightmove.scrape_events(event_type);
+CREATE INDEX idx_scrape_events_timestamp ON rightmove.scrape_events(event_timestamp);
+
 COMMIT;

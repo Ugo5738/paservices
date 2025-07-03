@@ -30,6 +30,7 @@ class SuperIdServiceClient:
             base_url: Base URL for the Super ID Service API, defaults to the value in settings
         """
         self.base_url = base_url or settings.SUPER_ID_SERVICE_URL
+        logger.info(f"Initializing Super ID Service Client with URL: {self.base_url}")
 
     async def create_super_id(
         self,

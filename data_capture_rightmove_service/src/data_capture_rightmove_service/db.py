@@ -1,13 +1,8 @@
-import asyncio
-import time
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 
 import sqlalchemy.util.concurrency as _concurrency
 
 _concurrency._not_implemented = lambda *args, **kwargs: None
-
-import os
-import urllib.parse
 
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
@@ -18,7 +13,6 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
-from sqlalchemy.sql import func, text
 
 from data_capture_rightmove_service.config import settings
 from data_capture_rightmove_service.utils.logging_config import logger
@@ -40,17 +34,20 @@ logger.info(f"Database type detected: {'Cloud' if is_cloud_db else 'Local'}")
 connect_args = {
     "application_name": "data_capture_rightmove_service",
     # For psycopg v3, we use options parameter instead of server_settings
-    "options": "-c timezone=UTC" + (""
-                                if settings.ENVIRONMENT == "testing"
-                                else " -c statement_timeout=30000"),  # Increased timeout for cloud
+    "options": "-c timezone=UTC"
+    + (
+        "" if settings.ENVIRONMENT == "testing" else " -c statement_timeout=30000"
+    ),  # Increased timeout for cloud
 }
 
 # Add SSL settings for cloud databases
 if is_cloud_db:
-    connect_args.update({
-        "sslmode": "require",
-    })
-    
+    connect_args.update(
+        {
+            "sslmode": "require",
+        }
+    )
+
     # Reduced pool size for cloud connections to prevent connection saturation
     pool_size = 5
     max_overflow = 10
@@ -67,16 +64,12 @@ engine: AsyncEngine = create_async_engine(
     DATABASE_URL,
     # Log SQL statements in DEBUG mode only
     echo=settings.LOGGING_LEVEL.upper() == "DEBUG",
-    # --- Connection Pool Settings ---
-    pool_size=pool_size,
-    max_overflow=max_overflow,
-    pool_timeout=pool_timeout,
-    pool_recycle=pool_recycle,
     # --- CRITICAL OPTIMIZATION ---
     # This is the most important setting for resilience. It runs a simple 'SELECT 1'
     # on a connection before it's checked out from the pool. If the connection is dead,
     # it's discarded and a new one is established. This eliminates most connection errors.
-    pool_pre_ping=True,
+    pool_pre_ping=True,  # Helps with connection resilience
+    poolclass=NullPool,  # Recommended for serverless/async environments
     # Connection arguments passed directly to the psycopg v3 driver
     connect_args=connect_args,
 )

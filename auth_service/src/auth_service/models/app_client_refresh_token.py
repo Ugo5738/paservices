@@ -2,7 +2,7 @@ import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from src.auth_service.db import Base
+from auth_service.db import Base
 
 
 class AppClientRefreshToken(Base):

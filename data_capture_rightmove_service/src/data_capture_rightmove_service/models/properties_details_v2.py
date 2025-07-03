@@ -1,6 +1,15 @@
 """
 Models for the Rightmove properties/details v2 API endpoint data.
 This module defines SQLAlchemy models that map to the tables in the rightmove schema.
+
+--- MODIFICATION LOG ---
+This file has been updated to support an insert-only, historical snapshot architecture.
+Key Changes:
+1.  The primary key on the main `ApiPropertiesDetailsV2` table is now `snapshot_id` (auto-incrementing).
+2.  The Rightmove property ID is stored in the `id` column, which is now non-unique and indexed.
+3.  All child tables now use `api_property_snapshot_id` to link to a specific historical record.
+4.  All child tables also include a denormalized `api_property_id` for easy querying across all historical
+    data for a single property, as per the original requirement.
 """
 
 from sqlalchemy import (
@@ -9,28 +18,26 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Column,
-    Float,
     ForeignKey,
     Integer,
     Numeric,
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from data_capture_rightmove_service.models.base import Base, SuperIdMixin
 
 
 class ApiPropertiesDetailsV2(Base, SuperIdMixin):
-    """
-    Main table for storing property details from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2 table.
-    """
-
     __tablename__ = "api_properties_details_v2"
 
-    id = Column(BigInteger, primary_key=True)
+    # --- MODIFICATION: Primary key is now a unique, auto-incrementing "snapshot" ID ---
+    snapshot_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION: The Rightmove property ID is now a regular, indexed, non-unique column ---
+    id = Column(BigInteger, index=True, nullable=False)
+
     transaction_type = Column(String(50))
     channel = Column(String(50))
     bedrooms = Column(Integer)
@@ -43,7 +50,7 @@ class ApiPropertiesDetailsV2(Base, SuperIdMixin):
     listing_update_reason = Column(String(255))
     property_url = Column(Text)
     school_checker_url = Column(Text)
-    lettings_info = Column(Text)
+    lettings_info = Column(JSONB)
     property_display_type = Column(String(100))
     telephone_number = Column(String(50))
     saved = Column(Boolean)
@@ -51,7 +58,7 @@ class ApiPropertiesDetailsV2(Base, SuperIdMixin):
     market_info_url = Column(Text)
     note = Column(Text)
     link_to_glossary = Column(Text)
-    enquired_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)  # Timestamp with timezone
+    enquired_timestamp = Column(TIMESTAMP(timezone=True), nullable=True)
     key_features = Column(ARRAY(Text))
     tags = Column(ARRAY(Text))
     virtual_tours = Column(JSONB)
@@ -158,17 +165,20 @@ class ApiPropertiesDetailsV2(Base, SuperIdMixin):
 
 
 class ApiPropertiesDetailsV2Misinfo(Base, SuperIdMixin):
-    """
-    Table for storing miscellaneous information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_misinfo table.
-    """
-
     __tablename__ = "api_properties_details_v2_mis_info"
-    api_property_id = Column(
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     branch_id = Column(Integer)
     offer_advert_stamp_type_id = Column(Text)
     brand_plus = Column(Boolean)
@@ -177,66 +187,63 @@ class ApiPropertiesDetailsV2Misinfo(Base, SuperIdMixin):
     premium_display = Column(Boolean)
     premium_display_stamp_id = Column(Text)
     country_code = Column(String(10))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="misinfo")
 
 
 class ApiPropertiesDetailsV2Status(Base, SuperIdMixin):
-    """
-    Table for storing status information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_status table.
-    """
-
     __tablename__ = "api_properties_details_v2_status"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     available = Column(Boolean)
     label = Column(Text)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="status")
 
 
 class ApiPropertiesDetailsV2StampDuty(Base, SuperIdMixin):
-    """
-    Table for storing stamp duty information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_stampduty table.
-    """
-
     __tablename__ = "api_properties_details_v2_stamp_duty"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     country = Column(String(100))
     price = Column(BigInteger)
     buyer_type = Column(Text)
     result = Column(Text)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="stamp_duty")
 
 
 class ApiPropertiesDetailsV2Features(Base, SuperIdMixin):
-    """
-    Table for storing features information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_features table.
-    """
-
     __tablename__ = "api_properties_details_v2_features"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     electricity = Column(JSONB)
     broadband = Column(JSONB)
     water = Column(JSONB)
@@ -245,8 +252,6 @@ class ApiPropertiesDetailsV2Features(Base, SuperIdMixin):
     accessibility = Column(JSONB)
     parking = Column(JSONB)
     garden = Column(JSONB)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="features")
     risks = relationship(
         "ApiPropertiesDetailsV2FeatureRisks",
@@ -263,18 +268,19 @@ class ApiPropertiesDetailsV2Features(Base, SuperIdMixin):
 
 
 class ApiPropertiesDetailsV2Branch(Base, SuperIdMixin):
-    """
-    Table for storing branch information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_branch table.
-    """
-
     __tablename__ = "api_properties_details_v2_branch"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     identifier = Column(Integer)
     name = Column(String(255))
     brand_name = Column(String(255))
@@ -282,28 +288,25 @@ class ApiPropertiesDetailsV2Branch(Base, SuperIdMixin):
     address = Column(Text)
     logo = Column(Text)
     developer = Column(Boolean)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="branch")
 
 
 class ApiPropertiesDetailsV2Brochure(Base, SuperIdMixin):
-    """
-    Table for storing brochure information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_brochure table.
-    """
-
     __tablename__ = "api_properties_details_v2_brochure"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     title = Column(String(255))
     show_brochure_lead = Column(Boolean)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="brochure")
     items = relationship(
         "ApiPropertiesDetailsV2BrochureItem",
@@ -313,94 +316,81 @@ class ApiPropertiesDetailsV2Brochure(Base, SuperIdMixin):
 
 
 class ApiPropertiesDetailsV2BrochureItem(Base, SuperIdMixin):
-    """
-    Table for storing brochure items information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_brochure_items table.
-    """
-
     __tablename__ = "api_properties_details_v2_brochure_items"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-    brochure_api_property_id = Column(
+    # --- MODIFICATION ---
+    brochure_id = Column(
         BigInteger,
         ForeignKey(
-            "rightmove.api_properties_details_v2_brochure.api_property_id",
-            ondelete="CASCADE",
+            "rightmove.api_properties_details_v2_brochure.id", ondelete="CASCADE"
         ),
         nullable=False,
     )
-    api_property_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     url = Column(Text)
     caption = Column(String(255))
-
-    # Relationships
     brochure = relationship("ApiPropertiesDetailsV2Brochure", back_populates="items")
 
 
 class ApiPropertiesDetailsV2Price(Base, SuperIdMixin):
-    """
-    Table for storing price information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_price table.
-    """
-
     __tablename__ = "api_properties_details_v2_price"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     primary_price = Column(String(100))
     secondary_price = Column(String(255))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="price")
 
 
 class ApiPropertiesDetailsV2LocalTax(Base, SuperIdMixin):
-    """
-    Table for storing local tax information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_localtax table.
-    """
-
     __tablename__ = "api_properties_details_v2_local_tax"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     type = Column(String(100))
     status = Column(Text)
     value = Column(String(100))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="local_tax")
 
 
 class ApiPropertiesDetailsV2Location(Base, SuperIdMixin):
-    """
-    Table for storing location information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_location table.
-    """
-
     __tablename__ = "api_properties_details_v2_location"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     pin_type = Column(String(100))
     latitude = Column(Numeric(10, 8))
     longitude = Column(Numeric(11, 8))
     map_preview_url = Column(Text)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="location")
     streetview = relationship(
         "ApiPropertiesDetailsV2LocationStreetview",
@@ -411,52 +401,45 @@ class ApiPropertiesDetailsV2Location(Base, SuperIdMixin):
 
 
 class ApiPropertiesDetailsV2LocationStreetview(Base, SuperIdMixin):
-    """
-    Table for storing location streetview information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_location_streetview table.
-    """
-
     __tablename__ = "api_properties_details_v2_location_street_view"
-
-    location_api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    location_id = Column(
         BigInteger,
         ForeignKey(
-            "rightmove.api_properties_details_v2_location.api_property_id",
-            ondelete="CASCADE",
+            "rightmove.api_properties_details_v2_location.id", ondelete="CASCADE"
         ),
-        primary_key=True,
-    )
-    api_property_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     latitude = Column(Numeric(10, 8))
     longitude = Column(Numeric(11, 8))
     heading = Column(Text)
     pitch = Column(Text)
     zoom = Column(Text)
     url = Column(Text)
-
-    # Relationships
     location = relationship(
         "ApiPropertiesDetailsV2Location", back_populates="streetview"
     )
 
 
 class ApiPropertiesDetailsV2SalesInfo(Base, SuperIdMixin):
-    """
-    Table for storing sales information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_sales_info table.
-    """
-
     __tablename__ = "api_properties_details_v2_sales_info"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     tenure_type = Column(String(100))
     tenure_display_type = Column(String(100))
     ground_rent = Column(Text)
@@ -465,66 +448,65 @@ class ApiPropertiesDetailsV2SalesInfo(Base, SuperIdMixin):
     length_of_lease = Column(Text)
     shared_ownership_percentage = Column(Text)
     shared_ownership_rent = Column(Text)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="sales_info")
 
 
 class ApiPropertiesDetailsV2Size(Base, SuperIdMixin):
-    """
-    Table for storing size information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_size table.
-    """
-
     __tablename__ = "api_properties_details_v2_size"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     primary_size = Column(String(100))
     secondary_size = Column(Text)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="size")
 
 
 class ApiPropertiesDetailsV2Mortgage(Base, SuperIdMixin):
-    """
-    Table for storing mortgage information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_mortgage table.
-    """
-
     __tablename__ = "api_properties_details_v2_mortgage"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     price = Column(BigInteger)
     property_type_alias = Column(String(100))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="mortgage")
 
 
 class ApiPropertiesDetailsV2AnalyticsInfo(Base, SuperIdMixin):
-    """
-    Table for storing analytics information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_analyticsinfo table.
-    """
-
     __tablename__ = "api_properties_details_v2_analytics_info"
-
-    api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     branch_id = Column(String(50))
-    property_id = Column(String(50))
+    property_id = Column(
+        String(50)
+    )  # Note: This is a string field from the API, distinct from our integer ID
     online_viewing = Column(String(10))
     image_count = Column(String(10))
     floorplan_count = Column(String(10))
@@ -552,155 +534,125 @@ class ApiPropertiesDetailsV2AnalyticsInfo(Base, SuperIdMixin):
     restrictions = Column(String(50))
     private_access = Column(String(50))
     public_access = Column(String(50))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="analytics_info")
 
 
 class ApiPropertiesDetailsV2Station(Base, SuperIdMixin):
-    """
-    Table for storing station information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_stations table.
-    """
-
     __tablename__ = "api_properties_details_v2_stations"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_id = Column(
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     station = Column(String(255))
     distance = Column(Numeric(8, 2))
     type = Column(String(50))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="stations")
 
 
 class ApiPropertiesDetailsV2Photo(Base, SuperIdMixin):
-    """
-    Table for storing photo information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_photos table.
-    """
-
     __tablename__ = "api_properties_details_v2_photos"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_id = Column(
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     url = Column(Text)
     thumbnail_url = Column(Text)
     max_size_url = Column(Text)
     caption = Column(Text)
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="photos")
 
 
 class ApiPropertiesDetailsV2Epc(Base, SuperIdMixin):
-    """
-    Table for storing EPC information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_epcs table.
-    """
-
     __tablename__ = "api_properties_details_v2_epcs"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_id = Column(
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     url = Column(Text)
     caption = Column(String(255))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="epcs")
 
 
 class ApiPropertiesDetailsV2Floorplan(Base, SuperIdMixin):
-    """
-    Table for storing floorplan information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_floorplans table.
-    """
-
     __tablename__ = "api_properties_details_v2_floorplans"
-
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_id = Column(
+    # --- MODIFICATION ---
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
+        ForeignKey(
+            "rightmove.api_properties_details_v2.snapshot_id", ondelete="CASCADE"
+        ),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     url = Column(Text)
     thumbnail_url = Column(Text)
     caption = Column(String(255))
-
-    # Relationships
     property = relationship("ApiPropertiesDetailsV2", back_populates="floorplans")
 
 
 class ApiPropertiesDetailsV2FeatureRisks(Base, SuperIdMixin):
-    """
-    Table for storing feature risk information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_feature_risks table.
-    """
-
     __tablename__ = "api_properties_details_v2_feature_risks"
-
-    feature_api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    feature_id = Column(
         BigInteger,
         ForeignKey(
-            "rightmove.api_properties_details_v2_features.api_property_id",
-            ondelete="CASCADE",
+            "rightmove.api_properties_details_v2_features.id", ondelete="CASCADE"
         ),
-        primary_key=True,
-    )
-    api_property_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     flood_history = Column(JSONB)
     flood_defences = Column(JSONB)
     flood_risk = Column(JSONB)
-
-    # Relationships
     feature = relationship("ApiPropertiesDetailsV2Features", back_populates="risks")
 
 
 class ApiPropertiesDetailsV2FeatureObligations(Base, SuperIdMixin):
-    """
-    Table for storing feature obligations information from the properties/details v2 API.
-    Maps to rightmove.api_properties_details_v2_feature_obligations table.
-    """
-
     __tablename__ = "api_properties_details_v2_feature_obligations"
-
-    feature_api_property_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION ---
+    feature_id = Column(
         BigInteger,
         ForeignKey(
-            "rightmove.api_properties_details_v2_features.api_property_id",
-            ondelete="CASCADE",
+            "rightmove.api_properties_details_v2_features.id", ondelete="CASCADE"
         ),
-        primary_key=True,
-    )
-    api_property_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_properties_details_v2.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     listed = Column(JSONB)
     restrictions = Column(JSONB)
     private_access = Column(JSONB)
     public_access = Column(JSONB)
-
-    # Relationships
     feature = relationship(
         "ApiPropertiesDetailsV2Features", back_populates="obligations"
     )

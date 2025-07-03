@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from data_capture_rightmove_service.models.properties_details_v2 import *
 from data_capture_rightmove_service.utils.db_utils import normalize_model_instance
 from data_capture_rightmove_service.utils.logging_config import logger
+from data_capture_rightmove_service.utils.property_mapper import map_property_data
 
 
 def camel_to_snake(name: str) -> str:
@@ -22,14 +23,16 @@ def camel_to_snake(name: str) -> str:
 
 
 import json
-from sqlalchemy import Text, String
+
+from sqlalchemy import String, Text
+
 
 def map_data_to_model(data: Dict[str, Any], model_class) -> Dict[str, Any]:
     """
     Takes a dictionary with camelCase keys (from an API) and maps it to
     a dictionary with snake_case keys suitable for a SQLAlchemy model.
     It only includes keys that are actual attributes of the model.
-    
+
     Automatically converts dictionary values to JSON strings for TEXT/String columns.
     """
     snake_case_data = {}
@@ -53,7 +56,9 @@ def map_data_to_model(data: Dict[str, Any], model_class) -> Dict[str, Any]:
             # If we're storing a dictionary in a Text/String column, serialize it to JSON
             column = valid_model_keys[snake_key]
             if isinstance(value, dict) and isinstance(column.type, (Text, String)):
-                logger.debug(f"Converting dict to JSON string for {snake_key} in {model_class.__name__}")
+                logger.debug(
+                    f"Converting dict to JSON string for {snake_key} in {model_class.__name__}"
+                )
                 snake_case_data[snake_key] = json.dumps(value)
             else:
                 snake_case_data[snake_key] = value
@@ -70,7 +75,7 @@ async def store_properties_details(
 ) -> Tuple[bool, str]:
     """
     Store property details data from the properties/details v2 API.
-    This version correctly handles the camelCase to snake_case mapping.
+    This function creates a new snapshot for each request.
     """
     property_data = data.get("data")
     if not property_data:
@@ -80,113 +85,129 @@ async def store_properties_details(
     if not property_id:
         return False, "Could not find 'identifier' in property data."
 
-    existing_record = await db.get(ApiPropertiesDetailsV2, property_id)
-    if existing_record:
-        logger.info(f"Property ID {property_id} already exists. Skipping.")
-        return True, f"Property {property_id} already exists."
-
     try:
         # 1. Main object
-        main_values = map_data_to_model(property_data, ApiPropertiesDetailsV2)
+        main_values = map_property_data(property_data, ApiPropertiesDetailsV2)
         main_values["id"] = property_id
         main_values["super_id"] = super_id
         property_record = ApiPropertiesDetailsV2(**main_values)
         db.add(property_record)
+        await db.flush()  # Flush to get snapshot_id for relationships
+        snapshot_id = property_record.snapshot_id
 
         # 2. Nested one-to-one relationships
-        nested_objects = {
+        one_to_one_models = {
             "misInfo": ApiPropertiesDetailsV2Misinfo,
             "status": ApiPropertiesDetailsV2Status,
             "stampDutyCalculator": ApiPropertiesDetailsV2StampDuty,
-            "features": ApiPropertiesDetailsV2Features,
             "branch": ApiPropertiesDetailsV2Branch,
-            "brochure": ApiPropertiesDetailsV2Brochure,
             "price": ApiPropertiesDetailsV2Price,
             "localPropertyTax": ApiPropertiesDetailsV2LocalTax,
-            "location": ApiPropertiesDetailsV2Location,
             "salesInfo": ApiPropertiesDetailsV2SalesInfo,
             "size": ApiPropertiesDetailsV2Size,
             "mortgageCalculator": ApiPropertiesDetailsV2Mortgage,
             "analyticsInfo": ApiPropertiesDetailsV2AnalyticsInfo,
+            "features": ApiPropertiesDetailsV2Features,
+            "brochure": ApiPropertiesDetailsV2Brochure,
+            "location": ApiPropertiesDetailsV2Location,
         }
 
-        for api_key, model_class in nested_objects.items():
+        # Store instances to use their generated IDs for nested children
+        instance_cache = {}
+
+        for api_key, model_class in one_to_one_models.items():
             if api_key in property_data and property_data[api_key]:
-                nested_values = map_data_to_model(property_data[api_key], model_class)
+                nested_data = property_data[api_key]
+                nested_values = map_property_data(nested_data, model_class)
+                nested_values["api_property_snapshot_id"] = snapshot_id
                 nested_values["api_property_id"] = property_id
                 nested_values["super_id"] = super_id
 
-                nested_instance = model_class(**nested_values)
-                db.add(nested_instance)
+                instance = model_class(**nested_values)
+                db.add(instance)
+                instance_cache[api_key] = instance
 
-        # 3. Nested relationships of nested relationships
-        if "features" in property_data and property_data["features"]:
-            features_data = property_data["features"]
+        # Flush to get IDs for nested relationships
+        await db.flush()
+
+        # 3. Deeply nested relationships (children of children)
+        if "features" in instance_cache:
+            features_instance = instance_cache["features"]
+            features_data = property_data.get("features", {})
+
             if "risks" in features_data and features_data["risks"]:
-                risk_values = map_data_to_model(
+                risk_values = map_property_data(
                     features_data["risks"], ApiPropertiesDetailsV2FeatureRisks
                 )
-                risk_values["feature_api_property_id"] = property_id
+                # --- FIX: Use correct keyword 'feature_id' ---
+                risk_values["feature_id"] = features_instance.id
+                risk_values["api_property_snapshot_id"] = snapshot_id
                 risk_values["api_property_id"] = property_id
                 risk_values["super_id"] = super_id
                 db.add(ApiPropertiesDetailsV2FeatureRisks(**risk_values))
 
             if "obligations" in features_data and features_data["obligations"]:
-                obligation_values = map_data_to_model(
+                obligation_values = map_property_data(
                     features_data["obligations"],
                     ApiPropertiesDetailsV2FeatureObligations,
                 )
-                obligation_values["feature_api_property_id"] = property_id
+                # --- FIX: Use correct keyword 'feature_id' ---
+                obligation_values["feature_id"] = features_instance.id
+                obligation_values["api_property_snapshot_id"] = snapshot_id
                 obligation_values["api_property_id"] = property_id
                 obligation_values["super_id"] = super_id
                 db.add(ApiPropertiesDetailsV2FeatureObligations(**obligation_values))
 
-        if "location" in property_data and property_data["location"]:
-            if (
-                "streetView" in property_data["location"]
-                and property_data["location"]["streetView"]
-            ):
-                streetview_values = map_data_to_model(
-                    property_data["location"]["streetView"],
+        if "location" in instance_cache:
+            location_instance = instance_cache["location"]
+            location_data = property_data.get("location", {})
+            if "streetView" in location_data and location_data["streetView"]:
+                streetview_values = map_property_data(
+                    location_data["streetView"],
                     ApiPropertiesDetailsV2LocationStreetview,
                 )
-                streetview_values["location_api_property_id"] = property_id
+                # --- FIX: Use correct keyword 'location_id' ---
+                streetview_values["location_id"] = location_instance.id
+                streetview_values["api_property_snapshot_id"] = snapshot_id
                 streetview_values["api_property_id"] = property_id
                 streetview_values["super_id"] = super_id
                 db.add(ApiPropertiesDetailsV2LocationStreetview(**streetview_values))
 
-        # 4. Handle nested one-to-many relationships (lists of objects)
-        nested_lists = {
+        if "brochure" in instance_cache:
+            brochure_instance = instance_cache["brochure"]
+            brochure_data = property_data.get("brochure", {})
+            if "brochures" in brochure_data and isinstance(
+                brochure_data["brochures"], list
+            ):
+                for item_data in brochure_data["brochures"]:
+                    item_values = map_property_data(
+                        item_data, ApiPropertiesDetailsV2BrochureItem
+                    )
+                    # --- FIX: Use correct keyword 'brochure_id' ---
+                    item_values["brochure_id"] = brochure_instance.id
+                    item_values["api_property_snapshot_id"] = snapshot_id
+                    item_values["api_property_id"] = property_id
+                    item_values["super_id"] = super_id
+                    db.add(ApiPropertiesDetailsV2BrochureItem(**item_values))
+
+        # 4. Handle one-to-many relationships
+        one_to_many_models = {
             "stations": ApiPropertiesDetailsV2Station,
             "photos": ApiPropertiesDetailsV2Photo,
             "epcs": ApiPropertiesDetailsV2Epc,
             "floorplans": ApiPropertiesDetailsV2Floorplan,
         }
 
-        if (
-            "brochure" in property_data
-            and property_data["brochure"]
-            and "brochures" in property_data["brochure"]
-        ):
-            for item_data in property_data["brochure"]["brochures"]:
-                item_values = map_data_to_model(
-                    item_data, ApiPropertiesDetailsV2BrochureItem
-                )
-                item_values["brochure_api_property_id"] = property_id
-                item_values["api_property_id"] = property_id
-                item_values["super_id"] = super_id
-                db.add(ApiPropertiesDetailsV2BrochureItem(**item_values))
-
-        for api_key, model_class in nested_lists.items():
+        for api_key, model_class in one_to_many_models.items():
             if api_key in property_data and isinstance(property_data[api_key], list):
                 for item_data in property_data[api_key]:
-                    item_values = map_data_to_model(item_data, model_class)
+                    item_values = map_property_data(item_data, model_class)
+                    item_values["api_property_snapshot_id"] = snapshot_id
                     item_values["api_property_id"] = property_id
                     item_values["super_id"] = super_id
                     db.add(model_class(**item_values))
 
-        await db.commit()
-        logger.info(f"Successfully stored property {property_id} details.")
+        logger.info(f"Successfully prepared snapshot for property {property_id}.")
         return True, f"Successfully stored property {property_id} details."
 
     except IntegrityError as e:
@@ -197,9 +218,7 @@ async def store_properties_details(
         return False, f"Database integrity error: {e.orig}"
     except Exception as e:
         await db.rollback()
-        logger.error(
-            f"Generic error storing property {property_id}: {e}", exc_info=True
-        )
+        logger.error(f"Error storing property {property_id}: {e}", exc_info=True)
         return False, f"Error storing property details: {e}"
 
 

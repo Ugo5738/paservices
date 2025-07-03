@@ -1,35 +1,41 @@
 """
 Models for the Rightmove property-for-sale/detail API endpoint data.
+
+--- MODIFICATION LOG ---
+This file has been updated to support an insert-only, historical snapshot architecture.
+Key Changes:
+1.  The primary key on the main `ApiPropertyDetails` table is now `snapshot_id` (auto-incrementing).
+2.  The Rightmove property ID is stored in the `id` column, which is now non-unique and indexed.
+3.  All child tables now use `api_property_snapshot_id` to link to a specific historical record.
+4.  All child tables also include a denormalized `api_property_id` for easy querying across all historical
+    data for a single property, as per the original requirement.
 """
 
 from sqlalchemy import (
     ARRAY,
-    TIMESTAMP,
     BigInteger,
     Boolean,
     Column,
-    Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
-from sqlalchemy.types import Numeric
 
 from data_capture_rightmove_service.models.base import Base, SuperIdMixin
 
 
 class ApiPropertyDetails(Base, SuperIdMixin):
-    """
-    Main table for storing property details from the property-for-sale/detail API.
-    Maps to rightmove.api_property_details table.
-    """
-
     __tablename__ = "api_property_details"
 
-    id = Column(BigInteger, primary_key=True)
+    # --- MODIFICATION: Primary key is now a unique, auto-incrementing "snapshot" ID ---
+    snapshot_id = Column(BigInteger, primary_key=True, autoincrement=True)
+    # --- MODIFICATION: The Rightmove property ID is now a regular, indexed, non-unique column ---
+    id = Column(BigInteger, index=True, nullable=False)
+
     affordable_buying_scheme = Column(Boolean)
     ai_location_info = Column(Text)
     bathrooms = Column(Integer)
@@ -39,8 +45,8 @@ class ApiPropertyDetails(Base, SuperIdMixin):
     commercial = Column(Boolean)
     country_guide = Column(Text)
     enc_id = Column(Text)
-    fees_apply = Column(Text)
-    lettings = Column(Text)
+    fees_apply = Column(JSONB)
+    lettings = Column(JSONB)
     property_sub_type = Column(Text)
     show_school_info = Column(Boolean)
     sold_property_type = Column(String(100))
@@ -55,6 +61,7 @@ class ApiPropertyDetails(Base, SuperIdMixin):
     sizings = Column(JSONB)
     tags = Column(ARRAY(Text))
 
+    # Relationships
     address = relationship(
         "ApiPropertyDetailAddress",
         back_populates="property",
@@ -140,7 +147,7 @@ class ApiPropertyDetails(Base, SuperIdMixin):
         back_populates="property",
         cascade="all, delete-orphan",
     )
-    prices = relationship(
+    price = relationship(
         "ApiPropertyDetailPrice",
         back_populates="property",
         uselist=False,
@@ -192,11 +199,15 @@ class ApiPropertyDetails(Base, SuperIdMixin):
 
 class ApiPropertyDetailAddress(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_addresses"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     country_code = Column(String(10))
     delivery_point_id = Column(BigInteger)
     display_address = Column(Text)
@@ -208,11 +219,15 @@ class ApiPropertyDetailAddress(Base, SuperIdMixin):
 
 class ApiPropertyDetailBroadband(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_broadbands"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     broadband_checker_url = Column(Text)
     disclaimer = Column(Text)
     property = relationship("ApiPropertyDetails", back_populates="broadband")
@@ -220,35 +235,55 @@ class ApiPropertyDetailBroadband(Base, SuperIdMixin):
 
 class ApiPropertyDetailContactInfo(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_contact_infos"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     contact_method = Column(String(100))
     property = relationship("ApiPropertyDetails", back_populates="contact_info")
     telephone_numbers = relationship(
         "ApiPropertyDetailContactInfoTelephoneNumber",
         back_populates="contact_info",
+        uselist=False,
         cascade="all, delete-orphan",
     )
 
 
+class ApiPropertyDetailCustomerProduct(Base, SuperIdMixin):
+    __tablename__ = "api_property_detail_customer_products"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    customer_id = Column(
+        BigInteger,
+        ForeignKey("rightmove.api_property_detail_customers.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
+    has_microsite = Column(Boolean)
+    customer = relationship("ApiPropertyDetailCustomer", back_populates="products")
+
+
 class ApiPropertyDetailContactInfoTelephoneNumber(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_contact_info_telephone_numbers"
-    contact_info_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    contact_info_id = Column(
         BigInteger,
         ForeignKey(
-            "rightmove.api_property_detail_contact_infos.api_property_detail_id",
-            ondelete="CASCADE",
+            "rightmove.api_property_detail_contact_infos.id", ondelete="CASCADE"
         ),
-        primary_key=True,
-    )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     disclaimer_description = Column(Text)
     disclaimer_text = Column(Text)
     disclaimer_title = Column(Text)
@@ -261,11 +296,15 @@ class ApiPropertyDetailContactInfoTelephoneNumber(Base, SuperIdMixin):
 
 class ApiPropertyDetailCustomer(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_customers"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     banner_ad = Column(Text)
     branch_display_name = Column(String(255))
     branch_id = Column(Integer)
@@ -311,20 +350,16 @@ class ApiPropertyDetailCustomer(Base, SuperIdMixin):
 
 class ApiPropertyDetailCustomerDescription(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_customer_descriptions"
-    customer_api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    customer_id = Column(
         BigInteger,
-        ForeignKey(
-            "rightmove.api_property_detail_customers.api_property_detail_id",
-            ondelete="CASCADE",
-        ),
-        primary_key=True,
-    )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_detail_customers.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
-    description_html = Column(Text)
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     is_truncated = Column(Boolean)
     truncated_description_html = Column(Text)
     customer = relationship("ApiPropertyDetailCustomer", back_populates="description")
@@ -332,19 +367,16 @@ class ApiPropertyDetailCustomerDescription(Base, SuperIdMixin):
 
 class ApiPropertyDetailCustomerDevelopmentInfo(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_customer_development_infos"
-    customer_api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    customer_id = Column(
         BigInteger,
-        ForeignKey(
-            "rightmove.api_property_detail_customers.api_property_detail_id",
-            ondelete="CASCADE",
-        ),
-        primary_key=True,
-    )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_detail_customers.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     site_plan_uri = Column(Text)
     microsite_features = Column(ARRAY(Text))
     customer = relationship(
@@ -352,45 +384,32 @@ class ApiPropertyDetailCustomerDevelopmentInfo(Base, SuperIdMixin):
     )
 
 
-class ApiPropertyDetailCustomerProduct(Base, SuperIdMixin):
-    __tablename__ = "api_property_detail_customer_products"
-    customer_api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey(
-            "rightmove.api_property_detail_customers.api_property_detail_id",
-            ondelete="CASCADE",
-        ),
-        primary_key=True,
-    )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        nullable=False,
-    )
-    has_microsite = Column(Boolean)
-    customer = relationship("ApiPropertyDetailCustomer", back_populates="products")
-
-
 class ApiPropertyDetailDfpAdInfo(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_dfp_ad_infos"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     channel = Column(String(50))
-    targeting = Column(JSONB)
+    targeting = Column(JSONB)  # API returns array of objects, JSONB is flexible
     property = relationship("ApiPropertyDetails", back_populates="dfp_ad_info")
 
 
 class ApiPropertyDetailFloorplan(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_floorplans"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_detail_id = Column(
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     caption = Column(String(255))
     type = Column(String(50))
     url = Column(Text)
@@ -405,16 +424,16 @@ class ApiPropertyDetailFloorplan(Base, SuperIdMixin):
 
 class ApiPropertyDetailFloorplanResizedUrl(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_floorplan_resized_floorplan_urls"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     floorplan_id = Column(
         Integer,
         ForeignKey("rightmove.api_property_detail_floorplans.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     size_296x197 = Column(Text)
     floorplan = relationship(
         "ApiPropertyDetailFloorplan", back_populates="resized_floorplan_urls"
@@ -424,11 +443,13 @@ class ApiPropertyDetailFloorplanResizedUrl(Base, SuperIdMixin):
 class ApiPropertyDetailImage(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_images"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_detail_id = Column(
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     caption = Column(String(255))
     url = Column(Text)
     property = relationship("ApiPropertyDetails", back_populates="images")
@@ -442,16 +463,16 @@ class ApiPropertyDetailImage(Base, SuperIdMixin):
 
 class ApiPropertyDetailImageResizedUrl(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_image_resized_image_urls"
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     image_id = Column(
         Integer,
         ForeignKey("rightmove.api_property_detail_images.id", ondelete="CASCADE"),
-        primary_key=True,
-    )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
         nullable=False,
+        unique=True,
     )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     size_135x100 = Column(Text)
     size_476x317 = Column(Text)
     size_656x437 = Column(Text)
@@ -461,11 +482,13 @@ class ApiPropertyDetailImageResizedUrl(Base, SuperIdMixin):
 class ApiPropertyDetailIndustryAffiliation(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_industry_affiliations"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_detail_id = Column(
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     image_path = Column(Text)
     name = Column(Text)
     property = relationship(
@@ -476,11 +499,13 @@ class ApiPropertyDetailIndustryAffiliation(Base, SuperIdMixin):
 class ApiPropertyDetailInfoReelItem(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_info_reel_items"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_detail_id = Column(
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     primary_text = Column(Text)
     secondary_text = Column(Text)
     title = Column(Text)
@@ -491,22 +516,30 @@ class ApiPropertyDetailInfoReelItem(Base, SuperIdMixin):
 
 class ApiPropertyDetailListingHistory(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_listing_history"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     listing_update_reason = Column(Text)
     property = relationship("ApiPropertyDetails", back_populates="listing_history")
 
 
 class ApiPropertyDetailLivingCost(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_living_costs"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     annual_ground_rent = Column(Text)
     annual_service_charge = Column(Text)
     council_tax_band = Column(String(10))
@@ -520,11 +553,15 @@ class ApiPropertyDetailLivingCost(Base, SuperIdMixin):
 
 class ApiPropertyDetailLocation(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_locations"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     circle_radius_on_map = Column(Integer)
     latitude = Column(Numeric(10, 8))
     longitude = Column(Numeric(11, 8))
@@ -536,11 +573,15 @@ class ApiPropertyDetailLocation(Base, SuperIdMixin):
 
 class ApiPropertyDetailMisInfo(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_mis_infos"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     branch_id = Column(Integer)
     brand_plus = Column(Boolean)
     featured_property = Column(Boolean)
@@ -552,11 +593,15 @@ class ApiPropertyDetailMisInfo(Base, SuperIdMixin):
 
 class ApiPropertyDetailMortgageCalculator(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_mortgage_calculators"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     price = Column(BigInteger)
     property_type_alias = Column(String(100))
     property = relationship("ApiPropertyDetails", back_populates="mortgage_calculator")
@@ -565,11 +610,13 @@ class ApiPropertyDetailMortgageCalculator(Base, SuperIdMixin):
 class ApiPropertyDetailNearestStation(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_nearest_stations"
     id = Column(Integer, primary_key=True, autoincrement=True)
-    api_property_detail_id = Column(
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
         nullable=False,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     distance = Column(Numeric(18, 16))
     name = Column(Text)
     unit = Column(Text)
@@ -591,38 +638,44 @@ class ApiPropertyDetailNearestStationType(Base, SuperIdMixin):
         ),
         nullable=False,
     )
-    api_property_detail_id = Column(
-        BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        nullable=False,
-    )
+    api_property_snapshot_id = Column(BigInteger, nullable=False, index=True)
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     type = Column(String(100))
     station = relationship("ApiPropertyDetailNearestStation", back_populates="types")
 
 
 class ApiPropertyDetailPrice(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_prices"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     display_price_qualifier = Column(String(255))
     exchange_rate = Column(Text)
     message = Column(Text)
     price_per_sq_ft = Column(String(100))
     primary_price = Column(String(100))
     secondary_price = Column(Text)
-    property = relationship("ApiPropertyDetails", back_populates="prices")
+    property = relationship("ApiPropertyDetails", back_populates="price")
 
 
 class ApiPropertyDetailPropertyUrl(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_property_urls"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     nearby_sold_properties_url = Column(Text)
     similar_properties_url = Column(Text)
     property = relationship("ApiPropertyDetails", back_populates="property_urls")
@@ -630,25 +683,33 @@ class ApiPropertyDetailPropertyUrl(Base, SuperIdMixin):
 
 class ApiPropertyDetailSharedOwnership(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_shared_ownerships"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     ownership_percentage = Column(Numeric(10, 4))
     rent_frequency = Column(String(100))
     rent_price = Column(Numeric(12, 2))
-    shared_ownership_flag = Column(Boolean)
+    shared_ownership = Column(Boolean)  # API field is 'sharedOwnership'
     property = relationship("ApiPropertyDetails", back_populates="shared_ownership")
 
 
 class ApiPropertyDetailStaticMapImgUrl(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_static_map_img_urls"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     static_map_img_url_desktop_large = Column(Text)
     static_map_img_url_desktop_small = Column(Text)
     static_map_img_url_mobile = Column(Text)
@@ -658,11 +719,15 @@ class ApiPropertyDetailStaticMapImgUrl(Base, SuperIdMixin):
 
 class ApiPropertyDetailStatus(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_status"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     archived = Column(Boolean)
     published = Column(Boolean)
     property = relationship("ApiPropertyDetails", back_populates="status")
@@ -670,11 +735,15 @@ class ApiPropertyDetailStatus(Base, SuperIdMixin):
 
 class ApiPropertyDetailStreetView(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_street_views"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     heading = Column(Text)
     latitude = Column(Numeric(10, 8))
     longitude = Column(Numeric(11, 8))
@@ -685,11 +754,15 @@ class ApiPropertyDetailStreetView(Base, SuperIdMixin):
 
 class ApiPropertyDetailTenure(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_tenures"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     message = Column(Text)
     tenure_type = Column(String(100))
     years_remaining_on_lease = Column(Integer)
@@ -698,11 +771,15 @@ class ApiPropertyDetailTenure(Base, SuperIdMixin):
 
 class ApiPropertyDetailText(Base, SuperIdMixin):
     __tablename__ = "api_property_detail_texts"
-    api_property_detail_id = Column(
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    api_property_snapshot_id = Column(
         BigInteger,
-        ForeignKey("rightmove.api_property_details.id", ondelete="CASCADE"),
-        primary_key=True,
+        ForeignKey("rightmove.api_property_details.snapshot_id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
     )
+    api_property_id = Column(BigInteger, nullable=False, index=True)
+
     auction_fees_disclaimer = Column(Text)
     description = Column(Text)
     disclaimer = Column(Text)

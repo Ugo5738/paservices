@@ -12,6 +12,13 @@ ENV POETRY_NO_INTERACTION=1 \
 
 WORKDIR /app
 
+# Install system dependencies required for bcrypt and other packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc6-dev \
+    make \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install Poetry
 RUN pip install poetry
 
