@@ -6,17 +6,7 @@ import asyncio
 import uuid
 from typing import Dict, List, Optional
 
-import httpx
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    HTTPException,
-    Query,
-    Request,
-    Security,
-)
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,16 +27,22 @@ from data_capture_rightmove_service.crud.property_details import (
     get_property_sale_details_by_id,
     store_property_details,
 )
-from data_capture_rightmove_service.db import get_db
+from data_capture_rightmove_service.crud.property_search import (
+    store_property_search_results,
+)
+from data_capture_rightmove_service.db import AsyncSessionLocal, get_db
 from data_capture_rightmove_service.models.scrape_event import ScrapeEventTypeEnum
 from data_capture_rightmove_service.schemas.common import MessageResponse
 from data_capture_rightmove_service.schemas.property_data import (
+    CombinedPropertyResponse,
+    CombinedPropertyResponseItem,
     FetchBatchRequest,
     FetchBatchResponse,
     FetchPropertyDetailsRequest,
     FetchPropertyResponse,
     PropertyDetailsStorageResponse,
     PropertySearchRequest,
+    PropertyUrlResponse,
 )
 from data_capture_rightmove_service.utils.data_completeness import analyze_response
 from data_capture_rightmove_service.utils.logging_config import logger
@@ -57,39 +53,6 @@ from data_capture_rightmove_service.utils.url_parsing import (
 )
 
 router = APIRouter(prefix="/properties", tags=["Properties"])
-
-
-class PropertyUrlResponse(BaseModel):
-    """Response for property URL validation and extraction"""
-
-    url: str = Field(..., description="The URL that was checked")
-    valid: bool = Field(..., description="Whether the URL is valid")
-    property_id: Optional[int] = Field(
-        None, description="Extracted property ID if valid"
-    )
-    message: str = Field(..., description="Message describing the result")
-
-
-class CombinedPropertyResponseItem(BaseModel):
-    """Response item for a single API call in the combined fetch endpoint"""
-
-    api_endpoint: str = Field(..., description="The API endpoint that was called")
-    property_id: int = Field(..., description="The property ID")
-    super_id: uuid.UUID = Field(..., description="Super ID for tracking purposes")
-    stored: bool = Field(..., description="Whether the data was stored successfully")
-    message: str = Field(..., description="Success or error message")
-
-
-class CombinedPropertyResponse(BaseModel):
-    """Response for the combined fetch endpoint"""
-
-    property_id: int = Field(..., description="The property ID")
-    property_url: Optional[str] = Field(
-        None, description="The property URL if provided"
-    )
-    results: List[CombinedPropertyResponseItem] = Field(
-        ..., description="Results from each API call"
-    )
 
 
 @router.post("/fetch/combined", response_model=CombinedPropertyResponse)
@@ -145,13 +108,13 @@ async def fetch_combined_property_data(
             logger.info(
                 f"Using provided Super ID: {super_id} for property ID: {property_id}"
             )
-        else:
-            super_id = await super_id_service_client.create_super_id(
-                description=f"Rightmove data capture for property ID: {property_id}"
-            )
-            logger.info(
-                f"Generated Super ID: {super_id} for property ID: {property_id}"
-            )
+        # else:
+        #     super_id = await super_id_service_client.create_super_id(
+        #         description=f"Rightmove data capture for property ID: {property_id}"
+        #     )
+        #     logger.info(
+        #         f"Generated Super ID: {super_id} for property ID: {property_id}"
+        #     )
     except HTTPException as e:
         # If super_id service is unavailable, raise the exception to the client
         logger.error(f"Super ID service error: {str(e)}")
@@ -514,14 +477,14 @@ async def fetch_property_details(
 
         # Use provided super_id or create a new one
         super_id = request.super_id
-        if not super_id:
-            description = (
-                request.description
-                or f"Rightmove property details fetch for property ID: {property_id}"
-            )
-            super_id = await super_id_service_client.create_super_id(
-                description=description
-            )
+        # if not super_id:
+        #     description = (
+        #         request.description
+        #         or f"Rightmove property details fetch for property ID: {property_id}"
+        #     )
+        #     super_id = await super_id_service_client.create_super_id(
+        #         description=description
+        #     )
 
         # Fetch from Rightmove API
         property_data = await rightmove_api_client.get_property_details(
@@ -584,7 +547,7 @@ async def fetch_property_for_sale_details(
 
         # Use provided super_id or create a new one
         super_id = request.super_id
-        if not super_id:
+        if not super_id:  # remove this
             description = (
                 request.description
                 or f"Rightmove property for sale fetch for property ID: {property_id}"
@@ -623,177 +586,6 @@ async def fetch_property_for_sale_details(
         )
 
 
-@router.post("/fetch/batch", response_model=FetchBatchResponse)
-async def fetch_batch_properties(
-    request: FetchBatchRequest,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-) -> FetchBatchResponse:
-    """
-    Fetch multiple properties in a batch operation.
-    This endpoint processes property IDs in parallel for faster batch processing.
-    """
-    if not request.property_ids:
-        raise HTTPException(status_code=400, detail="No property IDs provided")
-
-    if len(request.property_ids) > 50:
-        raise HTTPException(
-            status_code=400, detail="Maximum batch size is 50 properties"
-        )
-
-    # Get a batch ID (super_id) for tracking this batch operation
-    batch_id = await super_id_service_client.create_super_id(
-        description=f"Rightmove batch property fetch ({request.api_type}) for {len(request.property_ids)} properties"
-    )
-
-    # Define the processing function based on API type
-    if request.api_type == "properties_details":
-        process_func = process_property_details
-    elif request.api_type == "property_for_sale":
-        process_func = process_property_for_sale
-    else:
-        raise HTTPException(status_code=400, detail="Invalid API type specified")
-
-    # Process properties in parallel
-    tasks = []
-    for property_id in request.property_ids:
-        tasks.append(process_func(property_id, db))
-
-    # Wait for all tasks to complete
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-
-    # Process results
-    successful = 0
-    failed = 0
-    property_results = []
-
-    for result in results:
-        if isinstance(result, Exception):
-            # Handle exception case
-            failed += 1
-            logger.error(f"Error in batch processing: {str(result)}")
-            property_results.append(
-                FetchPropertyResponse(
-                    property_id=0,  # Unknown property ID
-                    super_id=uuid.UUID(int=0),  # Placeholder UUID
-                    status="failed",
-                    message=f"Error: {str(result)}",
-                )
-            )
-        else:
-            # Handle successful case
-            property_id, super_id, status, message = result
-            if status == "success":
-                successful += 1
-            else:
-                failed += 1
-
-            property_results.append(
-                FetchPropertyResponse(
-                    property_id=property_id,
-                    super_id=super_id,
-                    status=status,
-                    message=message,
-                )
-            )
-
-    return FetchBatchResponse(
-        batch_id=batch_id,
-        total=len(request.property_ids),
-        successful=successful,
-        failed=failed,
-        results=property_results,
-    )
-
-
-async def process_property_details(property_id: int, db: AsyncSession) -> tuple:
-    """Process a single property using the properties/details endpoint."""
-    try:
-        # Get a super_id for tracking this request
-        super_id = await super_id_service_client.create_super_id(
-            description=f"Rightmove property details fetch for property ID: {property_id}"
-        )
-
-        # Fetch from Rightmove API
-        property_data = await rightmove_api_client.get_property_details(
-            str(property_id)
-        )
-
-        if not property_data:
-            return (
-                property_id,
-                super_id,
-                "failed",
-                f"Property details not found for ID: {property_id}",
-            )
-
-        # Store in database
-        success, message = await store_properties_details(db, property_data, super_id)
-
-        status = "success" if success else "failed"
-        return property_id, super_id, status, message
-
-    except HTTPException as http_e:
-        # If this is a Super ID service exception, log and propagate it
-        if http_e.status_code == 503 and "Super ID service" in str(http_e):
-            logger.error(f"Super ID service unavailable while processing property ID {property_id}: {str(http_e)}")
-            raise http_e
-        # For other HTTP exceptions, log and return failure
-        logger.error(f"HTTP error processing property details for ID {property_id}: {str(http_e)}")
-        raise http_e
-    except Exception as e:
-        logger.error(f"Error processing property details for ID {property_id}: {str(e)}")
-        # Don't generate local UUID - propagate error instead
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process property details for ID {property_id}: {str(e)}"
-        )
-
-
-async def process_property_for_sale(property_id: int, db: AsyncSession) -> tuple:
-    """Process a single property using the property-for-sale/detail endpoint."""
-    try:
-        # Get a super_id for tracking this request
-        super_id = await super_id_service_client.create_super_id(
-            description=f"Rightmove property for sale fetch for property ID: {property_id}"
-        )
-
-        # Fetch from Rightmove API
-        property_data = await rightmove_api_client.get_property_for_sale_details(
-            str(property_id)
-        )
-
-        if not property_data:
-            return (
-                property_id,
-                super_id,
-                "failed",
-                f"Property for sale details not found for ID: {property_id}",
-            )
-
-        # Store in database
-        success, message = await store_property_details(db, property_data, super_id)
-
-        status = "success" if success else "failed"
-        return property_id, super_id, status, message
-
-    except HTTPException as http_e:
-        # If this is a Super ID service exception, log and propagate it
-        if http_e.status_code == 503 and "Super ID service" in str(http_e):
-            logger.error(f"Super ID service unavailable while processing property ID {property_id}: {str(http_e)}")
-            raise http_e
-        # For other HTTP exceptions, log and return failure
-        logger.error(f"HTTP error processing property for sale for ID {property_id}: {str(http_e)}")
-        raise http_e
-    except Exception as e:
-        logger.error(f"Error processing property for sale for ID {property_id}: {str(e)}")
-        # Don't generate local UUID - propagate error instead
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process property for sale details for ID {property_id}: {str(e)}"
-        )
-
-
 @router.get("/details/{property_id}", response_model=Dict)
 async def get_property_details(
     property_id: int, db: AsyncSession = Depends(get_db)
@@ -827,81 +619,141 @@ async def get_property_for_sale(
     return property_data
 
 
-@router.post("/search", response_model=Dict)
-async def search_properties(
-    search_request: PropertySearchRequest,
+@router.post("/search/for-sale", response_model=MessageResponse, status_code=202)
+async def search_properties_for_sale(
+    request: PropertySearchRequest,
     background_tasks: BackgroundTasks,
-    store_results: bool = Query(
-        False, description="Whether to store search results in the database"
+    update_existing: bool = Query(
+        False,
+        description="If true, update existing properties. If false, create new snapshot records.",
     ),
-) -> Dict:
+):
     """
-    Search for properties using the Rightmove API.
-    Optionally store the results in the database if store_results is True.
+    Initiates a background task to fetch property search results for a given
+    location and stores them in the database.
     """
-    try:
-        # Call the Rightmove API search endpoint
-        search_results = await rightmove_api_client.search_properties_for_sale(
-            location=search_request.location,
-            min_price=search_request.min_price,
-            max_price=search_request.max_price,
-            min_bedrooms=search_request.min_bedrooms,
-            max_bedrooms=search_request.max_bedrooms,
-            property_type=search_request.property_type,
-            radius=search_request.radius,
-            page_number=search_request.page_number,
-            page_size=search_request.page_size,
-        )
+    logger.info(
+        f"Received request to search page {request.page_number} for location: {request.location_identifier}"
+    )
 
-        # If store_results is True, store each property in the database
-        if store_results and "properties" in search_results:
-            # This should be done as a background task to not block the response
-            background_tasks.add_task(
-                store_search_results, search_results.get("properties", [])
+    # The background task handles everything from this point.
+    background_tasks.add_task(
+        process_property_search,
+        search_request=request,
+        update_existing=update_existing,
+    )
+
+    return MessageResponse(
+        success=True,
+        message=f"Accepted search request for location '{request.location_identifier}'. "
+        "Processing will continue in the background.",
+    )
+
+
+async def process_property_search(
+    search_request: PropertySearchRequest,
+    update_existing: bool,
+):
+    """
+    The complete background task to fetch, log, and store property search results.
+    """
+    super_id = None
+    # Use a new DB session for the background task to ensure it's isolated.
+    async with AsyncSessionLocal() as db:
+        try:
+            # 1. Generate a Super ID for this entire workflow
+            super_id = await super_id_service_client.create_super_id(
+                description=f"Property search for location: {search_request.location_identifier}, page: {search_request.page_number}"
             )
 
-        return search_results
+            # 2. Log the initial request event
+            await event_crud.log_scrape_event(
+                db,
+                super_id,
+                ScrapeEventTypeEnum.REQUEST_RECEIVED,
+                payload=search_request.model_dump(),
+            )
 
-    except Exception as e:
-        logger.error(f"Error searching properties: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail=f"Failed to search properties: {str(e)}"
-        )
+            # 3. Log API call attempt
+            api_endpoint = "/buy/property-for-sale"
+            await event_crud.log_scrape_event(
+                db,
+                super_id,
+                ScrapeEventTypeEnum.API_CALL_ATTEMPT,
+                api_endpoint_called=api_endpoint,
+                payload=search_request.model_dump(),
+            )
 
+            # 4. Make the API call
+            api_response = await rightmove_api_client.search_properties_for_sale(
+                location_identifier=search_request.location_identifier,
+                min_price=search_request.min_price,
+                max_price=search_request.max_price,
+                min_bedrooms=search_request.min_bedrooms,
+                max_bedrooms=search_request.max_bedrooms,
+                property_type=search_request.property_type,
+                radius_from_location=search_request.radius_from_location,
+                page_number=search_request.page_number,
+            )
 
-async def store_search_results(properties: List[Dict]) -> None:
-    """Store search results in the database as a background task."""
-    async with AsyncSession(bind=db_engine) as db:
-        for property_data in properties:
-            try:
-                # Get property ID from the data
-                property_id = property_data.get("id")
-                if not property_id:
-                    logger.warning("Property data missing ID, skipping")
-                    continue
+            properties = api_response.get("data", [])
+            if not properties:
+                logger.info(
+                    f"No properties found for search: {search_request.location_identifier}"
+                )
+                await event_crud.log_scrape_event(
+                    db,
+                    super_id,
+                    ScrapeEventTypeEnum.API_CALL_SUCCESS,
+                    api_endpoint_called=api_endpoint,
+                    payload={"message": "No properties found"},
+                )
+                return
 
-                try:
-                    # Get a super_id for tracking this property
-                    super_id = await super_id_service_client.create_super_id(
-                        description=f"Rightmove search result for property ID: {property_id}"
-                    )
-                except HTTPException as http_e:
-                    # If Super ID service fails, log the error and skip this property
-                    logger.error(f"Super ID service error for property ID {property_id}: {str(http_e)}")
-                    # Skip this property but continue with others in the batch
-                    continue
+            # 5. Log API call success
+            item_count, null_count = analyze_response(api_response)
+            await event_crud.log_scrape_event(
+                db,
+                super_id,
+                ScrapeEventTypeEnum.API_CALL_SUCCESS,
+                api_endpoint_called=api_endpoint,
+                payload=api_response,
+                response_item_count=item_count,
+                response_null_item_count=null_count,
+            )
 
-                # Store in database - pick the right function based on available data
-                if "propertySubType" in property_data:
-                    # This looks like the property-for-sale format
-                    await store_property_details(db, property_data, super_id)
-                else:
-                    # Try the properties/details format
-                    await store_properties_details(db, property_data, super_id)
+            # 6. Store the results
+            successful, failed = await store_property_search_results(
+                db, properties, super_id, update_existing
+            )
 
-            except Exception as e:
-                logger.error(f"Error storing search result: {str(e)}")
-                # Continue with next property, don't fail the entire batch
+            # 7. Log final storage status
+            await event_crud.log_scrape_event(
+                db,
+                super_id,
+                ScrapeEventTypeEnum.DATA_STORED_SUCCESS,
+                payload={"successful_count": successful, "failed_count": failed},
+            )
+            logger.info(
+                f"Search for {search_request.location_identifier} complete. Stored: {successful}, Failed: {failed}"
+            )
+
+        except Exception as e:
+            logger.error(
+                f"Background search task failed for {search_request.location_identifier}: {e}",
+                exc_info=True,
+            )
+            if super_id:
+                # Log failure if we got far enough to have a super_id
+                await event_crud.log_scrape_event(
+                    db,
+                    super_id,
+                    ScrapeEventTypeEnum.API_CALL_FAILURE,
+                    error_message=str(e),
+                )
+        finally:
+            # The 'async with' block handles the session closing automatically.
+            pass
 
 
 @router.get("/ids", response_model=List[int])

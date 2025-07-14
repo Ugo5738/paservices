@@ -38,6 +38,12 @@ connect_args = {
     + (
         "" if settings.ENVIRONMENT == "testing" else " -c statement_timeout=30000"
     ),  # Increased timeout for cloud
+    # --- BEGIN FIX ---
+    # Disable the driver's implicit prepared statement cache. This is the recommended
+    # setting when using a transaction-pooling connection pooler like PgBouncer.
+    # It prevents "prepared statement already exists" errors on reused connections.
+    "prepare_threshold": None,
+    # --- END FIX ---
 }
 
 # Add SSL settings for cloud databases

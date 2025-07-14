@@ -1,0 +1,111 @@
+-- property-for-sale
+"CREATE TABLE property_listings (
+    id BIGINT PRIMARY KEY,
+    api_source_endpoint VARCHAR(100) NOT NULL, -- 'property-for-sale', 'property-to-rent', etc.
+
+    -- Top-Level Property Attributes
+    added_or_reduced VARCHAR(255),
+    auction BOOLEAN,
+    bathrooms INT,
+    bedrooms INT,
+    channel VARCHAR(50),
+    commercial BOOLEAN,
+    contact_url TEXT,
+    country_code VARCHAR(10),
+    development BOOLEAN,    
+    display_address VARCHAR(512),
+    display_size VARCHAR(100),
+    display_status VARCHAR(255),
+    distance DECIMAL(10, 4),
+    enhanced_listing BOOLEAN,
+    enquired_timestamp ,
+    featured_property BOOLEAN,
+    fees_apply BOOLEAN,
+    fees_apply_text TEXT,
+    first_visible_date TIMESTAMP,
+    formatted_branch_name VARCHAR(255),
+    formatted_distance VARCHAR(100),
+    has_brand_plus BOOLEAN,
+    heading TEXT,
+    hidden BOOLEAN,
+    is_recent BOOLEAN,
+    keyword_match_type VARCHAR(100),
+    keywords_json JSON, -- Captures the keywords array []
+    number_of_floorplans INT,
+    number_of_images INT,
+    number_of_virtual_tours INT,
+    online_viewings_available BOOLEAN,
+    premium_listing BOOLEAN,
+    property_sub_type VARCHAR(100),
+    property_type_full_description VARCHAR(255),
+    property_url TEXT,
+    residential BOOLEAN,
+    saved BOOLEAN,
+    show_on_map BOOLEAN,
+    static_map_url VARCHAR(255),
+    students BOOLEAN,
+    summary TEXT,
+    transaction_type VARCHAR(50),
+    
+    -- Fields from the nested 'customer' object
+    customer__branch_display_name VARCHAR(255),
+    customer__branch_id INT,
+    customer__branch_landing_page_url TEXT,
+    customer__branch_name VARCHAR(255),
+    customer__brand_plus_logo_uri TEXT,
+    customer__brand_plus_logo_url TEXT,
+    customer__brand_trading_name VARCHAR(255),
+    customer__build_to_rent BOOLEAN,
+    customer__build_to_rent_benefits_json JSON,
+    customer__commercial BOOLEAN,
+    customer__contact_telephone VARCHAR(50),
+    customer__development BOOLEAN,
+    customer__development_content TEXT,
+    customer__enhanced_listing BOOLEAN,
+    customer__show_on_map BOOLEAN,
+    customer__show_reduced_properties BOOLEAN,
+
+    -- Listing Update Object
+    listing_update__listing_update_date TIMESTAMP,
+    listing_update__listing_update_reason VARCHAR(100),
+
+    -- Location Object
+    location__latitude DECIMAL(10, 8),
+    location__longitude DECIMAL(11, 8),
+
+    -- Lozenge Model Object
+    lozenge_model__matching_lozenges_json JSON, -- Captures the nested lozengeModel object
+
+    -- URLs and Labels
+    product_label_text VARCHAR(255),
+    spotlight_label BOOLEAN,
+);
+"
+
+there should be a price table: 
+
+-- Fields from the nested 'price' object
+    price__amount DECIMAL(14, 2),
+    price__currency_code VARCHAR(10),
+    price__frequency VARCHAR(50),
+
+
+"""
+CREATE TABLE property_display_prices (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    property_listing_id BIGINT NOT NULL,
+    display_price VARCHAR(100),
+    display_price_qualifier VARCHAR(255),
+    FOREIGN KEY (property_listing_id) REFERENCES property_listings(id) ON DELETE CASCADE
+);
+"""
+"""
+CREATE TABLE property_images (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    property_listing_id BIGINT NOT NULL,
+    caption VARCHAR(255),
+    src_url TEXT,
+    url TEXT,
+    FOREIGN KEY (property_listing_id) REFERENCES property_listings(id) ON DELETE CASCADE
+);
+"""

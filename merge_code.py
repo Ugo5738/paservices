@@ -2,25 +2,22 @@ import os
 import sys
 
 # Define sets for faster lookups
-EXCLUDED_FILENAMES = {
-    ".DS_Store",
-    "poetry.lock",
-    "merge_code.py",
-    "merged_output.txt",
-    ".env",
-}
+EXCLUDED_FILENAMES = {".DS_Store", "poetry.lock"}
 EXCLUDED_EXTENSIONS = {".log"}
 # Directories whose *contents* (and subdirectories) should be entirely excluded if their name appears anywhere in the path
 EXCLUDED_DIR_COMPONENTS = {
     "migrations",
     "staticfiles",
     "__pycache__",
-    ".git",
+    ".cursor",
+    "vendor",
+    ".pytest_cache" ".git",
     ".hg",
     ".svn",
     "node_modules",
     "venv",
     ".venv",
+    "app",
 }
 # Directory names to prune from os.walk (won't descend into them)
 PRUNE_DIRS = {

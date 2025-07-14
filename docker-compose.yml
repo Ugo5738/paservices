@@ -6,6 +6,9 @@ services:
       service: auth_service_dev
     ports:
       - "8001:8000"
+    networks:
+      - paservices_network
+      - supabase_network_paservices
 
   # Super ID Service
   super_id_service:
@@ -14,6 +17,9 @@ services:
       service: super_id_service_dev
     ports:
       - "8002:8000"
+    networks:
+      - paservices_network
+      - supabase_network_paservices
 
   # Data Capture Rightmove Service
   data_capture_rightmove_service:
@@ -22,11 +28,14 @@ services:
       service: data_capture_rightmove_service_dev
     ports:
       - "8003:8000"
+    networks:
+      - paservices_network
+      - supabase_network_paservices
 
 networks:
   paservices_network:
     name: paservices_network
-    driver: bridge
+    external: true
   supabase_network_paservices:
     external: true
     # The actual network name as created by Supabase CLI

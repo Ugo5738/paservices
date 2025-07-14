@@ -12,9 +12,8 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-# models. The Dockerfile sets PYTHONPATH=/app/src, which means we can import
-# the package directly.
-# We import all model modules here to ensure they are registered with
+# models. The Dockerfile sets PYTHONPATH=/app/src, which means we can import the package directly.
+# Import all model modules here to ensure they are registered with
 # SQLAlchemy's metadata before 'autogenerate' runs.
 from data_capture_rightmove_service.config import settings
 from data_capture_rightmove_service.db import Base
@@ -33,8 +32,7 @@ if config.config_file_name is not None:
 
 config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
 
-# add model's MetaData object here
-# for 'autogenerate' support
+# Set target_metadata to our SQLAlchemy Base.metadata for autogenerate support
 target_metadata = Base.metadata
 
 

@@ -5,6 +5,11 @@ Database models for the Data Capture Rightmove Service.
 from data_capture_rightmove_service.models.base import Base, SuperIdMixin
 from data_capture_rightmove_service.models.properties_details_v2 import *
 from data_capture_rightmove_service.models.property_details import *
+from data_capture_rightmove_service.models.property_for_sale import (
+    PropertyDisplayPrice,
+    PropertyImage,
+    PropertyListing,
+)
 from data_capture_rightmove_service.models.scrape_event import (
     ScrapeEvent,
     ScrapeEventTypeEnum,
@@ -72,4 +77,8 @@ __all__ = [
     # Models from scrape_event
     "ScrapeEvent",
     "ScrapeEventTypeEnum",
+    # Models from property_for_sale
+    "PropertyListing",
+    "PropertyDisplayPrice",
+    "PropertyImage",
 ]
