@@ -43,7 +43,7 @@ def create_m2m_access_token(
     expires_delta: Optional[timedelta] = None,
 ) -> str:
     """
-    Creates an M2M access token.
+    Creates an M2M access token
     """
     now = datetime.now(timezone.utc)
     if expires_delta:
