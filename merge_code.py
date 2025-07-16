@@ -18,6 +18,10 @@ EXCLUDED_DIR_COMPONENTS = {
     "venv",
     ".venv",
     "app",
+    "keys",
+    "k8s",
+    "sql",
+    "docs",
 }
 # Directory names to prune from os.walk (won't descend into them)
 PRUNE_DIRS = {

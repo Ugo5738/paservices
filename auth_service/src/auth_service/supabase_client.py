@@ -7,7 +7,7 @@ from supabase.lib.client_options import ClientOptions
 from auth_service.config import settings
 from auth_service.logging_config import logger
 
-# Global instances for both clients
+# Global instances for both clients.
 _global_async_supabase_client: AsyncSupabaseClient | None = None
 _global_admin_supabase_client: AsyncSupabaseClient | None = None
 

@@ -89,6 +89,7 @@ jobs:
             set -e # Exit immediately if a command fails
 
             # Navigate to the application directory on the server
+            mkdir -p /home/ubuntu/paservices
             cd /home/ubuntu/paservices
 
             echo "Pulling latest code from origin/staging..."
