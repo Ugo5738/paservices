@@ -4,7 +4,8 @@ services:
   # REVERSE PROXY #
   #################
   traefik:
-    image: traefik:v2.11
+    image: traefik:v3.0
+    platform: linux/arm64 # Explicitly request the arm64 version
     container_name: paservices_traefik
     restart: unless-stopped
     command:
@@ -107,6 +108,7 @@ services:
   # This internal Redis service can be used by all other services
   redis:
     image: redis:7-alpine
+    platform: linux/arm64 # Explicitly request the arm64 version
     container_name: paservices_redis
     restart: unless-stopped
     networks:
