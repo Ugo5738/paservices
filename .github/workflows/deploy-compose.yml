@@ -73,10 +73,7 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
-    # Set the environment based on the branch name
-    environment:
-      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
-      url: ${{ github.ref == 'refs/heads/main' && secrets.PRODUCTION_URL || secrets.STAGING_URL }}
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging'
     steps:
       - name: Deploy to Server
         uses: appleboy/ssh-action@master
