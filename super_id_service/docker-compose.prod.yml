@@ -41,7 +41,7 @@ services:
     labels:
       - "traefik.enable=true"
       # This router will direct traffic for superid.yourdomain.com
-      - "traefik.http.routers.super-id.rule=Host(`${SUPER_ID_DOMAIN:-superid.example.com}`)"
+      - "traefik.http.routers.super-id.rule=Host(`${SUPER_ID_SERVICE_DOMAIN:-superid.example.com}`)"
       - "traefik.http.routers.super-id.entrypoints=websecure"
       - "traefik.http.routers.super-id.tls.certresolver=letsencrypt"
       - "traefik.http.services.super-id.loadbalancer.server.port=8000"

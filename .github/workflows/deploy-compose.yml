@@ -1,0 +1,143 @@
+name: Deploy to Production Server with Docker Compose
+
+on:
+  push:
+    branches:
+      - main # Trigger on push to the main branch
+      - staging # Trigger on push to the staging branch
+  workflow_dispatch:
+
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+
+jobs:
+  #########################################
+  # Job 1: Detect Which Services Changed #
+  #########################################
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      auth_service: ${{ steps.filter.outputs.auth_service }}
+      super_id_service: ${{ steps.filter.outputs.super_id_service }}
+      data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dorny/paths-filter@v2
+        id: filter
+        with:
+          filters: |
+            auth_service:
+              - 'auth_service/**'
+            super_id_service:
+              - 'super_id_service/**'
+            data_capture_rightmove_service:
+              - 'data_capture_rightmove_service/**'
+
+  ##############################################
+  # Job 2: Build and Push Images for Services #
+  ##############################################
+  build-and-push:
+    needs: detect-changes
+    # This job only runs if at least one service has changed
+    if: needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Define each service that can be built
+        service:
+          - name: auth_service
+            path: ./auth_service
+            if: needs.detect-changes.outputs.auth_service == 'true'
+          - name: super_id_service
+            path: ./super_id_service
+            if: needs.detect-changes.outputs.super_id_service == 'true'
+          - name: data_capture_rightmove_service
+            path: ./data_capture_rightmove_service
+            if: needs.detect-changes.outputs.data_capture_rightmove_service == 'true'
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Build and Push Docker Image for ${{ matrix.service.name }}
+        if: ${{ matrix.service.if }} # Only run this step if the service changed
+        uses: docker/build-push-action@v4
+        with:
+          context: ${{ matrix.service.path }}
+          file: ${{ matrix.service.path }}/Dockerfile.prod
+          push: true
+          tags: ${{ env.DOCKER_USERNAME }}/${{ matrix.service.name }}:latest,${{ env.DOCKER_USERNAME }}/${{ matrix.service.name }}:${{ github.sha }}
+
+  ####################################
+  # Job 3: Deploy to Staging Server #
+  ####################################
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    # Set the environment based on the branch name
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      url: ${{ github.ref == 'refs/heads/main' && secrets.PRODUCTION_URL || secrets.STAGING_URL }}
+    steps:
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Determine the branch we are deploying
+            BRANCH_NAME=${{ github.ref_name }}
+            echo "Deploying branch: $BRANCH_NAME"
+
+            # Navigate to the application directory on the server
+            cd /home/ubuntu/paservices
+
+            # Pull the latest code from the repository
+            echo "Pulling latest code from origin/$BRANCH_NAME..."
+            git checkout $BRANCH_NAME
+            git pull origin $BRANCH_NAME
+
+            # Export all secrets as environment variables
+            # This makes them available to the docker-compose command
+            echo "Exporting secrets to environment..."
+            export DOCKER_USERNAME='${{ secrets.DOCKERHUB_USERNAME }}'
+            export ACME_EMAIL='${{ secrets.ACME_EMAIL }}'
+            export AUTH_SERVICE_DOMAIN='${{ secrets.AUTH_SERVICE_DOMAIN }}'
+            export SUPER_ID_SERVICE_DOMAIN='${{ secrets.SUPER_ID_SERVICE_DOMAIN }}'
+            export DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN='${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN }}'
+            export SUPABASE_URL='${{ secrets.SUPABASE_URL }}'
+            export SUPABASE_ANON_KEY='${{ secrets.SUPABASE_ANON_KEY }}'
+            export SUPABASE_SERVICE_ROLE_KEY='${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}'
+            export AUTH_SERVICE_DATABASE_URL='${{ secrets.AUTH_SERVICE_DATABASE_URL }}'
+            export SUPER_ID_SERVICE_DATABASE_URL='${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}'
+            export DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL='${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}'
+            export M2M_JWT_SECRET_KEY='${{ secrets.M2M_JWT_SECRET_KEY }}'
+            export DATA_CAPTURE_M2M_CLIENT_ID='${{ secrets.DATA_CAPTURE_M2M_CLIENT_ID }}'
+            export DATA_CAPTURE_M2M_CLIENT_SECRET='${{ secrets.DATA_CAPTURE_M2M_CLIENT_SECRET }}'
+            export RAPID_API_KEY='${{ secrets.RAPID_API_KEY }}'
+
+
+            # Log in to Docker Hub
+            echo ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
+
+            # Pull the latest images for all services defined in the compose file
+            echo "Pulling latest Docker images..."
+            docker-compose -f docker-compose.prod.yml pull
+
+            # Run Alembic migrations for the auth service
+            # Run this in a temporary container to not affect the running service
+            echo "Running Auth Service migrations..."
+            docker-compose -f docker-compose.prod.yml run --rm auth_service alembic upgrade head
+
+            # Run Alembic migrations for the super_id service
+            echo "Running Super ID Service migrations..."
+            docker-compose -f docker-compose.prod.yml run --rm super_id_service alembic upgrade head
+
+            # Bring up the services. Docker Compose will recreate only the containers
+            # whose images have changed.
+            echo "Starting application stack..."
+            docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+
+            # Clean up old, unused Docker images to save space
+            echo "Cleaning up unused Docker images..."
+            docker image prune -f

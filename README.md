@@ -1,114 +1,38 @@
-# Property Analysis Services
+# Property Analysis Services (PA Services)
 
-A suite of microservices for property analysis and authentication.
+This repository contains the microservices that power the Property Analysis platform. Our goal is to provide a reliable and scalable system for capturing and analyzing property data.
 
-## Overview
+## 🚀 Getting Started: For New Developers
 
-This repository (`paservices`) contains a collection of microservices that work together to provide property analysis capabilities. The services are designed to be independently deployable while sharing common infrastructure and CI/CD pipelines.
+If you are new to the project, this is your starting point. Our "Paved Path" for development uses Docker to create a consistent local environment that mirrors our production setup.
 
-### Services
+➡️ **Start Here: [Development Guide](docs/development.md)**
 
-- **Auth Service**: Authentication and authorization service built with FastAPI and Supabase
-- **Super ID Service**: UUID generation service for workflow tracking and request correlation
+## 🏛️ System Architecture
 
-## Architecture
+To understand how the services interact, refer to our core architecture documentation. These are "golden" documents that provide a trusted overview of the system.
 
-This project uses a microservice architecture with:
+- **[Project Structure Overview](PROJECT_STRUCTURE.md)**: A high-level view of the directories and services.
+- **[System Workflow Guide](docs/system_workflow.md)**: A technical walkthrough of the API call sequence for a typical data capture task.
 
-- FastAPI for REST API development
-- Supabase for authentication and isolated PostgreSQL databases per service
-- Kubernetes for container orchestration on AWS EKS
-- GitHub Actions for CI/CD with conditional builds per service
-- Redis for rate limiting and caching
-- JWT-based service authentication
+## 🛠️ Service-Specific Documentation
 
-## Database Architecture
+Dive into the details for each microservice. These READMEs provide service-specific context and link back to our central documentation for shared concepts.
 
-### Service Isolation
+- **[Auth Service](./auth_service/README.md)**: Manages users, clients, and permissions.
+- **[Super ID Service](./super_id_service/README.md)**: Generates and records unique workflow IDs.
+- **[Data Capture Rightmove Service](./data_capture_rightmove_service/README.md)**: Fetches and stores property data from Rightmove.
 
-Each microservice uses its own dedicated database for proper service isolation:
+## 🚀 Deployment & Operations
 
-- **Auth Service Database**: `auth_service_db` - Stores user credentials, roles, and permissions
-- **Super ID Service Database**: `super_id_db` - Manages generated UUIDs and their audit logs
+This project is deployed on AWS EKS via an automated CI/CD pipeline. The "paved path" for deployment is to use our GitHub Actions workflows.
 
-### Database Connection Format
+- **[Production Deployment Guide](docs/production_deployment.md)**: Detailed steps for the initial production environment setup.
+- **[Deployment Checklist](deployment-checklist.md)**: Pre-flight checks for ensuring a smooth deployment.
+- **[CI/CD Workflows](.github/workflows/)**: Our automated pipelines for testing and deployment. Manual deployments should only be performed for debugging or initial setup.
 
-Connection strings use the following format with proper quoting for options with spaces:
+## ⁉️ Troubleshooting
 
-```
-postgresql://user:password@host:port/dbname?sslmode=require&options='--client_encoding=utf8 --timezone=UTC --default_transaction_isolation=\'read committed\'''
-```
+Encountering an issue? Our troubleshooting guide contains solutions to common problems, from local development errors to deployment issues.
 
-> **Note**: The connection string uses single quotes around values with spaces in the `options` parameter to avoid invalid escape sequences.
-
-## Getting Started
-
-### Prerequisites
-
-- Docker & Docker Compose
-- Kubernetes CLI (kubectl)
-- Supabase account and CLI
-- Python 3.12+ and Poetry
-
-### Development
-
-Each service has its own Docker Compose configuration for local development:
-
-```bash
-# Auth Service
-cd auth_service
-docker-compose up -d
-
-# Super ID Service
-cd super_id_service
-docker-compose up -d
-```
-
-### Repository Structure
-
-```
-paservices/
-├── auth_service/        # Auth Service source code
-├── super_id_service/    # Super ID Service source code
-├── k8s/                 # Kubernetes manifests
-│   ├── auth/            # Auth Service K8s manifests
-│   ├── super_id/        # Super ID Service K8s manifests
-│   └── shared/          # Shared infrastructure manifests
-└── .github/workflows/   # CI/CD pipeline configurations
-```
-
-See [Development Guide](docs/development.md) for detailed instructions.
-
-### Deployment
-
-The services are deployed to Kubernetes using GitHub Actions. The workflow:
-
-1. Builds Docker images
-2. Pushes to container registry
-3. Applies Kubernetes manifests
-
-See [Deployment Documentation](docs/deployment.md) for details.
-
-## Project Structure
-
-```
-/paservices/
-├── auth_service/        # Authentication and Authorization service
-├── super_id_service/    # Super ID service (planned)
-├── k8s/                 # Kubernetes manifests
-├── docs/                # Documentation
-└── scripts/             # Repository-level scripts
-```
-
-See [Project Structure](PROJECT_STRUCTURE.md) for more details.
-
-## Contributing
-
-1. Follow consistent code style using pre-commit hooks
-2. Ensure tests pass for any changes
-3. Update documentation as needed
-4. Submit PRs against the main branch
-
-## License
-
-Proprietary - All rights reserved
+➡️ **[Troubleshooting Guide](docs/troubleshooting.md)**

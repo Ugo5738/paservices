@@ -1,0 +1,123 @@
+# /paservices/docker-compose.prod.yml
+
+version: "3.8"
+
+services:
+  #################
+  # REVERSE PROXY #
+  #################
+  traefik:
+    image: traefik:v2.10
+    container_name: paservices_traefik
+    restart: unless-stopped
+    command:
+      - "--api.insecure=true" # Exposes the Traefik dashboard on port 8080 (for debugging)
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL}" # Your email for certs
+      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.letsencrypt.acme.tlschallenge=true"
+      - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080" # Traefik Dashboard
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "traefik-certificates:/letsencrypt"
+    networks:
+      - paservices-network
+
+  ################
+  # AUTH SERVICE #
+  ################
+  auth_service:
+    image: ${{DOCKER_USERNAME}}/auth_service:latest # Will be pulled from your container registry
+    container_name: auth_service_prod
+    restart: unless-stopped
+    networks:
+      - paservices-network
+    depends_on:
+      - traefik
+    environment:
+      - AUTH_SERVICE_ENVIRONMENT=production
+      - AUTH_SERVICE_DATABASE_URL=${AUTH_SERVICE_DATABASE_URL}
+      - AUTH_SERVICE_SUPABASE_URL=${SUPABASE_URL}
+      - AUTH_SERVICE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - AUTH_SERVICE_M2M_JWT_SECRET_KEY=${M2M_JWT_SECRET_KEY}
+      - AUTH_SERVICE_REDIS_URL=redis://paservices_redis:6379/0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth-service.rule=Host(`${AUTH_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.auth-service.entrypoints=websecure"
+      - "traefik.http.routers.auth-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.auth-service.loadbalancer.server.port=8000"
+
+  ####################
+  # SUPER ID SERVICE #
+  ####################
+  super_id_service:
+    image: ${{DOCKER_USERNAME}}/super_id_service:latest
+    container_name: super_id_service_prod
+    restart: unless-stopped
+    networks:
+      - paservices-network
+    depends_on:
+      - auth_service
+    environment:
+      - SUPER_ID_SERVICE_ENVIRONMENT=production
+      - SUPER_ID_SERVICE_DATABASE_URL=${SUPER_ID_SERVICE_DATABASE_URL}
+      - SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY=${M2M_JWT_SECRET_KEY} # Shared secret for validation
+      - SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER=paservices_auth_service
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.super-id-service.rule=Host(`${SUPER_ID_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.super-id-service.entrypoints=websecure"
+      - "traefik.http.routers.super-id-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.super-id-service.loadbalancer.server.port=8000"
+
+  ####################################
+  # DATA CAPTURE RIGHTMOVE SERVICE #
+  ####################################
+  data_capture_rightmove_service:
+    image: ${{DOCKER_USERNAME}}/data_capture_rightmove_service:latest
+    container_name: data_capture_rightmove_service_prod
+    restart: unless-stopped
+    networks:
+      - paservices-network
+    depends_on:
+      - auth_service
+      - super_id_service
+    environment:
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_ENVIRONMENT=production
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL=${DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL}
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID=${DATA_CAPTURE_M2M_CLIENT_ID}
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET=${DATA_CAPTURE_M2M_CLIENT_SECRET}
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY=${RAPID_API_KEY}
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL=http://auth_service:8000/api/v1
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL=http://super_id_service:8000/api/v1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.data-capture-service.rule=Host(`${DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.data-capture-service.entrypoints=websecure"
+      - "traefik.http.routers.data-capture-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.data-capture-service.loadbalancer.server.port=8000"
+
+  # This internal Redis service can be used by all other services
+  redis:
+    image: redis:7-alpine
+    container_name: paservices_redis
+    restart: unless-stopped
+    networks:
+      - paservices-network
+
+networks:
+  paservices-network:
+    name: paservices-network
+
+volumes:
+  traefik-certificates:
