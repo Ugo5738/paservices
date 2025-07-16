@@ -42,11 +42,8 @@ services:
     depends_on:
       - traefik
     environment:
+      - PYTHONPATH=/app/src
       - AUTH_SERVICE_ENVIRONMENT=production
-      - AUTH_SERVICE_DATABASE_URL=${AUTH_SERVICE_DATABASE_URL}
-      - AUTH_SERVICE_SUPABASE_URL=${SUPABASE_URL}
-      - AUTH_SERVICE_SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
-      - AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - AUTH_SERVICE_M2M_JWT_SECRET_KEY=${M2M_JWT_SECRET_KEY}
       - AUTH_SERVICE_REDIS_URL=redis://paservices_redis:6379/0
     labels:
@@ -69,6 +66,7 @@ services:
     depends_on:
       - auth_service
     environment:
+      - PYTHONPATH=/app/src
       - SUPER_ID_SERVICE_ENVIRONMENT=production
       - SUPER_ID_SERVICE_DATABASE_URL=${SUPER_ID_SERVICE_DATABASE_URL}
       - SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY=${M2M_JWT_SECRET_KEY} # Shared secret for validation
@@ -94,6 +92,7 @@ services:
       - auth_service
       - super_id_service
     environment:
+      - PYTHONPATH=/app/src
       - DATA_CAPTURE_RIGHTMOVE_SERVICE_ENVIRONMENT=production
       - DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL=${DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL}
       - DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID=${DATA_CAPTURE_M2M_CLIENT_ID}
