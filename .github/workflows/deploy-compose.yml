@@ -97,7 +97,7 @@ jobs:
             git pull origin staging
 
             # Export all secrets as environment variables
-            # This makes them available to the docker-compose command
+            # This makes them available to the docker compose command
             echo "Exporting secrets to environment..."
             export DOCKER_USERNAME='${{ secrets.DOCKERHUB_USERNAME }}'
             export ACME_EMAIL='${{ secrets.ACME_EMAIL }}'
@@ -120,21 +120,21 @@ jobs:
 
             # Pull the latest images for all services defined in the compose file
             echo "Pulling latest Docker images..."
-            docker-compose -f docker-compose.prod.yml pull
+            docker compose -f docker-compose.prod.yml pull
 
             # Run Alembic migrations for the auth service
             # Run this in a temporary container to not affect the running service
             echo "Running Auth Service migrations..."
-            docker-compose -f docker-compose.prod.yml run --rm auth_service alembic upgrade head
+            docker compose -f docker-compose.prod.yml run --rm auth_service alembic upgrade head
 
             # Run Alembic migrations for the super_id service
             echo "Running Super ID Service migrations..."
-            docker-compose -f docker-compose.prod.yml run --rm super_id_service alembic upgrade head
+            docker compose -f docker-compose.prod.yml run --rm super_id_service alembic upgrade head
 
             # Bring up the services. Docker Compose will recreate only the containers
             # whose images have changed.
             echo "Starting application stack..."
-            docker-compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
             # Clean up old, unused Docker images to save space
             echo "Cleaning up unused Docker images..."

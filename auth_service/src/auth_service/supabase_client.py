@@ -15,7 +15,7 @@ _global_admin_supabase_client: AsyncSupabaseClient | None = None
 async def init_supabase_clients():
     """
     Initializes the global Supabase clients.
-    This function should be called once at application startup.
+    This function should be called once at application startup
     """
     global _global_async_supabase_client, _global_admin_supabase_client
 
