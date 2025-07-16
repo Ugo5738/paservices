@@ -32,7 +32,7 @@ services:
   # AUTH SERVICE #
   ################
   auth_service:
-    image: ${{DOCKER_USERNAME}}/auth_service:latest # Will be pulled from your container registry
+    image: ${DOCKER_USERNAME}/auth_service:latest # Will be pulled from your container registry
     container_name: auth_service_prod
     restart: unless-stopped
     networks:
@@ -58,7 +58,7 @@ services:
   # SUPER ID SERVICE #
   ####################
   super_id_service:
-    image: ${{DOCKER_USERNAME}}/super_id_service:latest
+    image: ${DOCKER_USERNAME}/super_id_service:latest
     container_name: super_id_service_prod
     restart: unless-stopped
     networks:
@@ -81,7 +81,7 @@ services:
   # DATA CAPTURE RIGHTMOVE SERVICE #
   ####################################
   data_capture_rightmove_service:
-    image: ${{DOCKER_USERNAME}}/data_capture_rightmove_service:latest
+    image: ${DOCKER_USERNAME}/data_capture_rightmove_service:latest
     container_name: data_capture_rightmove_service_prod
     restart: unless-stopped
     networks:
