@@ -107,22 +107,39 @@ jobs:
             git checkout staging
             git pull origin staging
 
-            echo "Exporting secrets to environment..."
-            export DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-            export ACME_EMAIL=${{ secrets.ACME_EMAIL }}
-            export AUTH_SERVICE_DOMAIN=${{ secrets.AUTH_SERVICE_DOMAIN }}
-            export SUPER_ID_SERVICE_DOMAIN=${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
-            export DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN }}
-            export SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-            export SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-            export SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-            export AUTH_SERVICE_DATABASE_URL=${{ secrets.AUTH_SERVICE_DATABASE_URL }}
-            export SUPER_ID_SERVICE_DATABASE_URL=${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}
-            export DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}
-            export M2M_JWT_SECRET_KEY=${{ secrets.M2M_JWT_SECRET_KEY }}
-            export DATA_CAPTURE_M2M_CLIENT_ID=${{ secrets.DATA_CAPTURE_M2M_CLIENT_ID }}
-            export DATA_CAPTURE_M2M_CLIENT_SECRET=${{ secrets.DATA_CAPTURE_M2M_CLIENT_SECRET }}
-            export RAPID_API_KEY=${{ secrets.RAPID_API_KEY }}
+            # --- FIX: Explicitly create the .env file for production ---
+            echo "Creating production .env file on server..."
+            cat > .env << EOF
+            # Core Service Variables
+            DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
+            ACME_EMAIL=${{ secrets.ACME_EMAIL }}
+
+            # Domain Names
+            AUTH_SERVICE_DOMAIN=${{ secrets.AUTH_SERVICE_DOMAIN }}
+            SUPER_ID_SERVICE_DOMAIN=${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
+            DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN }}
+
+            # Supabase Cloud URLs and Keys
+            SUPABASE_URL=${{ secrets.SUPABASE_URL }}
+            SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
+            SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+            # Database Connection Strings (for cloud databases)
+            # IMPORTANT: The single quotes around the secrets are crucial for handling special characters
+            AUTH_SERVICE_DATABASE_URL='${{ secrets.AUTH_SERVICE_DATABASE_URL }}'
+            SUPER_ID_SERVICE_DATABASE_URL='${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}'
+            DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL='${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}'
+
+            # Shared Secrets
+            M2M_JWT_SECRET_KEY=${{ secrets.M2M_JWT_SECRET_KEY }}
+
+            # Service-Specific Secrets
+            DATA_CAPTURE_M2M_CLIENT_ID=${{ secrets.DATA_CAPTURE_M2M_CLIENT_ID }}
+            DATA_CAPTURE_M2M_CLIENT_SECRET=${{ secrets.DATA_CAPTURE_M2M_CLIENT_SECRET }}
+            RAPID_API_KEY=${{ secrets.RAPID_API_KEY }}
+            EOF
+            echo "✅ .env file created successfully."
+
 
             echo "Logging into Docker Hub..."
             echo ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
