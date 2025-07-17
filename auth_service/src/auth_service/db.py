@@ -38,13 +38,17 @@ logger.info(f"Database type detected: {'Cloud' if is_cloud_db else 'Local'}")
 
 # Setup cloud-optimized connection arguments
 connect_args = {
-    "application_name": "data_capture_rightmove_service",
-    # For psycopg v3, we use options parameter instead of server_settings
+    "application_name": "auth_service",
     "options": "-c timezone=UTC"
-    + (
-        "" if settings.ENVIRONMENT == "testing" else " -c statement_timeout=30000"
-    ),  # Increased timeout for cloud
+    + ("" if settings.ENVIRONMENT == "testing" else " -c statement_timeout=30000"),
+    # --- BEGIN FIX ---
+    # Disable the driver's implicit prepared statement cache. This is the recommended
+    # setting when using a transaction-pooling connection pooler like PgBouncer.
+    # It prevents "prepared statement already exists" errors on reused connections.
+    "prepare_threshold": None,
+    # --- END FIX ---
 }
+
 
 # Add SSL settings for cloud databases
 if is_cloud_db:
