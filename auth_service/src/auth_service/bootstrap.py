@@ -77,7 +77,7 @@ async def create_core_roles(db: AsyncSession) -> Dict[str, uuid.UUID]:
 
 
 async def create_core_permissions(db: AsyncSession) -> Dict[str, uuid.UUID]:
-    """Create the core permissions if they don't exist yet."""
+    """Create the core permissions if they don't exist yet"""
     permission_ids = {}
 
     for perm_data in CORE_PERMISSIONS:
