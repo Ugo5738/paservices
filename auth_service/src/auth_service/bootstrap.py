@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import Dict, List, Optional
 
-from gotrue.errors import AuthApiError
+from gotrue.errors import AuthApiError as SupabaseAPIError
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
@@ -154,34 +154,21 @@ async def assign_permissions_to_roles(
 async def create_admin_user(
     db: AsyncSession, email: str, password: str
 ) -> Optional[SupabaseUser]:
-    """Efficiently checks for and creates an admin user in Supabase if one doesn't exist."""
+    """
+    Efficiently checks for and creates an admin user in Supabase if one doesn't exist.
+    If the user already exists, it fetches their data.
+    """
     logger.info(f"Attempting to verify or create admin user: {email}")
+    admin_supabase = get_supabase_admin_client()
+
     try:
-        stmt = text("SELECT id, raw_app_meta_data FROM auth.users WHERE email = :email")
-        result = await db.execute(stmt, {"email": email})
-        existing_user = result.mappings().first()
-
-        if existing_user:
-            logger.info(
-                f"Admin user with email '{email}' already exists in the database (ID: {existing_user['id']})."
-            )
-            return SupabaseUser(
-                id=existing_user["id"],
-                email=email,
-                app_metadata=existing_user.get("raw_app_meta_data", {}),
-                created_at=datetime.now(),
-                updated_at=datetime.now(),
-                aud="",
-                role="",
-            )
-
-        logger.info(f"Admin user '{email}' not found. Creating via Supabase API.")
-        admin_supabase = get_supabase_admin_client()
+        # First, try to create the user.
+        logger.info(f"Attempting to create admin user '{email}' via Supabase API.")
         signup_response = await admin_supabase.auth.admin.create_user(
             {
                 "email": email,
                 "password": password,
-                "email_confirm": True,
+                "email_confirm": True,  # Automatically confirm the email
                 "user_metadata": {"roles": ["admin"]},
             }
         )
@@ -192,8 +179,39 @@ async def create_admin_user(
             )
             return None
 
+        logger.info(f"Successfully created new admin user: {email}")
         return SupabaseUser.model_validate(signup_response.user)
 
+    except SupabaseAPIError as e:
+        # If the error is "User already registered", fetch the existing user.
+        if "already registered" in e.message.lower():
+            logger.warning(
+                f"Admin user '{email}' already exists. Fetching existing user data."
+            )
+            try:
+                existing_user_response = (
+                    await admin_supabase.auth.admin.get_user_by_email(email)
+                )
+                if not existing_user_response or not existing_user_response.user:
+                    logger.error(
+                        f"Could not fetch existing admin user '{email}' despite registration error."
+                    )
+                    return None
+                logger.info(f"Successfully fetched existing admin user: {email}")
+                return SupabaseUser.model_validate(existing_user_response.user)
+            except Exception as fetch_error:
+                logger.error(
+                    f"Error fetching existing admin user '{email}': {fetch_error}",
+                    exc_info=True,
+                )
+                return None
+        else:
+            # For other API errors, log it and fail.
+            logger.error(
+                f"Supabase API error during admin user creation for '{email}': {e}",
+                exc_info=True,
+            )
+            return None
     except Exception as e:
         logger.error(
             f"Unexpected error during admin user creation for '{email}': {e}",

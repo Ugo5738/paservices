@@ -19,7 +19,7 @@ from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
 from auth_service.bootstrap import bootstrap_admin_and_rbac
 from auth_service.config import settings
-from auth_service.db import get_db
+from auth_service.db import AsyncSessionLocal, get_db
 from auth_service.logging_config import LoggingMiddleware, logger, setup_logging
 from auth_service.rate_limiting import limiter, setup_rate_limiting
 from auth_service.routers.admin_routes import router as admin_router
@@ -56,18 +56,11 @@ async def lifespan(app: FastAPI):
 
     # 2. Run bootstrap process with retry logic
     logger.info("Running bootstrap process...")
-    db_session_for_bootstrap = None
     try:
-        async for session in get_db():
-            db_session_for_bootstrap = session
-            break
-        if db_session_for_bootstrap:
-            await bootstrap_admin_and_rbac(db_session_for_bootstrap)
+        async with AsyncSessionLocal() as session:
+            await bootstrap_admin_and_rbac(session)
     except Exception as e:
         logger.error(f"Bootstrap process failed: {e}", exc_info=True)
-    finally:
-        if db_session_for_bootstrap:
-            await db_session_for_bootstrap.close()
 
     # Application is now ready to serve requests
     logger.info("Application startup complete.")

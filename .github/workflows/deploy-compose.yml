@@ -100,16 +100,13 @@ jobs:
           script: |
             set -e
 
-            echo "--- SCRIPT STARTED ON SERVER ---"
-
-            # --- SETUP AND CODE PULL ---
             mkdir -p /home/ubuntu/paservices
             cd /home/ubuntu/paservices
+
             echo "Pulling latest code from origin/staging..."
             git checkout staging
             git pull origin staging
 
-            # --- EXPORT SECRETS TO ENVIRONMENT ---
             echo "Exporting secrets to environment..."
             export DOCKER_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
             export ACME_EMAIL=${{ secrets.ACME_EMAIL }}
@@ -127,28 +124,9 @@ jobs:
             export DATA_CAPTURE_M2M_CLIENT_SECRET=${{ secrets.DATA_CAPTURE_M2M_CLIENT_SECRET }}
             export RAPID_API_KEY=${{ secrets.RAPID_API_KEY }}
 
-            # --- DOCKER LOGIN AND DIAGNOSTICS ---
             echo "Logging into Docker Hub..."
             echo ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
-            echo "--- DIAGNOSTICS: INSPECTING IMAGE MANIFESTS ---"
-            echo "Inspecting traefik:v3.0..."
-            docker manifest inspect traefik:v3.0 || echo "Failed to inspect traefik"
-
-            echo "Inspecting redis:7-alpine..."
-            docker manifest inspect redis:7-alpine || echo "Failed to inspect redis"
-
-            echo "Inspecting ${{ secrets.DOCKERHUB_USERNAME }}/auth_service:latest..."
-            docker manifest inspect ${{ secrets.DOCKERHUB_USERNAME }}/auth_service:latest || echo "Failed to inspect auth_service"
-
-            echo "Inspecting ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service:latest..."
-            docker manifest inspect ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service:latest || echo "Failed to inspect super_id_service"
-
-            echo "Inspecting ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service:latest..."
-            docker manifest inspect ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service:latest || echo "Failed to inspect data_capture_rightmove_service"
-            echo "--- DIAGNOSTICS COMPLETE ---"
-
-            # --- DEPLOYMENT STEPS ---
             echo "Pulling latest Docker images..."
             docker compose -f docker-compose.prod.yml pull
 
@@ -161,5 +139,3 @@ jobs:
 
             echo "Cleaning up old Docker images..."
             docker image prune -f
-
-            echo "--- DEPLOYMENT SCRIPT FINISHED ---"

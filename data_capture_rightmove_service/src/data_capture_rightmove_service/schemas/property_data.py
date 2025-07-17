@@ -43,7 +43,7 @@ class FetchPropertyDetailsRequest(BaseModel):
         return self
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "property_id": 123456789,
                 "description": "Property listing for review",
@@ -109,7 +109,7 @@ class PropertyDetailsStorageResponse(BaseModel):
     )
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "property_id": 12345678,
                 "super_id": "123e4567-e89b-12d3-a456-426614174000",
@@ -169,7 +169,7 @@ class PropertySearchRequest(BaseModel):
     page_number: int = Field(1, description="Page number for pagination")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "location_identifier": "REGION^87490",
                 "min_price": 200000,
