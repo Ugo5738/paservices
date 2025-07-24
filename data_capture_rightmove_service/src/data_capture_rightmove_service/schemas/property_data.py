@@ -1,3 +1,4 @@
+# data_capture_rightmove_service/src/data_capture_rightmove_service/schemas/property_data.py
 """
 Schemas for property data requests and responses.
 """
@@ -6,7 +7,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 # Base schemas for shared fields
@@ -158,26 +166,74 @@ class PropertySearchRequest(BaseModel):
     """Request to search for properties based on criteria."""
 
     location_identifier: str = Field(..., description="Location identifier or name")
-    min_price: Optional[int] = Field(None, description="Minimum price")
-    max_price: Optional[int] = Field(None, description="Maximum price")
-    min_bedrooms: Optional[int] = Field(None, description="Minimum number of bedrooms")
-    max_bedrooms: Optional[int] = Field(None, description="Maximum number of bedrooms")
-    property_type: Optional[str] = Field(None, description="Type of property")
-    radius_from_location: Optional[float] = Field(
-        None, description="Search radius in miles"
+    num_properties: Optional[int] = Field(
+        None,
+        description="Total number of properties to retrieve by paging through results.",
     )
     page_number: int = Field(1, description="Page number for pagination")
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "location_identifier": "REGION^87490",
-                "min_price": 200000,
-                "max_price": 500000,
-                "min_bedrooms": 2,
-                "max_bedrooms": 3,
-                "property_type": "FLAT",
-                "radius_from_location": 1.0,
-                "page_number": 0,
-            }
-        }
+    # All 21 optional parameters
+    sort_by: Optional[str] = Field(
+        None,
+        description="Sort order of the results (e.g., 'HighestPrice', 'NewestListed', 'NearestFirst').",
+    )
+    search_radius: Optional[float] = Field(None, description="Search radius in miles.")
+    min_price: Optional[int] = Field(None, description="Minimum property price.")
+    max_price: Optional[int] = Field(None, description="Maximum property price.")
+    min_bedrooms: Optional[int] = Field(None, description="Minimum number of bedrooms.")
+    max_bedrooms: Optional[int] = Field(None, description="Maximum number of bedrooms.")
+    property_type: Optional[str] = Field(
+        None, description="Comma-separated list of property types."
+    )
+    added_to_site: Optional[int] = Field(
+        None, description="Filter by days since added to site."
+    )
+    keywords: Optional[str] = Field(
+        None, description="Comma-separated list of keywords."
+    )
+
+    # Boolean flags
+    has_garden: Optional[bool] = None
+    has_new_home: Optional[bool] = None
+    has_buying_schemes: Optional[bool] = None
+    has_parking: Optional[bool] = None
+    has_retirement_home: Optional[bool] = None
+    has_auction_property: Optional[bool] = None
+    include_under_offer_sold_stc: Optional[bool] = Field(
+        None, alias="has_include_under_offer_sold_stc"
+    )
+    do_not_show_new_home: Optional[bool] = None
+    do_not_show_buying_schemes: Optional[bool] = None
+    do_not_show_retirement_home: Optional[bool] = None
+
+
+class PropertyListingResponse(BaseModel):
+    id: int
+    snapshot_id: int
+    property_url: Optional[str]
+    display_address: Optional[str]
+    bedrooms: Optional[int]
+    bathrooms: Optional[int]
+    created_at: datetime
+    super_id: UUID
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class FilteredPropertiesResponse(BaseModel):
+    properties: List[PropertyListingResponse]
+
+
+class ScrapedListingResponse(BaseModel):
+    property_id: int = Field(
+        ..., alias="id"
+    )  # Map `id` from the model to `property_id`
+    property_url: Optional[str]
+    super_id: UUID
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class FilteredScrapedPropertiesResponse(BaseModel):
+    properties: List[ScrapedListingResponse]

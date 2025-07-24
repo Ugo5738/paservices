@@ -25,9 +25,21 @@ class Settings(BaseSettings):
     """
 
     # Core settings
-    environment: Environment = Field(default=Environment.DEVELOPMENT)
-    root_path: str = ""
-    log_level: str = "INFO"
+    ENVIRONMENT: Environment = Field(
+        Environment.DEVELOPMENT,
+        alias="SUPER_ID_SERVICE_ENVIRONMENT",
+        description="Application environment",
+    )
+    ROOT_PATH: str = Field(
+        "/api/v1",
+        alias="SUPER_ID_SERVICE_ROOT_PATH",
+        description="API root path for reverse proxies",
+    )
+    LOGGING_LEVEL: str = Field(
+        "INFO",
+        alias="SUPER_ID_SERVICE_LOGGING_LEVEL",
+        description="Logging level",
+    )
 
     # Database configuration
     database_url: str = Field(...)
@@ -35,8 +47,12 @@ class Settings(BaseSettings):
 
     # Supabase configuration with standardized service-specific prefixes
     supabase_url: str = Field(..., validation_alias="SUPER_ID_SERVICE_SUPABASE_URL")
-    supabase_anon_key: str = Field(..., validation_alias="SUPER_ID_SERVICE_SUPABASE_ANON_KEY")
-    supabase_service_role_key: str = Field(..., validation_alias="SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY")
+    supabase_anon_key: str = Field(
+        ..., validation_alias="SUPER_ID_SERVICE_SUPABASE_ANON_KEY"
+    )
+    supabase_service_role_key: str = Field(
+        ..., validation_alias="SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY"
+    )
 
     # JWT configuration (for validating auth_service JWTs)
     # Use validation_alias to specify the exact environment variable name
@@ -44,7 +60,8 @@ class Settings(BaseSettings):
         ..., validation_alias="SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY"
     )
     auth_service_issuer: str = Field(
-        "paservices_auth_service", validation_alias="SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER"
+        "paservices_auth_service",
+        validation_alias="SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER",
     )
 
     # Rate limiting

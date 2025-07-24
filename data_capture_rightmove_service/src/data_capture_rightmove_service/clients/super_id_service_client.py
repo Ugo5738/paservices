@@ -4,7 +4,7 @@ Super ID Service Client for generating and retrieving tracking UUIDs.
 
 import logging
 import uuid
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import httpx
 from fastapi import HTTPException
@@ -34,15 +34,20 @@ class SuperIdServiceClient:
 
     async def create_super_id(
         self,
-        source_service: str = "data_capture_rightmove_service",
         description: str = None,
+        metadata: Optional[Dict[str, Any]] = None,
+        source_service: str = "data_capture_rightmove_service",
     ) -> uuid.UUID:
         """
         Generate a new Super ID UUID for tracking purposes.
 
+        This method is backwards-compatible. It can be called with a simple
+        'description' or a richer 'metadata' dictionary.
+
         Args:
-            source_service: The name of the service requesting the Super ID
-            description: Optional description of what this Super ID is for
+            description: Optional simple description of the workflow.
+            metadata: Optional dictionary for richer metadata. If provided, it is used directly.
+            source_service: The name of the service requesting the Super ID.
 
         Returns:
             uuid.UUID: The generated UUID
@@ -54,9 +59,22 @@ class SuperIdServiceClient:
             # Get auth headers with a valid token
             headers = await auth_service_client.get_auth_header()
 
+            # Construct the payload correctly. Prioritize the new 'metadata' argument,
+            # but fall back to using 'description' for backwards compatibility.
+            final_metadata = {}
+            if metadata:
+                final_metadata = metadata
+            elif description:
+                # If only description is provided, wrap it in a metadata object
+                # to match what the super_id_service API expects.
+                final_metadata = {
+                    "source_service": source_service,
+                    "description": description,
+                }
+
             payload = {
-                "source_service": source_service,
-                "description": description or "Rightmove data capture request",
+                "count": 1,
+                "metadata": final_metadata,
             }
 
             async with httpx.AsyncClient() as client:

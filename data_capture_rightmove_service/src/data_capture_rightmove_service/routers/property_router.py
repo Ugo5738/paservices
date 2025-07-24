@@ -1,14 +1,19 @@
+# data_capture_rightmove_service/src/data_capture_rightmove_service/routers/property_router.py
 """
 Router for property data operations, including fetching from Rightmove API and storing in database.
 """
 
 import asyncio
+import math
 import uuid
+from datetime import datetime, time, timedelta, timezone
 from typing import Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from data_capture_rightmove_service.clients.rightmove_api_client import (
     rightmove_api_client,
@@ -31,18 +36,26 @@ from data_capture_rightmove_service.crud.property_search import (
     store_property_search_results,
 )
 from data_capture_rightmove_service.db import AsyncSessionLocal, get_db
+from data_capture_rightmove_service.models.properties_details_v2 import (
+    ApiPropertiesDetailsV2,
+)
+from data_capture_rightmove_service.models.property_for_sale import PropertyListing
 from data_capture_rightmove_service.models.scrape_event import ScrapeEventTypeEnum
 from data_capture_rightmove_service.schemas.common import MessageResponse
-from data_capture_rightmove_service.schemas.property_data import (
+from data_capture_rightmove_service.schemas.property_data import (  # PropertiesBySuperIdResponse,
     CombinedPropertyResponse,
     CombinedPropertyResponseItem,
     FetchBatchRequest,
     FetchBatchResponse,
     FetchPropertyDetailsRequest,
     FetchPropertyResponse,
+    FilteredPropertiesResponse,
+    FilteredScrapedPropertiesResponse,
     PropertyDetailsStorageResponse,
+    PropertyListingResponse,
     PropertySearchRequest,
     PropertyUrlResponse,
+    ScrapedListingResponse,
 )
 from data_capture_rightmove_service.utils.data_completeness import analyze_response
 from data_capture_rightmove_service.utils.logging_config import logger
@@ -656,14 +669,26 @@ async def process_property_search(
 ):
     """
     The complete background task to fetch, log, and store property search results.
+    If `num_properties` is specified in the request, it will paginate through
+    results until the threshold is met. Otherwise, it fetches a single page.
     """
     super_id = None
     # Use a new DB session for the background task to ensure it's isolated.
     async with AsyncSessionLocal() as db:
         try:
             # 1. Generate a Super ID for this entire workflow
+            description = (
+                f"Property search for location: {search_request.location_identifier}"
+            )
+            if search_request.num_properties:
+                description += (
+                    f" (requesting up to {search_request.num_properties} properties)"
+                )
+            else:
+                description += f", page: {search_request.page_number}"
+
             super_id = await super_id_service_client.create_super_id(
-                description=f"Property search for location: {search_request.location_identifier}, page: {search_request.page_number}"
+                description=description
             )
 
             # 2. Log the initial request event
@@ -674,29 +699,92 @@ async def process_property_search(
                 payload=search_request.model_dump(),
             )
 
-            # 3. Log API call attempt
-            api_endpoint = "/buy/property-for-sale"
-            await event_crud.log_scrape_event(
-                db,
-                super_id,
-                ScrapeEventTypeEnum.API_CALL_ATTEMPT,
-                api_endpoint_called=api_endpoint,
-                payload=search_request.model_dump(),
-            )
+            num_to_fetch = search_request.num_properties
+            properties = []
 
-            # 4. Make the API call
-            api_response = await rightmove_api_client.search_properties_for_sale(
-                location_identifier=search_request.location_identifier,
-                min_price=search_request.min_price,
-                max_price=search_request.max_price,
-                min_bedrooms=search_request.min_bedrooms,
-                max_bedrooms=search_request.max_bedrooms,
-                property_type=search_request.property_type,
-                radius_from_location=search_request.radius_from_location,
-                page_number=search_request.page_number,
-            )
+            # Prepare parameters for the API client, excluding num_properties
+            search_params = search_request.model_dump(exclude_unset=True)
+            search_params.pop("num_properties", None)
 
-            properties = api_response.get("data", [])
+            if not num_to_fetch:
+                # --- SINGLE PAGE LOGIC (Original Behavior) ---
+                logger.info(
+                    f"Performing single-page search for location: {search_request.location_identifier}, page: {search_request.page_number}"
+                )
+
+                api_response = await rightmove_api_client.search_properties_for_sale(
+                    **search_params
+                )
+                properties = api_response.get("data", [])
+
+            else:
+                # --- PAGINATION LOGIC (New Behavior) ---
+                logger.info(
+                    f"Performing paginated search for location: {search_request.location_identifier}, targeting {num_to_fetch} properties."
+                )
+                all_properties = []
+
+                logger.info("Fetching page 1 to get total count...")
+                # Ensure page_number is set for the first call
+                search_params["page_number"] = 1
+                initial_response = (
+                    await rightmove_api_client.search_properties_for_sale(
+                        **search_params
+                    )
+                )
+
+                properties_on_page = initial_response.get("data", [])
+                if not properties_on_page:
+                    logger.info("No properties found on the first page. Exiting task.")
+                    await event_crud.log_scrape_event(
+                        db,
+                        super_id,
+                        ScrapeEventTypeEnum.API_CALL_SUCCESS,
+                        payload={"message": "No properties found"},
+                    )
+                    return
+
+                all_properties.extend(properties_on_page)
+
+                total_results = initial_response.get("totalResultCount", 0)
+                per_page = initial_response.get("resultsPerPage", 25)
+                total_pages = (
+                    math.ceil(total_results / per_page) if total_results > 0 else 1
+                )
+                logger.info(
+                    f"Total properties available: {total_results}. Total pages: {total_pages}"
+                )
+
+                for page_num in range(2, total_pages + 1):
+                    if len(all_properties) >= num_to_fetch:
+                        logger.info(
+                            f"Target of {num_to_fetch} properties reached. Stopping fetch."
+                        )
+                        break
+
+                    logger.info(f"Fetching page {page_num} of {total_pages}...")
+
+                    search_params["page_number"] = page_num
+                    page_response = (
+                        await rightmove_api_client.search_properties_for_sale(
+                            **search_params
+                        )
+                    )
+
+                    properties_on_page = page_response.get("data", [])
+                    if properties_on_page:
+                        all_properties.extend(properties_on_page)
+                    else:
+                        logger.warning(
+                            f"No properties found on page {page_num}. Stopping pagination."
+                        )
+                        break
+
+                    await asyncio.sleep(0.5)
+
+                properties = all_properties[:num_to_fetch]
+
+            # --- Common Logic for Storing ---
             if not properties:
                 logger.info(
                     f"No properties found for search: {search_request.location_identifier}"
@@ -705,29 +793,24 @@ async def process_property_search(
                     db,
                     super_id,
                     ScrapeEventTypeEnum.API_CALL_SUCCESS,
-                    api_endpoint_called=api_endpoint,
                     payload={"message": "No properties found"},
                 )
                 return
 
-            # 5. Log API call success
-            item_count, null_count = analyze_response(api_response)
             await event_crud.log_scrape_event(
                 db,
                 super_id,
                 ScrapeEventTypeEnum.API_CALL_SUCCESS,
-                api_endpoint_called=api_endpoint,
-                payload=api_response,
-                response_item_count=item_count,
-                response_null_item_count=null_count,
+                response_item_count=len(properties),
+                payload={
+                    "message": f"Successfully collected {len(properties)} properties."
+                },
             )
 
-            # 6. Store the results
             successful, failed = await store_property_search_results(
                 db, properties, super_id, update_existing
             )
 
-            # 7. Log final storage status
             await event_crud.log_scrape_event(
                 db,
                 super_id,
@@ -744,7 +827,6 @@ async def process_property_search(
                 exc_info=True,
             )
             if super_id:
-                # Log failure if we got far enough to have a super_id
                 await event_crud.log_scrape_event(
                     db,
                     super_id,
@@ -752,7 +834,6 @@ async def process_property_search(
                     error_message=str(e),
                 )
         finally:
-            # The 'async with' block handles the session closing automatically.
             pass
 
 
@@ -776,3 +857,180 @@ async def list_property_ids(
         return await get_all_property_sale_ids(db, limit, offset)
     else:
         raise HTTPException(status_code=400, detail="Invalid API type specified")
+
+
+@router.get("/listings", response_model=FilteredPropertiesResponse)
+async def get_filtered_property_listings(
+    token_data: dict = Depends(validate_token),
+    db: AsyncSession = Depends(get_db),
+    on_date: str = Query(
+        ..., description="Filter properties created on a specific date (YYYY-MM-DD)."
+    ),
+    from_time: Optional[str] = Query(
+        None, description="Optional start time on that date (HH:MM)."
+    ),
+    to_time: Optional[str] = Query(
+        None, description="Optional end time on that date (HH:MM)."
+    ),
+    min_bedrooms: Optional[int] = Query(None, ge=0),
+    max_bedrooms: Optional[int] = Query(None, ge=0),
+    min_bathrooms: Optional[int] = Query(None, ge=0),
+    max_bathrooms: Optional[int] = Query(None, ge=0),
+    limit: int = Query(1000, le=5000),
+):
+    """
+    Retrieves a list of the most recent unique property listings based on filter criteria.
+    Primarily filters by a specific date, with optional time window and property attributes.
+    """
+    logger.info(f"Fetching listings for date: {on_date} from {from_time} to {to_time}")
+    try:
+        # --- Date and Time Filtering Logic ---
+        target_date = datetime.strptime(on_date, "%Y-%m-%d").date()
+
+        start_datetime = datetime.combine(target_date, time.min, tzinfo=timezone.utc)
+        end_datetime = datetime.combine(target_date, time.max, tzinfo=timezone.utc)
+
+        if from_time:
+            start_time_obj = time.fromisoformat(from_time)
+            start_datetime = start_datetime.replace(
+                hour=start_time_obj.hour, minute=start_time_obj.minute
+            )
+
+        if to_time:
+            end_time_obj = time.fromisoformat(to_time)
+            end_datetime = end_datetime.replace(
+                hour=end_time_obj.hour, minute=end_time_obj.minute
+            )
+
+        # Subquery to find the latest snapshot for each property ID
+        latest_snapshot_subq = (
+            select(
+                PropertyListing.id,
+                func.max(PropertyListing.snapshot_id).label("max_snapshot_id"),
+            )
+            .group_by(PropertyListing.id)
+            .subquery()
+        )
+
+        stmt = select(PropertyListing).join(
+            latest_snapshot_subq,
+            PropertyListing.snapshot_id == latest_snapshot_subq.c.max_snapshot_id,
+        )
+
+        # Apply filters
+        stmt = stmt.where(PropertyListing.created_at >= start_datetime)
+        stmt = stmt.where(PropertyListing.created_at <= end_datetime)
+
+        if min_bedrooms is not None:
+            stmt = stmt.where(PropertyListing.bedrooms >= min_bedrooms)
+        if max_bedrooms is not None:
+            stmt = stmt.where(PropertyListing.bedrooms <= max_bedrooms)
+        if min_bathrooms is not None:
+            stmt = stmt.where(PropertyListing.bathrooms >= min_bathrooms)
+        if max_bathrooms is not None:
+            stmt = stmt.where(PropertyListing.bathrooms <= max_bathrooms)
+
+        stmt = stmt.order_by(desc(PropertyListing.created_at)).limit(limit)
+
+        result = await db.execute(stmt)
+        properties = result.scalars().all()
+
+        # Manually construct the list of response objects instead of relying on model_validate.
+        # This gives us explicit control over the data being returned.
+        property_responses = []
+        for p in properties:
+            property_responses.append(
+                PropertyListingResponse(
+                    id=p.id,
+                    snapshot_id=p.snapshot_id,
+                    property_url=p.property_url,  # Explicitly include the URL
+                    display_address=p.display_address,
+                    bedrooms=p.bedrooms,
+                    bathrooms=p.bathrooms,
+                    created_at=p.created_at,
+                    super_id=p.super_id,
+                )
+            )
+
+        return FilteredPropertiesResponse(properties=property_responses)
+
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date or time format. Use YYYY-MM-DD and HH:MM.",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving filtered properties: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve properties from database."
+        )
+
+
+@router.get("/scraped-listings", response_model=FilteredScrapedPropertiesResponse)
+async def get_scraped_property_listings(
+    token_data: dict = Depends(validate_token),
+    db: AsyncSession = Depends(get_db),
+    on_date: str = Query(
+        ..., description="Filter properties scraped on a specific date (YYYY-MM-DD)."
+    ),
+    from_time: Optional[str] = Query(
+        None, description="Optional start time on that date (HH:MM)."
+    ),
+    to_time: Optional[str] = Query(
+        None, description="Optional end time on that date (HH:MM)."
+    ),
+    min_bedrooms: Optional[int] = Query(None, ge=0),
+    limit: int = Query(1000, le=5000),
+):
+    """
+    Retrieves a list of properties that have been successfully scraped, including
+    the unique super_id associated with each scrape event.
+    """
+    logger.info(
+        f"Fetching SCRAPED listings for date: {on_date} from {from_time} to {to_time}"
+    )
+    try:
+        target_date = datetime.strptime(on_date, "%Y-%m-%d").date()
+        start_datetime = datetime.combine(target_date, time.min, tzinfo=timezone.utc)
+        end_datetime = datetime.combine(target_date, time.max, tzinfo=timezone.utc)
+
+        if from_time:
+            start_time_obj = time.fromisoformat(from_time)
+            start_datetime = start_datetime.replace(
+                hour=start_time_obj.hour, minute=start_time_obj.minute
+            )
+        if to_time:
+            end_time_obj = time.fromisoformat(to_time)
+            end_datetime = end_datetime.replace(
+                hour=end_time_obj.hour, minute=end_time_obj.minute
+            )
+
+        # Query the detailed scrape table, NOT the search results table
+        stmt = select(ApiPropertiesDetailsV2)
+        stmt = stmt.where(ApiPropertiesDetailsV2.created_at >= start_datetime)
+        stmt = stmt.where(ApiPropertiesDetailsV2.created_at <= end_datetime)
+
+        if min_bedrooms is not None:
+            stmt = stmt.where(ApiPropertiesDetailsV2.bedrooms >= min_bedrooms)
+
+        stmt = stmt.order_by(desc(ApiPropertiesDetailsV2.created_at)).limit(limit)
+
+        result = await db.execute(stmt)
+        properties = result.scalars().all()
+
+        property_responses = [
+            ScrapedListingResponse.model_validate(p) for p in properties
+        ]
+
+        return FilteredScrapedPropertiesResponse(properties=property_responses)
+
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid date or time format. Use YYYY-MM-DD and HH:MM.",
+        )
+    except Exception as e:
+        logger.error(f"Error retrieving scraped properties: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve scraped properties."
+        )

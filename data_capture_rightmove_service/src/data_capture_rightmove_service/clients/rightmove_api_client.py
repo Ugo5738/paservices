@@ -218,61 +218,95 @@ class RightmoveApiClient:
         self,
         location_identifier: str,
         page_number: int = 1,
-        sort_type: Optional[str] = "HighestPrice",
-        radius_from_location: Optional[float] = 1.0,
+        sort_by: Optional[str] = "HighestPrice",
+        search_radius: Optional[float] = 1.0,
         min_price: Optional[int] = None,
         max_price: Optional[int] = None,
         min_bedrooms: Optional[int] = None,
         max_bedrooms: Optional[int] = None,
         property_type: Optional[str] = None,
+        added_to_site: Optional[int] = None,
+        keywords: Optional[str] = None,
+        has_garden: Optional[bool] = None,
+        has_new_home: Optional[bool] = None,
+        has_buying_schemes: Optional[bool] = None,
+        has_parking: Optional[bool] = None,
+        has_retirement_home: Optional[bool] = None,
+        has_auction_property: Optional[bool] = None,
+        include_under_offer_sold_stc: Optional[bool] = None,
+        do_not_show_new_home: Optional[bool] = None,
+        do_not_show_buying_schemes: Optional[bool] = None,
+        do_not_show_retirement_home: Optional[bool] = None,
     ) -> Dict[str, Any]:
         """
-        Search for properties for sale based on criteria.
-
-        Args:
-            location_identifier: The location to search in (e.g., "REGION^87490" for London).
-            min_price: Minimum price
-            max_price: Maximum price
-            min_bedrooms: Minimum number of bedrooms
-            max_bedrooms: Maximum number of bedrooms
-            property_type: Type of property (e.g., "FLAT", "HOUSE")
-            radius_from_location: Search radius in miles.
-            page_number: Page number for pagination
-            sort_type: Sort type for the search results
-
-        Returns:
-            Dict[str, Any]: Search results
-
-        Raises:
-            HTTPException: If the API request fails
+        Search for properties for sale based on a comprehensive set of criteria.
         """
         endpoint = f"{settings.RIGHTMOVE_API_PROPERTY_FOR_SALE_ENDPOINT}"
 
-        # Build query parameters - exact match with working script
+        # Build query parameters, converting to API's expected format (camelCase for some).
         params = {
             "identifier": location_identifier,
             "page": str(page_number),
-            "sort_by": sort_type,
-            "search_radius": str(radius_from_location) if radius_from_location is not None else "1.0",
+            "sort_by": sort_by,
+            "search_radius": (
+                f"{search_radius:.1f}" if search_radius is not None else None
+            ),
+            "minPrice": min_price,
+            "maxPrice": max_price,
+            "minBedrooms": min_bedrooms,
+            "maxBedrooms": max_bedrooms,
+            "propertyType": property_type,
+            "addedToSite": added_to_site,
+            "keywords": keywords,
+            "has_garden": str(has_garden).lower() if has_garden is not None else None,
+            "has_new_home": (
+                str(has_new_home).lower() if has_new_home is not None else None
+            ),
+            "has_buying_schemes": (
+                str(has_buying_schemes).lower()
+                if has_buying_schemes is not None
+                else None
+            ),
+            "has_parking": (
+                str(has_parking).lower() if has_parking is not None else None
+            ),
+            "has_retirement_home": (
+                str(has_retirement_home).lower()
+                if has_retirement_home is not None
+                else None
+            ),
+            "has_auction_property": (
+                str(has_auction_property).lower()
+                if has_auction_property is not None
+                else None
+            ),
+            "has_include_under_offer_sold_stc": (
+                str(include_under_offer_sold_stc).lower()
+                if include_under_offer_sold_stc is not None
+                else None
+            ),
+            "do_not_show_new_home": (
+                str(do_not_show_new_home).lower()
+                if do_not_show_new_home is not None
+                else None
+            ),
+            "do_not_show_buying_schemes": (
+                str(do_not_show_buying_schemes).lower()
+                if do_not_show_buying_schemes is not None
+                else None
+            ),
+            "do_not_show_retirement_home": (
+                str(do_not_show_retirement_home).lower()
+                if do_not_show_retirement_home is not None
+                else None
+            ),
         }
 
-        if min_price is not None:
-            params["minPrice"] = min_price
+        # Remove None values from params before sending
+        final_params = {k: v for k, v in params.items() if v is not None}
 
-        if max_price is not None:
-            params["maxPrice"] = max_price
-
-        if min_bedrooms is not None:
-            params["minBedrooms"] = min_bedrooms
-
-        if max_bedrooms is not None:
-            params["maxBedrooms"] = max_bedrooms
-
-        if property_type is not None:
-            params["propertyType"] = property_type
-
-        logger.info(f"Searching properties for sale with criteria: {params}")
-        return await self._make_request("GET", endpoint, params, max_retries=2)
+        logger.info(f"Searching properties for sale with criteria: {final_params}")
+        return await self._make_request("GET", endpoint, final_params, max_retries=2)
 
 
 # Create a global instance of the Rightmove API client

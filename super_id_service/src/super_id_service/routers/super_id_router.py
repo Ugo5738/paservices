@@ -2,7 +2,6 @@
 Super ID router for generating and recording unique identifiers.
 """
 
-import logging
 import os
 from functools import wraps
 from typing import Callable, Union
@@ -11,9 +10,12 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, status
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from super_id_service.config import settings
-from super_id_service.dependencies import get_supabase_client, validate_token
+from super_id_service.db import get_db
+from super_id_service.dependencies import validate_token
+from super_id_service.models.generated_super_id import GeneratedSuperID
 
 # Corrected imports from the new schema structure
 from super_id_service.schemas.auth_schema import TokenData
@@ -22,8 +24,7 @@ from super_id_service.schemas.super_id_schema import (
     SingleSuperIDResponse,
     SuperIdRequest,
 )
-
-logger = logging.getLogger(__name__)
+from super_id_service.utils.logging_config import logger
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -52,15 +53,14 @@ router = APIRouter()
     response_model=Union[SingleSuperIDResponse, BatchSuperIDResponse],
     status_code=status.HTTP_201_CREATED,
     summary="Generate and record one or more super_ids",
-    description="Generates one or more UUID v4 super_ids and records them in the database."
+    description="Generates one or more UUID v4 super_ids and records them in the database.",
 )
 # Temporarily disable rate limiter for troubleshooting
 # @conditional_limiter(settings.rate_limit_requests_per_minute)
 async def create_super_id(
     request: SuperIdRequest,
-    token_data: TokenData = Depends(validate_token),  # Add back the token_data parameter
-    supabase_client=Depends(get_supabase_client),
-    # Corrected return type hint
+    token_data: TokenData = Depends(validate_token),
+    db: AsyncSession = Depends(get_db),
 ) -> Union[SingleSuperIDResponse, BatchSuperIDResponse]:
     """
     Generate and record one or more super_ids (UUID v4).
@@ -83,53 +83,36 @@ async def create_super_id(
             detail="Missing required permission: super_id:generate",
         )
 
-    try:
-        # Generate requested number of UUIDs first - this always works
-        generated_ids = [uuid4() for _ in range(request.count)]
-        
-        # Get client ID from token data
-        client_id = token_data.sub
-        
-        # Prepare data for recording in Supabase
-        data = [
-            {
-                "super_id": str(uid),
-                "requested_by_client_id": client_id,
-                # Use the correct column name from the model: `super_id_metadata`
-                "super_id_metadata": request.metadata,
-            }
-            for uid in generated_ids
-        ]
-        
-        # Try to record in Supabase, but don't let it fail the entire request
-        try:
-            # Insert records into Supabase
-            response = await supabase_client.table("generated_super_ids").insert(data).execute()
+    # Always generate IDs first, as this is a local operation that cannot fail.
+    generated_ids = [uuid4() for _ in range(request.count)]
+    client_id = token_data.client_id
 
-            # Check for errors
-            if hasattr(response, "error") and response.error:
-                logger.error(
-                    f"Failed to record super_ids in database but still returning them: {response.error.message}"
-                )
-                # Don't fail the request, just log the error
-        except Exception as e:
-            # Log the error but continue since we've already generated the IDs
-            logger.error(f"Error in create_super_id: {e}")
-            logger.warning("Failed to record super_ids in database but still returning the generated IDs")
-
-        # Return response based on request count
-        if request.count == 1:
-            return SingleSuperIDResponse(super_id=str(generated_ids[0]))
-        # Return the generated UUIDs as strings, even if database recording failed
-        return BatchSuperIDResponse(super_ids=[str(id) for id in generated_ids])
-        
-    except HTTPException as http_exc:
-        # Re-raise HTTPExceptions directly to preserve status codes
-        raise http_exc
-    except Exception as e:
-        # This should only happen for truly unexpected errors
-        logger.error(f"Unexpected error in create_super_id: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Unexpected error generating super_ids",
+    # Create a list of SQLAlchemy model instances to be inserted.
+    db_records = [
+        GeneratedSuperID(
+            super_id=uid,
+            requested_by_client_id=client_id,
+            super_id_metadata=request.metadata,
         )
+        for uid in generated_ids
+    ]
+
+    try:
+        # Use the SQLAlchemy session to add and commit the records.
+        # The get_db dependency handles the commit and rollback automatically.
+        db.add_all(db_records)
+        logger.info(
+            f"Successfully recorded {len(db_records)} super_id(s) in the database."
+        )
+    except Exception as e:
+        # The get_db dependency will automatically roll back the transaction.
+        logger.error(f"Error recording super_ids to the database: {e}", exc_info=True)
+        # We still return the generated IDs as a fallback, per original business logic.
+        logger.warning(
+            "Failed to record super_ids in database but still returning the generated IDs"
+        )
+
+    if request.count == 1:
+        return SingleSuperIDResponse(super_id=generated_ids[0])
+    else:
+        return BatchSuperIDResponse(super_ids=generated_ids)

@@ -9,6 +9,11 @@ services:
     networks:
       - paservices_network
       - supabase_network_paservices
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m" # Max size of a single log file
+        max-file: "3" # Number of log files to keep
 
   # Super ID Service
   super_id_service:
@@ -20,6 +25,11 @@ services:
     networks:
       - paservices_network
       - supabase_network_paservices
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # Data Capture Rightmove Service
   data_capture_rightmove_service:
@@ -31,6 +41,11 @@ services:
     networks:
       - paservices_network
       - supabase_network_paservices
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 networks:
   paservices_network:

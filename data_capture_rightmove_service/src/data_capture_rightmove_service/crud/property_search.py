@@ -1,5 +1,7 @@
 # src/data_capture_rightmove_service/crud/property_search.py
 
+import json
+import re
 import uuid
 from typing import Any, Dict, List, Tuple
 
@@ -13,37 +15,57 @@ from data_capture_rightmove_service.models.property_for_sale import (
 from data_capture_rightmove_service.utils.logging_config import logger
 
 
+def camel_to_snake(name: str) -> str:
+    name = re.sub(r"(?<!^)(?=[A-Z])", "_", name)
+    return name.lower()
+
+
 def flatten_and_prepare(
     property_data: Dict[str, Any], super_id: uuid.UUID
 ) -> Dict[str, Any]:
-    """Flattens the nested JSON and prepares it for the PropertyListing model."""
-    flat_data = {
-        "api_source_endpoint": "/buy/property-for-sale",
-        "super_id": super_id,
-    }
+    """
+    Flattens the nested JSON from the search API and prepares it for the
+    PropertyListing model by converting all keys to snake_case.
+    """
+    flat_data = {}
 
+    # Iterate and convert all keys to snake_case
     for key, value in property_data.items():
+        snake_key = camel_to_snake(key)
         if isinstance(value, dict):
+            # Flatten nested dictionaries (e.g., price['amount'] -> price_amount)
             for sub_key, sub_value in value.items():
-                flat_data[f"{key}_{sub_key}"] = sub_value
-        elif key not in ["displayPrices", "images", "keywords", "lozengeModel"]:
-            flat_data[key] = value
+                flat_data[f"{snake_key}_{camel_to_snake(sub_key)}"] = sub_value
         else:
-            flat_data[key] = value
+            # For simple values (like "propertyUrl") and lists (like "images"),
+            # use the converted snake_case key directly.
+            flat_data[snake_key] = value
 
-    # Rename keys to match model attributes
-    key_mappings = {
-        "lozengeModel_matchingLozenges": "lozenge_model_matching_lozenges_json",
+    # Add mandatory fields for our record
+    flat_data["api_source_endpoint"] = "/buy/property-for-sale"
+    flat_data["super_id"] = super_id
+
+    # Handle special JSON fields that are stored as JSON in the database
+    json_fields = {
         "keywords": "keywords_json",
-        "customer_buildToRentBenefits": "customer_build_to_rent_benefits_json",
+        "lozenge_model": "lozenge_model_matching_lozenges_json",
+        "customer_build_to_rent_benefits": "customer_build_to_rent_benefits_json",
     }
-    for old_key, new_key in key_mappings.items():
+    for old_key, new_key in json_fields.items():
         if old_key in flat_data:
             flat_data[new_key] = flat_data.pop(old_key)
 
-    # Filter for keys that exist in the PropertyListing model
+    # Filter out any keys that don't match columns in the PropertyListing model
     listing_columns = {c.name for c in PropertyListing.__table__.columns}
-    return {k: v for k, v in flat_data.items() if k in listing_columns}
+    final_data = {k: v for k, v in flat_data.items() if k in listing_columns}
+
+    # Log a warning if the final mapped data is still missing the property_url
+    if "property_url" not in final_data:
+        logger.warning(
+            f"Property URL was not found or mapped for property ID {property_data.get('id')}"
+        )
+
+    return final_data
 
 
 async def store_property_search_results(
@@ -74,6 +96,13 @@ async def store_property_search_results(
 
     if not properties:
         return 0, 0
+
+    # --- START OF ADDED DEBUGGING CODE ---
+    # Log the raw structure of the very first property from the API
+    logger.info("--- RAW PROPERTY DATA FROM API (FIRST ITEM) ---")
+    logger.info(json.dumps(properties[0], indent=2))
+    logger.info("-------------------------------------------------")
+    # --- END OF ADDED DEBUGGING CODE ---
 
     if update_existing:
         logger.info("Using UPSERT mode: Existing property records will be updated.")
@@ -120,14 +149,14 @@ async def store_property_search_results(
                         image_data = {
                             "caption": image.get("caption"),
                             "src_url": image.get("srcUrl"),  # Map srcUrl to src_url
-                            "url": image.get("url")
+                            "url": image.get("url"),
                         }
-                        
+
                         db.add(
                             PropertyImage(
                                 property_listing_snapshot_id=snapshot_id,
                                 super_id=super_id,
-                                **image_data
+                                **image_data,
                             )
                         )
 
@@ -135,15 +164,19 @@ async def store_property_search_results(
                     for price in prop_data["price"]["displayPrices"]:
                         # Map camelCase API fields to snake_case model fields
                         price_data = {
-                            "display_price": price.get("displayPrice"),  # Map displayPrice to display_price
-                            "display_price_qualifier": price.get("displayPriceQualifier")
+                            "display_price": price.get(
+                                "displayPrice"
+                            ),  # Map displayPrice to display_price
+                            "display_price_qualifier": price.get(
+                                "displayPriceQualifier"
+                            ),
                         }
-                        
+
                         db.add(
                             PropertyDisplayPrice(
                                 property_listing_snapshot_id=snapshot_id,
                                 super_id=super_id,
-                                **price_data
+                                **price_data,
                             )
                         )
 

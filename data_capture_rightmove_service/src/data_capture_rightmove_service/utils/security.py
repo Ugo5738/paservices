@@ -44,9 +44,13 @@ async def validate_token(
         # Validate the token
         payload = jwt.decode(
             token,
-            settings.M2M_CLIENT_SECRET,
+            settings.M2M_JWT_SECRET_KEY,
             algorithms=["HS256"],
-            options={"verify_signature": True},
+            audience=settings.M2M_JWT_AUDIENCE,
+            options={
+                "verify_signature": True,
+                "verify_aud": True,
+            },  # Ensure verify_aud is True
         )
 
         # Check if token has expired
