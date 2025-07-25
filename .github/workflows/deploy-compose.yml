@@ -179,12 +179,6 @@ jobs:
             echo "Pulling latest Docker images..."
             docker compose -f docker-compose.prod.yml pull
 
-            echo "Running database migrations..."
-            # Run migrations for each service that has them, using their decrypted env files.
-            docker compose -f docker-compose.prod.yml run --rm auth_service alembic upgrade head
-            docker compose -f docker-compose.prod.yml run --rm super_id_service alembic upgrade head
-            docker compose -f docker-compose.prod.yml run --rm data_capture_rightmove_service alembic upgrade head
-
             echo "Starting application stack..."
             # The 'env_file' directives within docker-compose.prod.yml will pick up the decrypted files.
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
