@@ -52,7 +52,7 @@ jobs:
     if: needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/workflows/_reusable-build-push.yml
+      - uses: ./.github/workflows/actions/build-push
         with:
           service_name: auth_service
           image_name: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
@@ -65,7 +65,7 @@ jobs:
     if: needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/workflows/_reusable-build-push.yml
+      - uses: ./.github/workflows/actions/build-push
         with:
           service_name: super_id_service
           image_name: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
@@ -78,7 +78,7 @@ jobs:
     if: needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/workflows/_reusable-build-push.yml
+      - uses: ./.github/workflows/actions/build-push
         with:
           service_name: data_capture_rightmove_service
           image_name: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
