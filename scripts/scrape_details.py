@@ -4,7 +4,7 @@ Finds recently discovered properties and triggers a detailed scrape for each.
 
 This script queries the database for properties found on a specific date
 (and other optional criteria), then for each property, it gets a new unique super_id
-and calls the detailed scrape endpoint.
+and calls the detailed scrape endpoint. This version fetches a new auth token for each property to ensure freshness.
 """
 import argparse
 import asyncio
@@ -18,8 +18,8 @@ import httpx
 # Shared utility functions
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
 SUPER_ID_SERVICE_URL = os.getenv("SUPER_ID_SERVICE_URL", "http://localhost:8002")
-DATA_CAPTURE_SERVICE_URL = os.getenv(
-    "DATA_CAPTURE_SERVICE_URL", "http://localhost:8003"
+DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = os.getenv(
+    "DATA_CAPTURE_RIGHTMOVE_SERVICE_URL", "http://localhost:8003"
 )
 M2M_CLIENT_ID = os.getenv("M2M_CLIENT_ID", "fe2c7655-0860-4d98-9034-cd5e1ac90a41")
 M2M_CLIENT_SECRET = os.getenv("M2M_CLIENT_SECRET", "dev-rightmove-service-secret")
@@ -38,6 +38,7 @@ def print_color(text, color):
 
 
 async def get_internal_auth_token(client: httpx.AsyncClient) -> Optional[str]:
+    """Fetches a single, fresh M2M token from the auth service."""
     print_color("▶️  Authenticating with INTERNAL Auth Service...", "blue")
     url = f"{AUTH_SERVICE_URL}/api/v1/auth/token"
     payload = {
@@ -57,14 +58,22 @@ async def get_internal_auth_token(client: httpx.AsyncClient) -> Optional[str]:
 async def get_super_id(
     client: httpx.AsyncClient, token: str, description: str
 ) -> Optional[str]:
+    """Requests a Super ID for tracking using a provided token."""
+    print_color("   - Requesting Super ID...", "blue")
     url = f"{SUPER_ID_SERVICE_URL}/api/v1/super_ids"
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"count": 1, "description": description}
     try:
         response = await client.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        return response.json().get("super_id")
-    except Exception:
+        super_id = response.json().get("super_id")
+        print_color(f"   - ✅ Super ID received: {super_id}", "green")
+        return super_id
+    except httpx.HTTPStatusError as e:
+        print_color(
+            f"   - ❌ Could not get Super ID. Status: {e.response.status_code}, Details: {e.response.text}",
+            "red",
+        )
         return None
 
 
@@ -73,7 +82,7 @@ async def get_properties_to_scrape(
 ) -> Optional[List[Dict[str, Any]]]:
     """Retrieves properties from the database based on filter criteria."""
     print_color("\n▶️  Step 1: Finding properties to scrape...", "blue")
-    url = f"{DATA_CAPTURE_SERVICE_URL}/api/v1/properties/listings"
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/listings"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "on_date": args.date,
@@ -103,16 +112,21 @@ async def get_properties_to_scrape(
 async def trigger_detailed_scrape(
     client: httpx.AsyncClient, token: str, property_url: str, scrape_super_id: str
 ) -> bool:
-    """Triggers the detailed property scrape task."""
-    url = f"{DATA_CAPTURE_SERVICE_URL}/api/v1/properties/fetch/combined"
+    """Triggers the detailed property scrape task using a provided token."""
+    print_color("   - Triggering detailed scrape...", "blue")
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/fetch/combined"
     headers = {"Authorization": f"Bearer {token}", "X-Super-ID": scrape_super_id}
     payload = {"property_url": property_url, "super_id": scrape_super_id}
     try:
         response = await client.post(url, headers=headers, json=payload, timeout=120)
         response.raise_for_status()
+        print_color(f"   - ✅ Scrape initiated.", "green")
         return True
-    except Exception as e:
-        print_color(f"   - ❌ Scrape failed. Details: {e}", "red")
+    except httpx.HTTPStatusError as e:
+        print_color(
+            f"   - ❌ Scrape failed. Status: {e.response.status_code}, Details: {e.response.text}",
+            "red",
+        )
         return False
 
 
@@ -155,11 +169,14 @@ async def main():
         print_color("DRY RUN MODE ENABLED", "yellow")
 
     async with httpx.AsyncClient() as client:
-        internal_token = await get_internal_auth_token(client)
-        if not internal_token:
+        initial_token = await get_internal_auth_token(client)
+        if not initial_token:
+            print_color(
+                "❌ Could not get initial token to fetch property list. Exiting.", "red"
+            )
             sys.exit(1)
 
-        properties = await get_properties_to_scrape(client, internal_token, args)
+        properties = await get_properties_to_scrape(client, initial_token, args)
         if properties is None:
             sys.exit(1)
         if not properties:
@@ -173,8 +190,8 @@ async def main():
         success_count = 0
         for i, prop in enumerate(properties):
             property_url = prop.get("property_url")
-
             prop_id = prop.get("id")
+
             if not property_url:
                 print_color(
                     f"   - ⚠️ Skipping property {prop_id} due to missing URL.", "yellow"
@@ -182,24 +199,38 @@ async def main():
                 continue
 
             full_url = f"https://www.rightmove.co.uk{property_url}"
-            print_color(f"   ({i+1}/{len(properties)}) Scraping: {full_url}", "blue")
-
-            scrape_super_id = await get_super_id(
-                client, internal_token, f"Detailed scrape for property ID {prop_id}"
+            print_color(
+                f"--- Processing Property {i+1}/{len(properties)}: {full_url} ---",
+                "yellow",
             )
-            if not scrape_super_id:
-                print_color(f"   - ❌ Could not get Super ID. Skipping.", "red")
+
+            # --- FETCH-PER-LOOP LOGIC ---
+            # 1. Get a brand new token for this specific property.
+            token = await get_internal_auth_token(client)
+            if not token:
+                print_color(
+                    f"   - ❌ Could not get auth token. Skipping property.", "red"
+                )
                 continue
 
+            # 2. Get a new super_id using the fresh token.
+            scrape_super_id = await get_super_id(
+                client, token, f"Detailed scrape for property ID {prop_id}"
+            )
+            if not scrape_super_id:
+                print_color(
+                    f"   - ❌ Super ID process failed. Skipping property.", "red"
+                )
+                continue
+
+            # 3. Trigger the scrape using the fresh token.
             if not args.dry_run:
-                if await trigger_detailed_scrape(
-                    client, internal_token, full_url, scrape_super_id
-                ):
-                    print_color(
-                        f"   - ✅ Scrape initiated with Super ID: {scrape_super_id}",
-                        "green",
-                    )
+                success = await trigger_detailed_scrape(
+                    client, token, full_url, scrape_super_id
+                )
+                if success:
                     success_count += 1
+
                 await asyncio.sleep(2)  # Politeness delay
             else:
                 print_color(
