@@ -120,7 +120,7 @@ url = "https://uk-real-estate-rightmove.p.rapidapi.com/buy/property-for-sale"
 headers = {
     "x-rapidapi-host": "uk-real-estate-rightmove.p.rapidapi.com",
     # "x-rapidapi-key": "f4adffc4dbmsh8f530f1ac9b4b1ep11e20djsn17b8fc732bab", # It's good practice to not save keys in code
-    "x-rapidapi-key": "f846d19a60msh2784c2ba0508745p1f0be3jsn2676a9a367f6",
+    "x-rapidapi-key": "4a47379444mshf60622395608b0cp1c90dajsn417082900379",
 }
 
 

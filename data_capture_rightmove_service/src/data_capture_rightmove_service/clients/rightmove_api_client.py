@@ -29,7 +29,7 @@ class RightmoveApiClient:
             api_host: RapidAPI host, defaults to the value in settings
         """
         # self.api_key = api_key or settings.RAPID_API_KEY
-        self.api_key = "f846d19a60msh2784c2ba0508745p1f0be3jsn2676a9a367f6"
+        self.api_key = "4a47379444mshf60622395608b0cp1c90dajsn417082900379"
         self.api_host = api_host or settings.RAPID_API_HOST
         self.base_url = f"https://{self.api_host}"
 

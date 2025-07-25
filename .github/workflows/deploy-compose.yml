@@ -128,13 +128,13 @@ jobs:
             # Decrypt for auth_service
             gpg --quiet --batch --yes --decrypt \
               --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
-              -o auth_service/.env.production auth_service/.env.production.gpg
+              -o auth_service/.env.prod auth_service/.env.prod.gpg
             echo "✅ Decrypted environment for auth_service."
 
             # Decrypt for super_id_service
             gpg --quiet --batch --yes --decrypt \
               --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
-              -o super_id_service/.env.production super_id_service/.env.production.gpg
+              -o super_id_service/.env.prod super_id_service/.env.prod.gpg
             echo "✅ Decrypted environment for super_id_service."
 
             # Decrypt for data_capture_rightmove_service (note the .env.prod filename)
