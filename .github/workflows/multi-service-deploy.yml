@@ -1,415 +1,415 @@
-name: Multi-Service CI/CD Pipeline
+# name: Multi-Service CI/CD Pipeline
 
-# Define environment variables for the workflow
-env:
-  # EKS settings
-  EKS_CLUSTER_NAME: paservices-cluster
-  AWS_REGION: us-east-1
+# # Define environment variables for the workflow
+# env:
+#   # EKS settings
+#   EKS_CLUSTER_NAME: paservices-cluster
+#   AWS_REGION: us-east-1
 
-  # Docker settings
-  DOCKER_REGISTRY: docker.io
-  AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
-  SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
-  DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
+#   # Docker settings
+#   DOCKER_REGISTRY: docker.io
+#   AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
+#   SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
+#   DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
 
-  # Deployment settings
-  AUTH_DOMAIN: auth.supersami.com
-  SUPER_ID_DOMAIN: superid.supersami.com
-  DATA_CAPTURE_RIGHTMOVE_DOMAIN: data-capture-rightmove.supersami.com
+#   # Deployment settings
+#   AUTH_DOMAIN: auth.supersami.com
+#   SUPER_ID_DOMAIN: superid.supersami.com
+#   DATA_CAPTURE_RIGHTMOVE_DOMAIN: data-capture-rightmove.supersami.com
 
-on:
-  push:
-    branches: [main]
-    paths:
-      - "auth_service/**"
-      - "super_id_service/**"
-      - "data_capture_rightmove_service/**"
-      - "k8s/**"
-      - ".github/workflows/multi-service-deploy.yml"
-  workflow_dispatch:
-    inputs:
-      deploy_auth:
-        description: "Deploy Auth Service"
-        required: false
-        type: boolean
-        default: true
-      deploy_super_id:
-        description: "Deploy Super ID Service"
-        required: false
-        type: boolean
-        default: true
-      deploy_data_capture_rightmove:
-        description: "Deploy Data Capture Rightmove Service"
-        required: false
-        type: boolean
-        default: true
-      force_full_deploy:
-        description: "Force full deployment (re-deploy everything)"
-        required: false
-        type: boolean
-        default: false
-      clean_resources:
-        description: "Clean up existing jobs before deploying"
-        required: false
-        type: boolean
-        default: false
+# on:
+#   push:
+#     branches: [main]
+#     paths:
+#       - "auth_service/**"
+#       - "super_id_service/**"
+#       - "data_capture_rightmove_service/**"
+#       - "k8s/**"
+#       - ".github/workflows/multi-service-deploy.yml"
+#   workflow_dispatch:
+#     inputs:
+#       deploy_auth:
+#         description: "Deploy Auth Service"
+#         required: false
+#         type: boolean
+#         default: true
+#       deploy_super_id:
+#         description: "Deploy Super ID Service"
+#         required: false
+#         type: boolean
+#         default: true
+#       deploy_data_capture_rightmove:
+#         description: "Deploy Data Capture Rightmove Service"
+#         required: false
+#         type: boolean
+#         default: true
+#       force_full_deploy:
+#         description: "Force full deployment (re-deploy everything)"
+#         required: false
+#         type: boolean
+#         default: false
+#       clean_resources:
+#         description: "Clean up existing jobs before deploying"
+#         required: false
+#         type: boolean
+#         default: false
 
-jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    outputs:
-      auth_service: ${{ steps.filter.outputs.auth_service }}
-      super_id_service: ${{ steps.filter.outputs.super_id_service }}
-      data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
-      k8s: ${{ steps.filter.outputs.k8s }}
-    steps:
-      - uses: actions/checkout@v3
+# jobs:
+#   detect-changes:
+#     runs-on: ubuntu-latest
+#     outputs:
+#       auth_service: ${{ steps.filter.outputs.auth_service }}
+#       super_id_service: ${{ steps.filter.outputs.super_id_service }}
+#       data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
+#       k8s: ${{ steps.filter.outputs.k8s }}
+#     steps:
+#       - uses: actions/checkout@v3
 
-      - uses: dorny/paths-filter@v2
-        id: filter
-        with:
-          filters: |
-            auth_service:
-              - 'auth_service/**'
-            super_id_service:
-              - 'super_id_service/**'
-            data_capture_rightmove_service:
-              - 'data_capture_rightmove_service/**'
-            k8s:
-              - 'k8s/**'
+#       - uses: dorny/paths-filter@v2
+#         id: filter
+#         with:
+#           filters: |
+#             auth_service:
+#               - 'auth_service/**'
+#             super_id_service:
+#               - 'super_id_service/**'
+#             data_capture_rightmove_service:
+#               - 'data_capture_rightmove_service/**'
+#             k8s:
+#               - 'k8s/**'
 
-  build-auth-service:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.auth_service == 'true' || github.event.inputs.deploy_auth == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+#   build-auth-service:
+#     needs: detect-changes
+#     if: ${{ needs.detect-changes.outputs.auth_service == 'true' || github.event.inputs.deploy_auth == 'true' }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.AUTH_SERVICE_DOCKERHUB_TOKEN }}
+#       - name: Login to DockerHub
+#         uses: docker/login-action@v2
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.AUTH_SERVICE_DOCKERHUB_TOKEN }}
 
-      - name: Build and push Auth Service
-        uses: docker/build-push-action@v4
-        with:
-          context: ./auth_service
-          file: ./auth_service/Dockerfile.prod
-          push: true
-          tags: ${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }},${{ env.AUTH_SERVICE_IMAGE }}:latest
+#       - name: Build and push Auth Service
+#         uses: docker/build-push-action@v4
+#         with:
+#           context: ./auth_service
+#           file: ./auth_service/Dockerfile.prod
+#           push: true
+#           tags: ${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }},${{ env.AUTH_SERVICE_IMAGE }}:latest
 
-  build-super-id-service:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.super_id_service == 'true' || github.event.inputs.deploy_super_id == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+#   build-super-id-service:
+#     needs: detect-changes
+#     if: ${{ needs.detect-changes.outputs.super_id_service == 'true' || github.event.inputs.deploy_super_id == 'true' }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2
 
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.SUPER_ID_SERVICE_DOCKERHUB_TOKEN }}
+#       - name: Login to DockerHub
+#         uses: docker/login-action@v2
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.SUPER_ID_SERVICE_DOCKERHUB_TOKEN }}
 
-      - name: Build and push Super ID Service
-        uses: docker/build-push-action@v4
-        with:
-          context: ./super_id_service
-          file: ./super_id_service/Dockerfile.prod
-          push: true
-          tags: ${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }},${{ env.SUPER_ID_SERVICE_IMAGE }}:latest
+#       - name: Build and push Super ID Service
+#         uses: docker/build-push-action@v4
+#         with:
+#           context: ./super_id_service
+#           file: ./super_id_service/Dockerfile.prod
+#           push: true
+#           tags: ${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }},${{ env.SUPER_ID_SERVICE_IMAGE }}:latest
 
-  build-data-capture-rightmove-service:
-    needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || github.event.inputs.deploy_data_capture_rightmove == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-      - name: Login to DockerHub
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOCKERHUB_TOKEN }}
-      - name: Build and push Data Capture Rightmove Service
-        uses: docker/build-push-action@v4
-        with:
-          context: ./data_capture_rightmove_service
-          file: ./data_capture_rightmove_service/Dockerfile.prod
-          push: true
-          tags: ${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }},${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:latest
+#   build-data-capture-rightmove-service:
+#     needs: detect-changes
+#     if: ${{ needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || github.event.inputs.deploy_data_capture_rightmove == 'true' }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
+#       - name: Set up Docker Buildx
+#         uses: docker/setup-buildx-action@v2
+#       - name: Login to DockerHub
+#         uses: docker/login-action@v2
+#         with:
+#           username: ${{ secrets.DOCKERHUB_USERNAME }}
+#           password: ${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOCKERHUB_TOKEN }}
+#       - name: Build and push Data Capture Rightmove Service
+#         uses: docker/build-push-action@v4
+#         with:
+#           context: ./data_capture_rightmove_service
+#           file: ./data_capture_rightmove_service/Dockerfile.prod
+#           push: true
+#           tags: ${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }},${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:latest
 
-  deploy-auth-service:
-    needs: [detect-changes, build-auth-service]
-    if: ${{ needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_auth == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+#   deploy-auth-service:
+#     needs: [detect-changes, build-auth-service]
+#     if: ${{ needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_auth == 'true' }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v1
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+#       - name: Update kubeconfig
+#         run: |
+#           aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
 
-      - name: Process K8s manifests for Auth Service
-        run: |
-          # Use raw, unencoded secret values
-          AUTH_SERVICE_SUPABASE_URL_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_URL }}"
-          AUTH_SERVICE_SUPABASE_ANON_KEY_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}"
-          AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}"
-          AUTH_SERVICE_M2M_JWT_SECRET_KEY_VAL="${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}"
-          AUTH_SERVICE_DATABASE_URL_VAL="${{ secrets.AUTH_SERVICE_DATABASE_URL }}"
-          AUTH_SERVICE_REDIS_URL_VAL="${{ secrets.REDIS_URL }}"
-          AUTH_SERVICE_BASE_URL_VAL="${{ secrets.AUTH_SERVICE_DOMAIN }}"
+#       - name: Process K8s manifests for Auth Service
+#         run: |
+#           # Use raw, unencoded secret values
+#           AUTH_SERVICE_SUPABASE_URL_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_URL }}"
+#           AUTH_SERVICE_SUPABASE_ANON_KEY_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_ANON_KEY }}"
+#           AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL="${{ secrets.AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}"
+#           AUTH_SERVICE_M2M_JWT_SECRET_KEY_VAL="${{ secrets.AUTH_SERVICE_M2M_JWT_SECRET_KEY }}"
+#           AUTH_SERVICE_DATABASE_URL_VAL="${{ secrets.AUTH_SERVICE_DATABASE_URL }}"
+#           AUTH_SERVICE_REDIS_URL_VAL="${{ secrets.REDIS_URL }}"
+#           AUTH_SERVICE_BASE_URL_VAL="${{ secrets.AUTH_SERVICE_DOMAIN }}"
 
-          # Replace placeholders directly in secrets.yaml
-          sed -i "s|AUTH_SERVICE_SUPABASE_URL_BASE64|$AUTH_SERVICE_SUPABASE_URL_VAL|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_VAL|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_VAL|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_VAL|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_REDIS_URL_BASE64|$AUTH_SERVICE_REDIS_URL_VAL|g" k8s/auth/secrets.yaml
-          sed -i "s|AUTH_SERVICE_BASE_URL_BASE64|$AUTH_SERVICE_BASE_URL_VAL|g" k8s/auth/secrets.yaml
+#           # Replace placeholders directly in secrets.yaml
+#           sed -i "s|AUTH_SERVICE_SUPABASE_URL_BASE64|$AUTH_SERVICE_SUPABASE_URL_VAL|g" k8s/auth/secrets.yaml
+#           sed -i "s|AUTH_SERVICE_SUPABASE_ANON_KEY_BASE64|$AUTH_SERVICE_SUPABASE_ANON_KEY_VAL|g" k8s/auth/secrets.yaml
+#           sed -i "s|AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$AUTH_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL|g" k8s/auth/secrets.yaml
+#           sed -i "s|AUTH_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$AUTH_SERVICE_M2M_JWT_SECRET_KEY_VAL|g" k8s/auth/secrets.yaml
+#           sed -i "s|AUTH_SERVICE_DATABASE_URL_BASE64|$AUTH_SERVICE_DATABASE_URL_VAL|g" k8s/auth/secrets.yaml
+#           sed -i "s|AUTH_SERVICE_REDIS_URL_BASE64|$AUTH_SERVICE_REDIS_URL_VAL|g" k8s/auth/secrets.yaml
+#           sed -i "s|AUTH_SERVICE_BASE_URL_BASE64|$AUTH_SERVICE_BASE_URL_VAL|g" k8s/auth/secrets.yaml
 
-          # Replace placeholders directly in migration job
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/migration-job.yaml
+#           # Replace placeholders directly in migration job
+#           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/migration-job.yaml
 
-          # Replace placeholders directly in deployment
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/deployment.yaml
+#           # Replace placeholders directly in deployment
+#           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.AUTH_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/auth/deployment.yaml
 
-          # Replace placeholder directly in ingress
-          sed -i "s|AUTH_DOMAIN_VALUE|${{ env.AUTH_DOMAIN }}|g" k8s/auth/ingress.yaml
+#           # Replace placeholder directly in ingress
+#           sed -i "s|AUTH_DOMAIN_VALUE|${{ env.AUTH_DOMAIN }}|g" k8s/auth/ingress.yaml
 
-      - name: Apply Auth Service K8s manifests
-        run: |
-          # Always delete the migrations job to avoid immutability errors
-          echo "Cleaning up existing jobs..."
-          kubectl delete job auth-service-migrations --ignore-not-found=true
-          sleep 2 # Give k8s time to fully remove the job
+#       - name: Apply Auth Service K8s manifests
+#         run: |
+#           # Always delete the migrations job to avoid immutability errors
+#           echo "Cleaning up existing jobs..."
+#           kubectl delete job auth-service-migrations --ignore-not-found=true
+#           sleep 2 # Give k8s time to fully remove the job
 
-          # Apply secrets first
-          kubectl apply -f k8s/auth/secrets.yaml
+#           # Apply secrets first
+#           kubectl apply -f k8s/auth/secrets.yaml
 
-          # Apply migration job
-          kubectl apply -f k8s/auth/migration-job.yaml
+#           # Apply migration job
+#           kubectl apply -f k8s/auth/migration-job.yaml
 
-          # Wait for job to start
-          echo "Waiting for migration job to start..."
-          kubectl wait --for=condition=initialized --timeout=30s job/auth-service-migrations || true
+#           # Wait for job to start
+#           echo "Waiting for migration job to start..."
+#           kubectl wait --for=condition=initialized --timeout=30s job/auth-service-migrations || true
 
-          # Watch job logs for diagnostics
-          echo "Showing migration job logs:"
-          kubectl logs -f job/auth-service-migrations --tail=50 || true
+#           # Watch job logs for diagnostics
+#           echo "Showing migration job logs:"
+#           kubectl logs -f job/auth-service-migrations --tail=50 || true
 
-          # Apply remaining manifests
-          kubectl apply -f k8s/auth/deployment.yaml
-          kubectl apply -f k8s/auth/service.yaml
-          kubectl apply -f k8s/auth/ingress.yaml
+#           # Apply remaining manifests
+#           kubectl apply -f k8s/auth/deployment.yaml
+#           kubectl apply -f k8s/auth/service.yaml
+#           kubectl apply -f k8s/auth/ingress.yaml
 
-          # Wait for deployment rollout
-          kubectl rollout status deployment/auth-service --timeout=300s
+#           # Wait for deployment rollout
+#           kubectl rollout status deployment/auth-service --timeout=300s
 
-  deploy-super-id-service:
-    needs: [detect-changes, build-super-id-service]
-    if: ${{ needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_super_id == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
+#   deploy-super-id-service:
+#     needs: [detect-changes, build-super-id-service]
+#     if: ${{ needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_super_id == 'true' }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v1
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+#       - name: Update kubeconfig
+#         run: |
+#           aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
 
-      - name: Process K8s manifests for Super ID Service
-        run: |
-          # Use raw, unencoded secret values
-          SUPER_ID_SERVICE_SUPABASE_URL_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}"
-          SUPER_ID_SERVICE_SUPABASE_ANON_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_ANON_KEY }}"
-          SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}"
-          SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}"
-          SUPER_ID_SERVICE_DATABASE_URL_VAL="${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}"
+#       - name: Process K8s manifests for Super ID Service
+#         run: |
+#           # Use raw, unencoded secret values
+#           SUPER_ID_SERVICE_SUPABASE_URL_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_URL }}"
+#           SUPER_ID_SERVICE_SUPABASE_ANON_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_ANON_KEY }}"
+#           SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY }}"
+#           SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_VAL="${{ secrets.SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY }}"
+#           SUPER_ID_SERVICE_DATABASE_URL_VAL="${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}"
 
-          # Replace placeholders directly in secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_SUPABASE_URL_BASE64|$SUPER_ID_SERVICE_SUPABASE_URL_VAL|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_SUPABASE_ANON_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_ANON_KEY_VAL|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_VAL|g" k8s/super_id/secrets.yaml
-          sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_VAL|g" k8s/super_id/secrets.yaml
+#           # Replace placeholders directly in secrets.yaml
+#           sed -i "s|SUPER_ID_SERVICE_SUPABASE_URL_BASE64|$SUPER_ID_SERVICE_SUPABASE_URL_VAL|g" k8s/super_id/secrets.yaml
+#           sed -i "s|SUPER_ID_SERVICE_SUPABASE_ANON_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_ANON_KEY_VAL|g" k8s/super_id/secrets.yaml
+#           sed -i "s|SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_BASE64|$SUPER_ID_SERVICE_SUPABASE_SERVICE_ROLE_KEY_VAL|g" k8s/super_id/secrets.yaml
+#           sed -i "s|SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_BASE64|$SUPER_ID_SERVICE_M2M_JWT_SECRET_KEY_VAL|g" k8s/super_id/secrets.yaml
+#           sed -i "s|SUPER_ID_SERVICE_DATABASE_URL_BASE64|$SUPER_ID_SERVICE_DATABASE_URL_VAL|g" k8s/super_id/secrets.yaml
 
-          # Replace placeholders directly in migration job
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/migration-job.yaml
+#           # Replace placeholders directly in migration job
+#           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/migration-job.yaml
 
-          # Replace placeholders directly in deployment
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/deployment.yaml
+#           # Replace placeholders directly in deployment
+#           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.SUPER_ID_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/super_id/deployment.yaml
 
-          # Replace placeholder directly in ingress
-          sed -i "s|SUPER_ID_DOMAIN_VALUE|${{ env.SUPER_ID_DOMAIN }}|g" k8s/super_id/ingress.yaml
+#           # Replace placeholder directly in ingress
+#           sed -i "s|SUPER_ID_DOMAIN_VALUE|${{ env.SUPER_ID_DOMAIN }}|g" k8s/super_id/ingress.yaml
 
-      - name: Apply Super ID Service K8s manifests
-        run: |
-          # Always delete the migrations job to avoid immutability errors
-          echo "Cleaning up existing jobs..."
-          kubectl delete job super-id-service-migration --ignore-not-found=true
-          sleep 2 # Give k8s time to fully remove the job
+#       - name: Apply Super ID Service K8s manifests
+#         run: |
+#           # Always delete the migrations job to avoid immutability errors
+#           echo "Cleaning up existing jobs..."
+#           kubectl delete job super-id-service-migration --ignore-not-found=true
+#           sleep 2 # Give k8s time to fully remove the job
 
-          # Apply secrets and configmap first
-          echo "Applying secrets and configmap..."
-          kubectl apply -f k8s/super_id/secrets.yaml
-          kubectl apply -f k8s/super_id/configmap.yaml
+#           # Apply secrets and configmap first
+#           echo "Applying secrets and configmap..."
+#           kubectl apply -f k8s/super_id/secrets.yaml
+#           kubectl apply -f k8s/super_id/configmap.yaml
 
-          echo "Waiting for secrets and configmap to propagate..."
-          sleep 5
+#           echo "Waiting for secrets and configmap to propagate..."
+#           sleep 5
 
-          # Apply and watch the migration job
-          echo "Applying Super ID Service migration job..."
-          kubectl apply -f k8s/super_id/migration-job.yaml
+#           # Apply and watch the migration job
+#           echo "Applying Super ID Service migration job..."
+#           kubectl apply -f k8s/super_id/migration-job.yaml
 
-          # Add diagnostic step
-          echo "Waiting 10s for pod to be scheduled..."
-          sleep 10
-          POD_NAME=$(kubectl get pods -l job-name=super-id-service-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-          if [ -n "$POD_NAME" ]; then
-            echo "Describing migration pod $POD_NAME:"
-            kubectl describe pod $POD_NAME
-          else
-            echo "Could not find migration pod to describe."
-          fi
+#           # Add diagnostic step
+#           echo "Waiting 10s for pod to be scheduled..."
+#           sleep 10
+#           POD_NAME=$(kubectl get pods -l job-name=super-id-service-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+#           if [ -n "$POD_NAME" ]; then
+#             echo "Describing migration pod $POD_NAME:"
+#             kubectl describe pod $POD_NAME
+#           else
+#             echo "Could not find migration pod to describe."
+#           fi
 
-          echo "Waiting for migration job to start..."
-          kubectl wait --for=condition=initialized --timeout=60s job/super-id-service-migration || true
+#           echo "Waiting for migration job to start..."
+#           kubectl wait --for=condition=initialized --timeout=60s job/super-id-service-migration || true
 
-          echo "Showing migration job logs:"
-          kubectl logs -f job/super-id-service-migration --tail=50 || true
+#           echo "Showing migration job logs:"
+#           kubectl logs -f job/super-id-service-migration --tail=50 || true
 
-          echo "Waiting for migration job to complete..."
-          if ! kubectl wait --for=condition=complete --timeout=300s job/super-id-service-migration; then
-              echo "Migration job for super-id-service failed to complete."
-              POD_NAME=$(kubectl get pods -l job-name=super-id-service-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-              if [ -n "$POD_NAME" ]; then
-                echo "Final logs from failed job pod $POD_NAME:"
-                kubectl logs $POD_NAME
-              fi
-              exit 1
-          fi
-          echo "Migration job completed."
+#           echo "Waiting for migration job to complete..."
+#           if ! kubectl wait --for=condition=complete --timeout=300s job/super-id-service-migration; then
+#               echo "Migration job for super-id-service failed to complete."
+#               POD_NAME=$(kubectl get pods -l job-name=super-id-service-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+#               if [ -n "$POD_NAME" ]; then
+#                 echo "Final logs from failed job pod $POD_NAME:"
+#                 kubectl logs $POD_NAME
+#               fi
+#               exit 1
+#           fi
+#           echo "Migration job completed."
 
-          # Apply main manifests
-          kubectl apply -f k8s/super_id/deployment.yaml
-          kubectl apply -f k8s/super_id/service.yaml
-          kubectl apply -f k8s/super_id/ingress.yaml
+#           # Apply main manifests
+#           kubectl apply -f k8s/super_id/deployment.yaml
+#           kubectl apply -f k8s/super_id/service.yaml
+#           kubectl apply -f k8s/super_id/ingress.yaml
 
-          # Show pod status for debugging
-          echo "Current pods status:"
-          kubectl get pods -l app=super-id-service
+#           # Show pod status for debugging
+#           echo "Current pods status:"
+#           kubectl get pods -l app=super-id-service
 
-          # Check logs from any existing pods
-          POD_NAME=$(kubectl get pods -l app=super-id-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-          if [ -n "$POD_NAME" ]; then
-            echo "Showing logs from $POD_NAME:"
-            kubectl logs $POD_NAME --tail=50 || true
-          else
-            echo "No super-id-service pods found yet"
-          fi
+#           # Check logs from any existing pods
+#           POD_NAME=$(kubectl get pods -l app=super-id-service -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+#           if [ -n "$POD_NAME" ]; then
+#             echo "Showing logs from $POD_NAME:"
+#             kubectl logs $POD_NAME --tail=50 || true
+#           else
+#             echo "No super-id-service pods found yet"
+#           fi
 
-          # Wait for deployment rollout with shorter timeout
-          echo "Waiting for deployment rollout..."
-          kubectl rollout status deployment/super-id-service --timeout=120s || echo "Deployment rollout timed out, check pod status manually"
+#           # Wait for deployment rollout with shorter timeout
+#           echo "Waiting for deployment rollout..."
+#           kubectl rollout status deployment/super-id-service --timeout=120s || echo "Deployment rollout timed out, check pod status manually"
 
-  deploy-data-capture-rightmove-service:
-    needs: [detect-changes, build-data-capture-rightmove-service]
-    if: ${{ needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_data_capture_rightmove == 'true' }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v3
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-      - name: Update kubeconfig
-        run: |
-          aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
-      - name: Process K8s manifests for Data Capture Service
-        run: |
-          DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}"
-          DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID }}"
-          DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET }}"
-          DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY }}"
-          DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL_VAL="${{ secrets.REDIS_URL }}"
-          DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY }}"
+#   deploy-data-capture-rightmove-service:
+#     needs: [detect-changes, build-data-capture-rightmove-service]
+#     if: ${{ needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.k8s == 'true' || github.event.inputs.deploy_data_capture_rightmove == 'true' }}
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v3
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v1
+#         with:
+#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#           aws-region: ${{ env.AWS_REGION }}
+#       - name: Update kubeconfig
+#         run: |
+#           aws eks update-kubeconfig --name "${{ env.EKS_CLUSTER_NAME }}" --region "${{ env.AWS_REGION }}"
+#       - name: Process K8s manifests for Data Capture Service
+#         run: |
+#           DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}"
+#           DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID }}"
+#           DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET }}"
+#           DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY }}"
+#           DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL_VAL="${{ secrets.REDIS_URL }}"
+#           DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY_VAL="${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY }}"
 
-          # Substitute placeholders in secrets.yaml
-          # NOTE: Using '|' as the sed delimiter to avoid conflicts with special characters in URLs/secrets
-          sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
-          sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+#           # Substitute placeholders in secrets.yaml
+#           # NOTE: Using '|' as the sed delimiter to avoid conflicts with special characters in URLs/secrets
+#           sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+#           sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+#           sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+#           sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_JWT_SECRET_KEY_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+#           sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_REDIS_URL_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
+#           sed -i "s|DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY_BASE64|$DATA_CAPTURE_RIGHTMOVE_SERVICE_RAPID_API_KEY_VAL|g" k8s/data-capture-rightmove-service/secrets.yaml
 
-          # Substitute image tag in deployment and migration job
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/deployment.yaml
-          sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/migration-job.yaml
+#           # Substitute image tag in deployment and migration job
+#           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/deployment.yaml
+#           sed -i "s|\${DOCKER_IMAGE_TAG}|${{ env.DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE }}:${{ github.sha }}|g" k8s/data-capture-rightmove-service/migration-job.yaml
 
-          # Substitute domain in ingress
-          sed -i "s|\${DATA_CAPTURE_RIGHTMOVE_DOMAIN}|${{ env.DATA_CAPTURE_RIGHTMOVE_DOMAIN }}|g" k8s/data-capture-rightmove-service/ingress.yaml
+#           # Substitute domain in ingress
+#           sed -i "s|\${DATA_CAPTURE_RIGHTMOVE_DOMAIN}|${{ env.DATA_CAPTURE_RIGHTMOVE_DOMAIN }}|g" k8s/data-capture-rightmove-service/ingress.yaml
 
-      - name: Apply Data Capture Service K8s manifests
-        run: |
-          # Clean up any old migration job
-          kubectl delete job data-capture-rightmove-migration --ignore-not-found=true
-          sleep 5
+#       - name: Apply Data Capture Service K8s manifests
+#         run: |
+#           # Clean up any old migration job
+#           kubectl delete job data-capture-rightmove-migration --ignore-not-found=true
+#           sleep 5
 
-          # Apply ConfigMap and Secrets
-          kubectl apply -f k8s/data-capture-rightmove-service/configmap.yaml
-          kubectl apply -f k8s/data-capture-rightmove-service/secrets.yaml
+#           # Apply ConfigMap and Secrets
+#           kubectl apply -f k8s/data-capture-rightmove-service/configmap.yaml
+#           kubectl apply -f k8s/data-capture-rightmove-service/secrets.yaml
 
-          # Run the migration job
-          kubectl apply -f k8s/data-capture-rightmove-service/migration-job.yaml
+#           # Run the migration job
+#           kubectl apply -f k8s/data-capture-rightmove-service/migration-job.yaml
 
-          # Wait for the migration job to complete
-          echo "Waiting for migration job to complete..."
-          if ! kubectl wait --for=condition=complete --timeout=300s job/data-capture-rightmove-migration; then
-            echo "Migration job for data-capture-rightmove-service failed to complete."
-            # Get logs from the failed pod
-            POD_NAME=$(kubectl get pods -l job-name=data-capture-rightmove-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
-            if [ -n "$POD_NAME" ]; then kubectl logs "$POD_NAME"; fi
-            exit 1
-          fi
-          echo "Migration job completed."
+#           # Wait for the migration job to complete
+#           echo "Waiting for migration job to complete..."
+#           if ! kubectl wait --for=condition=complete --timeout=300s job/data-capture-rightmove-migration; then
+#             echo "Migration job for data-capture-rightmove-service failed to complete."
+#             # Get logs from the failed pod
+#             POD_NAME=$(kubectl get pods -l job-name=data-capture-rightmove-migration -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || echo "")
+#             if [ -n "$POD_NAME" ]; then kubectl logs "$POD_NAME"; fi
+#             exit 1
+#           fi
+#           echo "Migration job completed."
 
-          # Deploy the main application
-          kubectl apply -f k8s/data-capture-rightmove-service/deployment.yaml
-          kubectl apply -f k8s/data-capture-rightmove-service/service.yaml
-          kubectl apply -f k8s/data-capture-rightmove-service/ingress.yaml
+#           # Deploy the main application
+#           kubectl apply -f k8s/data-capture-rightmove-service/deployment.yaml
+#           kubectl apply -f k8s/data-capture-rightmove-service/service.yaml
+#           kubectl apply -f k8s/data-capture-rightmove-service/ingress.yaml
 
-      - name: Verify Deployment Rollout
-        run: kubectl rollout status deployment/data-capture-rightmove-service --timeout=300s
+#       - name: Verify Deployment Rollout
+#         run: kubectl rollout status deployment/data-capture-rightmove-service --timeout=300s
