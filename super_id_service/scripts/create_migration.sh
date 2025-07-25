@@ -7,9 +7,9 @@ echo "Creating initial migration for super_id_service..."
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVICE_DIR="$(dirname "$SCRIPT_DIR")"
 
-# Load environment variables from .env.production
+# Load environment variables from .env.prod
 set -a
-source "$SERVICE_DIR/.env.production"
+source "$SERVICE_DIR/.env.prod"
 set +a
 
 # Set ENVIRONMENT=production for environment detection

@@ -71,7 +71,7 @@ docker-compose up -d
 
 ### Environment Variables
 
-Create a `.env.production` file in the root of the auth_service directory with the following variables:
+Create a `.env.prod` file in the root of the auth_service directory with the following variables:
 
 ```
 # Self-hosted Supabase connection
@@ -132,7 +132,7 @@ This option is suitable for single-server deployments on AWS EC2, Digital Ocean 
 
 #### Configuration
 
-1. Create an `.env.production` file in the `auth_service` directory with all required environment variables (see Environment Variables section below).
+1. Create an `.env.prod` file in the `auth_service` directory with all required environment variables (see Environment Variables section below).
 
 2. Set the following additional environment variables for Traefik (create a `.env` file in the same directory as your docker-compose.prod.yml):
 

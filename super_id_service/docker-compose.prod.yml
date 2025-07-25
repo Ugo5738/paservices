@@ -32,7 +32,7 @@ services:
     container_name: super_id_service_prod
     restart: unless-stopped
     env_file:
-      - .env.production
+      - .env.prod
     networks:
       - web
       - internal

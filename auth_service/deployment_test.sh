@@ -6,9 +6,9 @@ set -e
 echo "==== Auth Service Deployment Test ===="
 echo "Testing production configuration..."
 
-# Check if .env.production exists
-if [ ! -f ".env.production" ]; then
-    echo "❌ ERROR: .env.production file not found. Please create it from .env.production.example"
+# Check if .env.prod exists
+if [ ! -f ".env.prod" ]; then
+    echo "❌ ERROR: .env.prod file not found. Please create it from .env.prod.example"
     exit 1
 fi
 
@@ -34,25 +34,25 @@ fi
 echo "✅ docker-compose.prod.yml syntax is valid"
 
 # Check if we're using self-hosted Supabase
-SELF_HOSTED=$(grep "AUTH_SERVICE_SUPABASE_SELF_HOSTED=true" .env.production || echo "")
+SELF_HOSTED=$(grep "AUTH_SERVICE_SUPABASE_SELF_HOSTED=true" .env.prod || echo "")
 if [ -n "$SELF_HOSTED" ]; then
     echo "Self-hosted Supabase configuration detected"
     
     # Check for required self-hosted variables
     MISSING_VARS=false
     
-    if ! grep -q "AUTH_SERVICE_SUPABASE_DB_HOST" .env.production; then
-        echo "❌ ERROR: AUTH_SERVICE_SUPABASE_DB_HOST not found in .env.production"
+    if ! grep -q "AUTH_SERVICE_SUPABASE_DB_HOST" .env.prod; then
+        echo "❌ ERROR: AUTH_SERVICE_SUPABASE_DB_HOST not found in .env.prod"
         MISSING_VARS=true
     fi
     
-    if ! grep -q "AUTH_SERVICE_SUPABASE_DB_PASSWORD" .env.production; then
-        echo "❌ ERROR: AUTH_SERVICE_SUPABASE_DB_PASSWORD not found in .env.production"
+    if ! grep -q "AUTH_SERVICE_SUPABASE_DB_PASSWORD" .env.prod; then
+        echo "❌ ERROR: AUTH_SERVICE_SUPABASE_DB_PASSWORD not found in .env.prod"
         MISSING_VARS=true
     fi
     
     if [ "$MISSING_VARS" = true ]; then
-        echo "Please set all required self-hosted Supabase variables in .env.production"
+        echo "Please set all required self-hosted Supabase variables in .env.prod"
         exit 1
     fi
     

@@ -81,6 +81,16 @@ class Settings(BaseSettings):
         alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET",
         description="Client Secret for machine-to-machine authentication",
     )
+    M2M_JWT_SECRET_KEY: str = Field(
+        ...,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_JWT_SECRET_KEY",
+        description="Symmetric secret key for validating M2M JWTs from the Auth Service.",
+    )
+    M2M_JWT_AUDIENCE: str = Field(
+        "paservices_microservices",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_JWT_AUDIENCE",
+        description="The audience claim expected in M2M JWTs.",
+    )
 
     # RapidAPI configuration
     RAPID_API_KEY: str = Field(

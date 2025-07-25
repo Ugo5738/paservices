@@ -38,7 +38,7 @@ services:
       - BASE_URL=https://${AUTH_DOMAIN:-auth.supersami.com}
       - LOGGING_LEVEL=INFO
     env_file:
-      - .env.production
+      - .env.prod
     networks:
       - web
       - internal

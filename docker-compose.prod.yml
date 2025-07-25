@@ -36,6 +36,7 @@ services:
     image: ${DOCKER_USERNAME}/auth_service:latest # Will be pulled from your container registry
     platform: linux/arm64
     container_name: auth_service_prod
+    env_file: ./auth_service/.env.prod
     restart: unless-stopped
     networks:
       - paservices-network
@@ -64,6 +65,7 @@ services:
     image: ${DOCKER_USERNAME}/super_id_service:latest
     platform: linux/arm64
     container_name: super_id_service_prod
+    env_file: ./super_id_service/.env.prod
     restart: unless-stopped
     networks:
       - paservices-network
@@ -89,6 +91,7 @@ services:
     image: ${DOCKER_USERNAME}/data_capture_rightmove_service:latest
     platform: linux/arm64
     container_name: data_capture_rightmove_service_prod
+    env_file: ./data_capture_rightmove_service/.env.prod
     restart: unless-stopped
     networks:
       - paservices-network
