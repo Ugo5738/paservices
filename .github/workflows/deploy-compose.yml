@@ -1,16 +1,23 @@
-# This workflow automates the deployment of your multi-service application...
-name: Deploy to EC2 with Docker Compose
+name: Deploy to Production Server with Docker Compose
 
 on:
   push:
     branches:
-      - staging
+      - staging # Trigger on push to the staging branch
   workflow_dispatch:
 
+# --- GLOBAL ENVIRONMENT VARIABLES ---
+# These are used across multiple jobs for consistency.
+env:
+  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
+  SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
+  DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
+
 jobs:
-  # ====================================================================
-  # JOB 1: Detect which services have changed...
-  # ====================================================================
+  #########################################
+  # Job 1: Detect Which Services Changed #
+  #########################################
   detect-changes:
     runs-on: ubuntu-latest
     outputs:
@@ -34,57 +41,64 @@ jobs:
               - '.github/workflows/**'
               - 'docker-compose.prod.yml'
 
-  # ====================================================================
-  # JOBS 2, 3, 4: Build and push Docker images for each service.
-  # ====================================================================
+  ##############################################
+  # JOBS 2, 3, 4: Build and push Docker images for each service. #
+  # These jobs only run if changes are detected in their respective service directories #
+  # or if the workflow is triggered manually. #
+  ##############################################
   build-auth-service:
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
-    env:
-      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
-    uses: ./.github/workflows/_reusable-build-push.yml
-    with:
-      service_name: auth_service
-      image_name: ${{ env.IMAGE_NAME }}
-    secrets:
-      dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/workflows/_reusable-build-push.yml
+        with:
+          service_name: auth_service
+          image_name: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
+        secrets:
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
 
   build-super-id-service:
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
-    env:
-      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
-    uses: ./.github/workflows/_reusable-build-push.yml
-    with:
-      service_name: super_id_service
-      image_name: ${{ env.IMAGE_NAME }}
-    secrets:
-      dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/workflows/_reusable-build-push.yml
+        with:
+          service_name: super_id_service
+          image_name: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
+        secrets:
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
 
   build-data-capture-service:
+    runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
-    env:
-      IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
-    uses: ./.github/workflows/_reusable-build-push.yml
-    with:
-      service_name: data_capture_rightmove_service
-      image_name: ${{ env.IMAGE_NAME }}
-    secrets:
-      dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
-      dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/workflows/_reusable-build-push.yml
+        with:
+          service_name: data_capture_rightmove_service
+          image_name: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
+        secrets:
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
 
-  # ====================================================================
-  # JOB 5: Deploy to the EC2 server.
-  # ====================================================================
+  ####################################
+  # Job 5: Deploy to Staging Server #
+  ####################################
   deploy:
+    # UPDATE: Now runs even if build is skipped, but checks if it ran
     needs:
       - detect-changes
       - build-auth-service
       - build-super-id-service
       - build-data-capture-service
+    # It will only proceed if a change was detected or if manually triggered.
     if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
@@ -95,8 +109,10 @@ jobs:
           username: ${{ secrets.SSH_USERNAME }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            set -e
+            set -e  # Exit immediately if a command fails
 
+            # --- 1. PREPARE THE ENVIRONMENT ---
+            echo "Navigating to deployment directory..."
             mkdir -p /home/ubuntu/paservices
             cd /home/ubuntu/paservices
 
@@ -104,26 +120,33 @@ jobs:
             git fetch origin
 
             echo "Resetting local 'staging' branch to match remote..."
+            # This is the crucial step to discard any manual changes on the server
+            # and prevent 'git pull' conflicts.
             git reset --hard origin/staging
             echo "✅ Local repository is now in a clean state."
 
+            # --- 2. DECRYPT AND CREATE ENVIRONMENT FILES ---
             echo "Decrypting production environment files..."
 
+            # Decrypt for auth_service
             gpg --quiet --batch --yes --decrypt \
               --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
               -o auth_service/.env.production auth_service/.env.production.gpg
             echo "✅ Decrypted environment for auth_service."
 
+            # Decrypt for super_id_service
             gpg --quiet --batch --yes --decrypt \
               --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
               -o super_id_service/.env.production super_id_service/.env.production.gpg
             echo "✅ Decrypted environment for super_id_service."
 
+            # Decrypt for data_capture_rightmove_service (note the .env.prod filename)
             gpg --quiet --batch --yes --decrypt \
               --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
               -o data_capture_rightmove_service/.env.prod data_capture_rightmove_service/.env.prod.gpg
             echo "✅ Decrypted environment for data_capture_rightmove_service."
 
+            # --- 3. ORCHESTRATE DEPLOYMENT WITH DOCKER COMPOSE ---
             echo "Logging into Docker Hub..."
             echo ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }} | docker login -u ${{ secrets.DOCKERHUB_USERNAME }} --password-stdin
 
@@ -131,12 +154,13 @@ jobs:
             docker compose -f docker-compose.prod.yml pull
 
             echo "Running database migrations..."
+            # Run migrations for each service that has them, using their decrypted env files.
             docker compose -f docker-compose.prod.yml run --rm \
-              --env-file ./auth_service/.env.production \
+              --env-file ./auth_service/.env.prod \
               auth_service alembic upgrade head
 
             docker compose -f docker-compose.prod.yml run --rm \
-              --env-file ./super_id_service/.env.production \
+              --env-file ./super_id_service/.env.prod \
               super_id_service alembic upgrade head
               
             docker compose -f docker-compose.prod.yml run --rm \
@@ -144,8 +168,10 @@ jobs:
               data_capture_rightmove_service alembic upgrade head
 
             echo "Starting application stack..."
+            # The 'env_file' directives within docker-compose.prod.yml will pick up the decrypted files.
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
+            # --- 4. CLEANUP ---
             echo "Cleaning up old Docker images..."
             docker image prune -f
 
