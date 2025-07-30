@@ -18,8 +18,8 @@ import httpx
 
 # Shared utility functions
 AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
-DATA_CAPTURE_SERVICE_URL = os.getenv(
-    "DATA_CAPTURE_SERVICE_URL", "http://localhost:8003"
+DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = os.getenv(
+    "DATA_CAPTURE_RIGHTMOVE_SERVICE_URL", "http://localhost:8003"
 )
 EXTERNAL_ORCHESTRATION_URL = os.getenv(
     "ORCHESTRATION_API_URL",
@@ -95,7 +95,7 @@ async def get_properties_for_analysis(
     print_color(
         "\n▶️  Step 2: Finding successfully SCRAPED properties to analyze...", "blue"
     )
-    url = f"{DATA_CAPTURE_SERVICE_URL}/api/v1/properties/scraped-listings"
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/scraped-listings"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "on_date": args.date,
@@ -204,44 +204,44 @@ async def main():
             "magenta",
         )
         success_count = 0
-        for i, prop in enumerate(properties):
-            property_url = prop.get("property_url")
-            super_id = prop.get("super_id")  # The unique ID from the scrape stage
+        # for i, prop in enumerate(properties):
+        #     property_url = prop.get("property_url")
+        #     super_id = prop.get("super_id")  # The unique ID from the scrape stage
 
-            if not property_url or not super_id:
-                print_color(
-                    f"   - ⚠️ Skipping property {prop.get('id')} due to missing URL or Super ID.",
-                    "yellow",
-                )
-                continue
+        #     if not property_url or not super_id:
+        #         print_color(
+        #             f"   - ⚠️ Skipping property {prop.get('id')} due to missing URL or Super ID.",
+        #             "yellow",
+        #         )
+        #         continue
 
-            # This script doesn't need to construct the full URL if the API provides it
-            # But we'll keep the logic just in case
-            if not property_url.startswith("http"):
-                full_url = f"https://www.rightmove.co.uk{property_url}"
-            else:
-                full_url = property_url
+        #     # This script doesn't need to construct the full URL if the API provides it
+        #     # But we'll keep the logic just in case
+        #     if not property_url.startswith("http"):
+        #         full_url = f"https://www.rightmove.co.uk{property_url}"
+        #     else:
+        #         full_url = property_url
 
-            print_color(
-                f"   ({i+1}/{len(properties)}) Triggering for: {full_url}", "blue"
-            )
+        #     print_color(
+        #         f"   ({i+1}/{len(properties)}) Triggering for: {full_url}", "blue"
+        #     )
 
-            if not args.dry_run:
-                if await trigger_external_orchestration(
-                    client, external_api_token, full_url, super_id
-                ):
-                    print_color(
-                        f"   - ✅ External analysis triggered using Super ID {super_id} as phone_number.",
-                        "green",
-                    )
-                    success_count += 1
-                await asyncio.sleep(2)
-            else:
-                print_color(
-                    f"   - [DRY RUN] Would call external orchestrator for {full_url} with phone_number={super_id}",
-                    "yellow",
-                )
-                success_count += 1
+        if not args.dry_run:
+            # if await trigger_external_orchestration(
+            #     client, external_api_token, full_url, super_id
+            # ):
+            #     print_color(
+            #         f"   - ✅ External analysis triggered using Super ID {super_id} as phone_number.",
+            #         "green",
+            #     )
+            #     success_count += 1
+            await asyncio.sleep(2)
+        else:
+            # print_color(
+            #     f"   - [DRY RUN] Would call external orchestrator for {full_url} with phone_number={super_id}",
+            #     "yellow",
+            # )
+            success_count += 1
 
         print_color("\n🎉 External Analysis Trigger Workflow Complete! 🎉", "green")
         print_color(

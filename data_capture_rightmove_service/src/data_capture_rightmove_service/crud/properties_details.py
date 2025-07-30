@@ -90,6 +90,13 @@ async def store_properties_details(
         main_values = map_property_data(property_data, ApiPropertiesDetailsV2)
         main_values["id"] = property_id
         main_values["super_id"] = super_id
+        if (
+            main_values.get("property_url")
+            and "rightmove.co.uk" in main_values["property_url"]
+        ):
+            main_values["property_url"] = main_values["property_url"].replace(
+                "https://www.rightmove.co.uk", ""
+            )
         property_record = ApiPropertiesDetailsV2(**main_values)
         db.add(property_record)
         await db.flush()  # Flush to get snapshot_id for relationships
