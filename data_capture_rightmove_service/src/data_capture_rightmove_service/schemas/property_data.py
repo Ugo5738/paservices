@@ -165,6 +165,9 @@ class CombinedPropertyResponse(BaseModel):
 class PropertySearchRequest(BaseModel):
     """Request to search for properties based on criteria."""
 
+    super_id: Optional[UUID] = Field(
+        None, description="The master tracking ID for this entire workflow."
+    )
     location_identifier: str = Field(..., description="Location identifier or name")
     num_properties: Optional[int] = Field(
         None,

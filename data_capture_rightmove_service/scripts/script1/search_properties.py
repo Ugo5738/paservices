@@ -178,6 +178,7 @@ async def main():
         # Build payload from all provided arguments, handling booleans correctly.
         payload: Dict[str, Any] = {
             "location_identifier": args.identifier,
+            "super_id": search_super_id,
         }
 
         args_dict = vars(args)
@@ -240,9 +241,9 @@ async def main():
 if __name__ == "__main__":
     asyncio.run(main())
 
-# python scripts/search_properties.py --location "REGION^503"
-# python3 scripts/script1/search_properties.py --identifier "REGION^503" --added-to-site 7 --num-properties 10000 --has-include-under-offer-sold-stc
+# python scripts/search_properties.py --location "STATION^6956"
 # python3 scripts/script1/search_properties.py --identifier "STATION^6956" --added-to-site 7 --num-properties 10000 --has-include-under-offer-sold-stc
+# python3 scripts/script1/search_properties.py --identifier "STATION^6956" --added-to-site 7 --num-properties 10000 --has-include-under-offer-sold-stc --search-radius 1.0
 
 # python scripts/search_properties.py \
 #     --identifier "STATION^6956" \
@@ -252,3 +253,5 @@ if __name__ == "__main__":
 #     --has-include-under-offer-sold-stc
 
 # data_capture_rightmove_service-1  | 2025-07-24 11:16:31,101 - INFO - data_capture_rightmove_service - Total properties available: 207. Total pages: 9
+
+# /home/ubuntu/paservices/run_daily_tasks.sh

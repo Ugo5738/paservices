@@ -677,7 +677,7 @@ async def process_property_search(
     If `num_properties` is specified in the request, it will paginate through
     results until the threshold is met. Otherwise, it fetches a single page.
     """
-    super_id = None
+    super_id = search_request.super_id
     # Use a new DB session for the background task to ensure it's isolated.
     async with AsyncSessionLocal() as db:
         try:
@@ -692,9 +692,11 @@ async def process_property_search(
             else:
                 description += f", page: {search_request.page_number}"
 
-            super_id = await super_id_service_client.create_super_id(
-                description=description
-            )
+            # # If no super_id was passed, generate one now.
+            # if not super_id:
+            #     description = f"Untracked property search for: {search_request.location_identifier}"
+            #     super_id = await super_id_service_client.create_super_id(description=description)
+            #     logger.warning(f"Search request had no super_id. Generated a new one: {super_id}")
 
             # 2. Log the initial request event
             await event_crud.log_scrape_event(
@@ -705,128 +707,95 @@ async def process_property_search(
             )
 
             num_to_fetch = search_request.num_properties
-            properties = []
-
             # Prepare parameters for the API client, excluding num_properties
             search_params = search_request.model_dump(exclude_unset=True)
             search_params.pop("num_properties", None)
 
-            if not num_to_fetch:
-                # --- SINGLE PAGE LOGIC (Original Behavior) ---
-                logger.info(
-                    f"Performing single-page search for location: {search_request.location_identifier}, page: {search_request.page_number}"
-                )
+            # Initialize counters for the entire workflow
+            total_successful = 0
+            total_failed = 0
 
-                api_response = await rightmove_api_client.search_properties_for_sale(
-                    **search_params
-                )
-                properties = api_response.get("data", [])
-
-            else:
-                # --- PAGINATION LOGIC ---
-                logger.info(
-                    f"Performing paginated search for location: {search_request.location_identifier}, targeting {num_to_fetch} properties."
-                )
-                all_properties = []
-
-                logger.info("Fetching page 1 to get total count...")
-                # Ensure page_number is set for the first call
-                search_params["page_number"] = 1
-                initial_response = (
-                    await rightmove_api_client.search_properties_for_sale(
-                        **search_params
-                    )
-                )
-
-                properties_on_page = initial_response.get("data", [])
-                if not properties_on_page:
-                    logger.info("No properties found on the first page. Exiting task.")
-                    await event_crud.log_scrape_event(
-                        db,
-                        super_id,
-                        ScrapeEventTypeEnum.API_CALL_SUCCESS,
-                        payload={"message": "No properties found"},
-                    )
-                    return
-
-                all_properties.extend(properties_on_page)
-
-                total_results = initial_response.get("totalResultCount", 0)
-                per_page = initial_response.get("resultsPerPage", 25)
-                total_pages = (
-                    math.ceil(total_results / per_page) if total_results > 0 else 1
-                )
-                logger.info(
-                    f"Total properties available: {total_results}. Total pages: {total_pages}"
-                )
-
-                for page_num in range(2, total_pages + 1):
-                    if len(all_properties) >= num_to_fetch:
-                        logger.info(
-                            f"Target of {num_to_fetch} properties reached. Stopping fetch."
-                        )
-                        break
-
-                    logger.info(f"Fetching page {page_num} of {total_pages}...")
-
-                    search_params["page_number"] = page_num
-                    page_response = (
-                        await rightmove_api_client.search_properties_for_sale(
-                            **search_params
-                        )
-                    )
-
-                    properties_on_page = page_response.get("data", [])
-                    if properties_on_page:
-                        all_properties.extend(properties_on_page)
-                    else:
-                        logger.warning(
-                            f"No properties found on page {page_num}. Stopping pagination."
-                        )
-                        break
-
-                    await asyncio.sleep(0.5)
-
-                properties = all_properties[:num_to_fetch]
+            # --- PAGINATION LOGIC ---
             logger.info(
-                f"Search for {search_request.location_identifier} complete. Found {len(properties)} properties from API."
+                f"Starting paginated search for location: {search_request.location_identifier}, targeting up to {num_to_fetch} properties."
             )
 
-            # --- Common Logic for Storing ---
-            if not properties:
-                logger.info(
-                    f"No properties found for search: {search_request.location_identifier}"
-                )
-                await event_crud.log_scrape_event(
-                    db,
-                    super_id,
-                    ScrapeEventTypeEnum.API_CALL_SUCCESS,
-                    payload={"message": "No properties found"},
-                )
+            # Fetch the first page to get metadata
+            search_params["page_number"] = 1
+            initial_response = await rightmove_api_client.search_properties_for_sale(
+                **search_params
+            )
+
+            properties_on_page = initial_response.get("data", [])
+            if not properties_on_page:
+                logger.info("No properties found on the first page. Exiting task.")
                 return
 
-            await event_crud.log_scrape_event(
-                db,
-                super_id,
-                ScrapeEventTypeEnum.API_CALL_SUCCESS,
-                response_item_count=len(properties),
-                payload={
-                    "message": f"Successfully collected {len(properties)} properties."
-                },
-            )
-
+            # Store the first page of results
             successful, failed = await store_property_search_results(
-                db, properties, super_id, update_existing
+                db, properties_on_page, super_id, update_existing
+            )
+            total_successful += successful
+            total_failed += failed
+            logger.info(f"Page 1: Stored {successful} properties, {failed} failed.")
+
+            total_results = initial_response.get("totalResultCount", 0)
+            per_page = initial_response.get("resultsPerPage", 25)
+            total_pages = (
+                math.ceil(total_results / per_page) if total_results > 0 else 1
+            )
+            logger.info(
+                f"Total properties available: {total_results}. Total pages: {total_pages}"
             )
 
+            # Loop through subsequent pages
+            for page_num in range(2, total_pages + 1):
+                if total_successful >= num_to_fetch:
+                    logger.info(
+                        f"Target of {num_to_fetch} properties reached. Stopping fetch."
+                    )
+                    break
+
+                logger.info(
+                    f"Fetching and processing page {page_num} of {total_pages}..."
+                )
+                search_params["page_number"] = page_num
+                page_response = await rightmove_api_client.search_properties_for_sale(
+                    **search_params
+                )
+
+                properties_on_page = page_response.get("data", [])
+                if not properties_on_page:
+                    logger.warning(
+                        f"No properties found on page {page_num}. Stopping pagination."
+                    )
+                    break
+
+                # Store this page's results immediately
+                successful, failed = await store_property_search_results(
+                    db, properties_on_page, super_id, update_existing
+                )
+                total_successful += successful
+                total_failed += failed
+                logger.info(
+                    f"Page {page_num}: Stored {successful} properties, {failed} failed. Cumulative totals: {total_successful} successful, {total_failed} failed."
+                )
+
+                await asyncio.sleep(0.5)  # Politeness delay
+
+            logger.info(
+                f"Search for {search_request.location_identifier} complete. Total Stored: {total_successful}, Total Failed: {total_failed}"
+            )
+            # Final log event summarizing the entire operation
             await event_crud.log_scrape_event(
                 db,
                 super_id,
                 ScrapeEventTypeEnum.DATA_STORED_SUCCESS,
-                payload={"successful_count": successful, "failed_count": failed},
-            )
-            logger.info(
-                f"Search for {search_request.location_identifier} complete. Stored: {successful}, Failed: {failed}"
+                payload={
+                    "successful_count": total_successful,
+                    "failed_count": total_failed,
+                    "message": "Paginated search complete.",
+                },
             )
 
         except Exception as e:
@@ -842,7 +811,7 @@ async def process_property_search(
                     error_message=str(e),
                 )
         finally:
-            pass
+            pass  # The session will be closed automatically by the 'async with' block
 
 
 @router.get("/ids", response_model=List[int])
