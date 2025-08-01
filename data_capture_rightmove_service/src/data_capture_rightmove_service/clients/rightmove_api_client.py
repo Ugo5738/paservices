@@ -251,12 +251,12 @@ class RightmoveApiClient:
             "search_radius": (
                 f"{search_radius:.1f}" if search_radius is not None else None
             ),
-            "minPrice": min_price,
-            "maxPrice": max_price,
-            "minBedrooms": min_bedrooms,
-            "maxBedrooms": max_bedrooms,
-            "propertyType": property_type,
-            "addedToSite": added_to_site,
+            "min_price": min_price,
+            "max_price": max_price,
+            "min_bedroom": min_bedrooms,
+            "max_bedroom": max_bedrooms,
+            "property_type": property_type,
+            "added_to_site": added_to_site,
             "keywords": keywords,
             "has_garden": str(has_garden).lower() if has_garden is not None else None,
             "has_new_home": (

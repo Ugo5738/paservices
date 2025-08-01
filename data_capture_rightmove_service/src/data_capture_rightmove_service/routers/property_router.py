@@ -645,6 +645,11 @@ async def search_properties_for_sale(
     Initiates a background task to fetch property search results for a given
     location and stores them in the database.
     """
+
+    # --- ADD THIS LINE FOR DEBUGGING ---
+    logger.info(f"Received search request payload: {request.model_dump()}")
+    # ------------------------------------
+
     logger.info(
         f"Received request to search page {request.page_number} for location: {request.location_identifier}"
     )
@@ -718,7 +723,7 @@ async def process_property_search(
                 properties = api_response.get("data", [])
 
             else:
-                # --- PAGINATION LOGIC (New Behavior) ---
+                # --- PAGINATION LOGIC ---
                 logger.info(
                     f"Performing paginated search for location: {search_request.location_identifier}, targeting {num_to_fetch} properties."
                 )
@@ -783,6 +788,9 @@ async def process_property_search(
                     await asyncio.sleep(0.5)
 
                 properties = all_properties[:num_to_fetch]
+            logger.info(
+                f"Search for {search_request.location_identifier} complete. Found {len(properties)} properties from API."
+            )
 
             # --- Common Logic for Storing ---
             if not properties:
@@ -1033,4 +1041,56 @@ async def get_scraped_property_listings(
         logger.error(f"Error retrieving scraped properties: {e}", exc_info=True)
         raise HTTPException(
             status_code=500, detail="Failed to retrieve scraped properties."
+        )
+
+
+class DirectSearchRequest(BaseModel):
+    """Pydantic model for the direct test endpoint."""
+
+    location_identifier: str
+    search_radius: float
+    added_to_site: Optional[int] = None
+    has_include_under_offer_sold_stc: Optional[bool] = None
+
+
+import json
+
+
+@router.post("/search/for-sale/direct-test", status_code=200)
+async def direct_api_test(
+    request: DirectSearchRequest,
+):
+    """
+    A temporary debug endpoint to call the Rightmove API directly and return the raw response.
+    This bypasses background tasks and database saving for pure API testing.
+    """
+    logger.info(f"--- DIRECT API TEST INITIATED ---")
+    logger.info(f"Received direct test request with params: {request.model_dump()}")
+
+    try:
+        # Prepare parameters for the API client from the request body
+        api_params = request.model_dump(exclude_unset=True)
+
+        # The client expects 'include_under_offer_sold_stc', not 'has_include...'
+        if "has_include_under_offer_sold_stc" in api_params:
+            api_params["include_under_offer_sold_stc"] = api_params.pop(
+                "has_include_under_offer_sold_stc"
+            )
+
+        # Call the API client directly with the provided parameters
+        api_response = await rightmove_api_client.search_properties_for_sale(
+            **api_params
+        )
+
+        logger.info(f"--- DIRECT API TEST RESPONSE ---")
+        logger.info(json.dumps(api_response, indent=2))
+
+        # Return the full, raw response from the external API
+        return api_response
+
+    except Exception as e:
+        logger.error(f"Direct API test failed: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred during the direct API call: {str(e)}",
         )

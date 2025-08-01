@@ -241,7 +241,9 @@ if __name__ == "__main__":
     asyncio.run(main())
 
 # python scripts/search_properties.py --location "REGION^503"
-# python scripts/search_properties.py --location "REGION^503" --num_properties "50"
+# python3 scripts/script1/search_properties.py --identifier "REGION^503" --added-to-site 7 --num-properties 10000 --has-include-under-offer-sold-stc
+# python3 scripts/script1/search_properties.py --identifier "STATION^6956" --added-to-site 7 --num-properties 10000 --has-include-under-offer-sold-stc
+
 # python scripts/search_properties.py \
 #     --identifier "STATION^6956" \
 #     --num-properties 10000 \

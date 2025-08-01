@@ -42,6 +42,7 @@ COPY --from=builder /app/.venv /app/.venv
 COPY ./src ./src
 COPY ./alembic ./alembic
 COPY alembic.ini .
+COPY ./scripts ./scripts
 
 # Set ownership of the application files to the non-root user
 RUN chown -R appuser:appuser /app
