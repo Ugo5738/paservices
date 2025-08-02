@@ -24,11 +24,12 @@ def flatten_and_prepare(
     property_data: Dict[str, Any], super_id: uuid.UUID
 ) -> Dict[str, Any]:
     """
-    Flattens the nested JSON from the search API and prepares it for the
-    PropertyListing model by converting all keys to snake_case.
+    Flattens the nested JSON from the search API, prepares it for the
+    PropertyListing model, by converting all keys to snake_case, and correctly serializes JSON fields.
     """
     flat_data = {}
 
+    # 1. Flatten nested dictionaries from the API response
     # Iterate and convert all keys to snake_case
     for key, value in property_data.items():
         snake_key = camel_to_snake(key)
@@ -41,25 +42,36 @@ def flatten_and_prepare(
             # use the converted snake_case key directly.
             flat_data[snake_key] = value
 
-    # Add mandatory fields for our record
+    # 2. Add mandatory fields for our records
     flat_data["api_source_endpoint"] = "/buy/property-for-sale"
     flat_data["super_id"] = super_id
 
-    # Handle special JSON fields that are stored as JSON in the database
-    json_fields = {
+    # 3. Handle special remapping for keys where the flattened name doesn't match the desired database column name.
+    json_fields_remap = {
         "keywords": "keywords_json",
-        "lozenge_model": "lozenge_model_matching_lozenges_json",
+        "lozenge_model_matching_lozenges": "lozenge_model_matching_lozenges_json",
         "customer_build_to_rent_benefits": "customer_build_to_rent_benefits_json",
     }
-    for old_key, new_key in json_fields.items():
+    for old_key, new_key in json_fields_remap.items():
         if old_key in flat_data:
             flat_data[new_key] = flat_data.pop(old_key)
 
-    # Filter out any keys that don't match columns in the PropertyListing model
-    listing_columns = {c.name for c in PropertyListing.__table__.columns}
-    final_data = {k: v for k, v in flat_data.items() if k in listing_columns}
+    # 4. Get column names and types from the SQLAlchemy model
+    listing_columns = {c.name: str(c.type) for c in PropertyListing.__table__.columns}
+    final_data = {}
 
-    # Log a warning if the final mapped data is still missing the property_url
+    # 5. Build the final dictionary, ensuring only valid columns are included
+    #    and serializing any values destined for JSON columns.
+    for key, value in flat_data.items():
+        if key in listing_columns:
+            column_type = listing_columns[key]
+            # If the target column is JSON and the value is a dict or list, serialize it
+            if "JSON" in column_type and isinstance(value, (dict, list)):
+                final_data[key] = json.dumps(value)
+            else:
+                final_data[key] = value
+
+    # Log a warning if the property_url is missing
     if "property_url" not in final_data:
         logger.warning(
             f"Property URL was not found or mapped for property ID {property_data.get('id')}"
