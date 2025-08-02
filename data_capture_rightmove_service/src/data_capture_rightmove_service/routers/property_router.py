@@ -710,6 +710,7 @@ async def process_property_search(
             # Prepare parameters for the API client, excluding num_properties
             search_params = search_request.model_dump(exclude_unset=True)
             search_params.pop("num_properties", None)
+            search_params.pop("super_id", None)
 
             # Initialize counters for the entire workflow
             total_successful = 0
