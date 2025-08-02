@@ -15,6 +15,15 @@ from data_capture_rightmove_service.models.property_for_sale import (
 from data_capture_rightmove_service.utils.logging_config import logger
 
 
+# Helper class to represent the Json object from the logs for type checking
+class Json:
+    def __init__(self, value):
+        self.value = value
+
+    def __repr__(self):
+        return f"Json({self.value!r})"
+
+
 def camel_to_snake(name: str) -> str:
     name = re.sub(r"(?<!^)(?=[A-Z])", "_", name)
     return name.lower()
@@ -46,7 +55,7 @@ def flatten_and_prepare(
     flat_data["api_source_endpoint"] = "/buy/property-for-sale"
     flat_data["super_id"] = super_id
 
-    # 3. Handle special remapping for keys where the flattened name doesn't match the desired database column name.
+    # 3. Handle special remapping for keys
     json_fields_remap = {
         "keywords": "keywords_json",
         "lozenge_model_matching_lozenges": "lozenge_model_matching_lozenges_json",
@@ -60,18 +69,26 @@ def flatten_and_prepare(
     listing_columns = {c.name: str(c.type) for c in PropertyListing.__table__.columns}
     final_data = {}
 
-    # 5. Build the final dictionary, ensuring only valid columns are included
-    #    and serializing any values destined for JSON columns.
+    # 5. Build the final dictionary, ensuring only valid columns are included and serializing any values destined for JSON columns.
     for key, value in flat_data.items():
         if key in listing_columns:
             column_type = listing_columns[key]
-            # If the target column is JSON and the value is a dict or list, serialize it
-            if "JSON" in column_type and isinstance(value, (dict, list)):
-                final_data[key] = json.dumps(value)
+
+            # Check for the special Json object or if the target column is JSON
+            # and the value is a dict/list.
+            if isinstance(value, (dict, list)) or hasattr(
+                value, "value"
+            ):  # Checks for dict, list, or the special Json object
+                try:
+                    # If it's the special Json object, extract its inner value
+                    actual_value = getattr(value, "value", value)
+                    final_data[key] = json.dumps(actual_value)
+                except TypeError:
+                    # Fallback for complex, non-serializable objects
+                    final_data[key] = str(value)
             else:
                 final_data[key] = value
 
-    # Log a warning if the property_url is missing
     if "property_url" not in final_data:
         logger.warning(
             f"Property URL was not found or mapped for property ID {property_data.get('id')}"
