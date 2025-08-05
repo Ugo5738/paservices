@@ -1,0 +1,56 @@
+# data_capture_rightmove_service/Dockerfile.prod
+
+# --- Stage 1: Builder ---
+# This stage installs dependencies into a virtual environment.
+FROM python:3.12-slim AS builder
+
+# Set environment variables for Poetry
+ENV POETRY_NO_INTERACTION=1 \
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install Poetry
+RUN pip install poetry
+
+# Copy only the files needed for dependency installation to leverage Docker cache
+COPY pyproject.toml poetry.lock ./
+
+# Install only production dependencies into the virtual environment
+RUN poetry install --no-root --only main
+
+
+# --- Stage 2: Final Production Image ---
+# This stage creates the final, lean image.
+FROM python:3.12-slim AS final
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    # Add the virtual environment's bin to the path
+    PATH="/app/.venv/bin:$PATH"
+
+WORKDIR /app
+
+# Create a non-root user for security
+RUN addgroup --system appuser && adduser --system --ingroup appuser appuser
+
+# Copy the virtual environment with dependencies from the builder stage
+COPY --from=builder /app/.venv /app/.venv
+
+# Copy the application source code
+COPY ./src ./src
+COPY ./alembic ./alembic
+COPY alembic.ini .
+COPY ./scripts ./scripts
+
+# Set ownership of the application files to the non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to the non-root user
+USER appuser
+
+EXPOSE 8000
+
+# Command to run the production server with multiple workers
+CMD ["uvicorn", "src.orchestrator_service.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
