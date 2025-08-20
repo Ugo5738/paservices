@@ -73,6 +73,25 @@ def get_db_params_from_url(db_url: str) -> dict:
     }
 
 
+def create_schema(db_params: Dict):
+    """Creates the service-specific schema if it doesn't exist."""
+    db_name = db_params["dbname"]
+    # NEW: Define the schema name based on your model's Base
+    schema_name = "floorplan"
+    logger.info(f"Ensuring schema '{schema_name}' exists in database '{db_name}'...")
+    conn_str = f"postgresql://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_name}"
+    try:
+        run_command(
+            f'psql "{conn_str}" -c "CREATE SCHEMA IF NOT EXISTS {schema_name}"',
+            check=False,
+        )
+        logger.info(
+            colored(f"Schema '{schema_name}' created or already exists.", "green")
+        )
+    except Exception as e:
+        logger.warning(f"Could not create schema. Error: {e}")
+
+
 def create_db(db_params: Dict):
     """Creates the service-specific database if it doesn't exist."""
     db_name = db_params["dbname"]
@@ -155,6 +174,7 @@ async def recreate_environment(db_params: Dict):
     # Create our application-specific database
     logger.info("--- Creating application database ---")
     create_db(db_params)
+    create_schema(db_params)
 
     reset_migrations()
     run_command("alembic revision --autogenerate -m 'Initial schema'")
@@ -163,14 +183,14 @@ async def recreate_environment(db_params: Dict):
     # Verify the tables were created before bootstrapping
     logger.info("--- Verifying database schema before bootstrap ---")
     run_command(
-        f"psql -h {db_params['host']} -p {db_params['port']} -U {db_params['user']} -d {db_params['dbname']} -c '\\dt floorplan_service_data.*'"
+        f"psql -h {db_params['host']} -p {db_params['port']} -U {db_params['user']} -d {db_params['dbname']} -c '\\dt floorplan.*'"
     )
 
 
 # --- Main Command Floorplan ---
 async def main():
     parser = argparse.ArgumentParser(
-        description=f"{settings.PROJECT_NAME} Database Management Tool"
+        description=f"Floorplan Service Database Management Tool"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -213,6 +233,7 @@ async def main():
     try:
         if args.command == "init":
             create_db(db_params)
+            create_schema(db_params)
             run_command("alembic upgrade head")
         elif args.command == "recreate":
             await recreate_environment(db_params)

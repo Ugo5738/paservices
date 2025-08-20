@@ -92,7 +92,7 @@ AsyncSessionLocal = async_sessionmaker(
 # --- 4. Declarative Base ---
 # All SQLAlchemy models will inherit from this Base.
 Base = declarative_base()
-Base.metadata.schema = "rightmove"
+Base.metadata.schema = "floorplan"
 
 
 # --- 5. Simplified and Robust Session Dependency ---

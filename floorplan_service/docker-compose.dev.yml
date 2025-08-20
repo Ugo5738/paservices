@@ -1,5 +1,5 @@
 services:
-  orchestrator_service_dev:
+  floorplan_service_dev:
     build:
       context: .
       dockerfile: Dockerfile.dev

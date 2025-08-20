@@ -32,7 +32,7 @@ docker-compose exec data_capture_rightmove_service alembic upgrade head
 
 For a complete, end-to-end example of authentication and data capture workflow, see the integration test script:
 
-➡️ **[Full System Flow Example](../../scripts/test_search_flow.py)**
+➡️ **[Full System Flow Example](../../scripts/test_system/test_search_flow.py)**
 
 ### API Endpoints
 
@@ -40,3 +40,26 @@ For a complete, end-to-end example of authentication and data capture workflow, 
 - **Search:** `POST /properties/search/for-sale`
 
 For detailed API documentation, access the service's `/docs` endpoint at [http://localhost:8003/docs](http://localhost:8003/docs) when running.
+
+## Super ID usage
+
+- Provide `super_id` in the JSON body for both endpoints.
+- An optional `X-Super-ID` header may be accepted, but the body field is the canonical input.
+
+Example (fetch combined):
+
+```bash
+curl -s \
+  -X POST "$DATA_CAPTURE_RIGHTMOVE_SERVICE_URL/api/v1/properties/fetch/combined" \
+  -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "property_url": "https://www.rightmove.co.uk/properties/123456789",
+        "super_id": "'$SUPER_ID'"
+      }'
+```
+
+## Related documentation
+
+- `../../docs/integrating_external_services.md` — External integration guide (M2M token → super_id → downstream calls).
+- `../../docs/service_env_var_conventions.md` — Standardized environment variable prefixes and names.

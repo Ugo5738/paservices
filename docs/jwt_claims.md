@@ -83,6 +83,8 @@ These tokens are issued by the Authentication Service for application clients us
 | `roles` | Client's assigned roles | `["service", "data-processor"]` |
 | `permissions` | Client's permissions (derived from roles) | `["users:read", "data:process"]` |
 
+> Note: Some services may refer to these as "scopes". In our platform, we model them under the `permissions` claim. Treat "permissions" and "scopes" as equivalent for integration purposes.
+
 ### Example M2M JWT Payload
 
 ```json
@@ -96,7 +98,7 @@ These tokens are issued by the Authentication Service for application clients us
   "client_name": "backend-service",
   "client_type": "m2m",
   "roles": ["service", "data-processor"],
-  "permissions": ["users:read", "data:process"]
+  "permissions": ["users:read", "data:process", "super_id:generate"]
 }
 ```
 
@@ -116,6 +118,11 @@ These tokens are issued by the Authentication Service for application clients us
 3. Verify `iss` is "auth-service"
 4. Verify `aud` is appropriate for the receiving service
 5. Validate that the client has the necessary permissions for the requested action
+
+### Platform permissions/scopes
+
+- `super_id:generate` — Required to call `POST /api/v1/super_ids` in `super_id_service`.
+- Other service-specific permissions are defined per-service and should be granted minimally.
 
 ## Security Considerations
 

@@ -17,28 +17,36 @@ convention = {
 }
 
 # Create metadata with naming convention and schema
-metadata = MetaData(naming_convention=convention, schema="rightmove")
+metadata = MetaData(naming_convention=convention, schema="floorplan")
 
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
-    
+
     metadata = metadata
-    
+
     # Add created_at and updated_at timestamps to all tables
-    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
-    
+    created_at = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
     # Add tablename based on class name, using snake_case format
     @declared_attr.directive
     def __tablename__(cls) -> str:
         # Convert camel case to snake case
         import re
-        name = re.sub('(?<!^)(?=[A-Z])', '_', cls.__name__).lower()
+
+        name = re.sub("(?<!^)(?=[A-Z])", "_", cls.__name__).lower()
         return name
 
 
 class SuperIdMixin:
     """Mixin for models that require a super_id field for tracking."""
-    
+
     super_id = Column(UUID(as_uuid=True), nullable=False, index=True)

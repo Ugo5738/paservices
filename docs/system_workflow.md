@@ -48,7 +48,7 @@ Before initiating a data capture process, a unique identifier is generated to co
   ```json
   {
     "count": 1,
-    "description": "Data capture for property 123456789"
+    "metadata": { "purpose": "Data capture for property 123456789" }
   }
   ```
 - **Successful Response (201 Created):**
@@ -74,6 +74,7 @@ With a valid access token and a `super_id`, the client can now request the prope
     "super_id": "aedd5c2f-0df1-4f4b-b3a2-b22b2c41a197"
   }
   ```
+  Note: Provide `super_id` in the JSON body. Some services also accept an optional `X-Super-ID` header; check the target service's README for specifics.
 - **Successful Response (200 OK):** A JSON object detailing the outcome of each internal API call and storage operation.
   ```json
   {
@@ -93,3 +94,8 @@ With a valid access token and a `super_id`, the client can now request the prope
     ]
   }
   ```
+
+## See also
+
+- `integrating_external_services.md` — External integration guide (M2M token → super_id → downstream calls).
+- `service_env_var_conventions.md` — Standardized environment variable prefixes and names.

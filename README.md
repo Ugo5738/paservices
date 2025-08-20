@@ -23,6 +23,18 @@ Dive into the details for each microservice. These READMEs provide service-speci
 - **[Super ID Service](./super_id_service/README.md)**: Generates and records unique workflow IDs.
 - **[Data Capture Rightmove Service](./data_capture_rightmove_service/README.md)**: Fetches and stores property data from Rightmove.
 
+## 📦 External Integration & Conventions
+
+- **[External Integration Guide](docs/integrating_external_services.md)** — How external services authenticate, obtain `super_id`s, and call internal APIs.
+- **[Service Env Var Conventions](docs/service_env_var_conventions.md)** — Prefixing and naming standards for environment variables across services.
+- **[JWT Claims](docs/jwt_claims.md)** — Structure of JWTs, permissions (scopes), and required claims like `super_id:generate`.
+
+## 🧪 Examples
+
+- **[Full System Flow Example](scripts/test_system/test_search_flow.py)** — End-to-end authentication, `super_id`, and downstream API call.
+- **[Rightmove Search Script](data_capture_rightmove_service/scripts/script1/search_properties.py)** — Canonical example used by external microservices.
+- **[Django Minimal Example](examples/django_minimal/README.md)** — Runnable integration sample showing the 3-step flow.
+
 ## 🚀 Deployment & Operations
 
 This project is deployed on AWS EKS via an automated CI/CD pipeline. The "paved path" for deployment is to use our GitHub Actions workflows.

@@ -4,7 +4,7 @@ Configuration module for the Floorplan Service.
 
 import os
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, ClassVar, List, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -48,24 +48,72 @@ class Settings(BaseSettings):
         description="PostgreSQL connection string",
     )
 
-    SUPABASE_URL: str = Field(..., alias="FLOORPLAN_SERVICE_SUPABASE_URL")
-    SUPABASE_ANON_KEY: str = Field(..., alias="FLOORPLAN_SERVICE_SUPABASE_ANON_KEY")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(
-        ..., alias="FLOORPLAN_SERVICE_SUPABASE_SERVICE_ROLE_KEY"
-    )
-
-    # Auth Service connection
+    # External Services
     AUTH_SERVICE_URL: str = Field(
         "http://auth_service:8000/api/v1",
         alias="FLOORPLAN_SERVICE_AUTH_SERVICE_URL",
         description="Auth Service URL for token acquisition",
     )
 
-    # Super ID Service connection
     SUPER_ID_SERVICE_URL: str = Field(
         "http://super_id_service:8000/api/v1",
         alias="FLOORPLAN_SERVICE_SUPER_ID_SERVICE_URL",
         description="Super ID Service URL for UUID generation",
+    )
+
+    FLOORPLAN_ANALYZER_URL: str = Field(
+        "http://floorplan_analyzer:8000/api/v1",
+        alias="FLOORPLAN_SERVICE_INDIAN_FLOORPLAN_ANALYZER_URL",
+        description="Floorplan Analyzer Service URL for floorplan analysis",
+    )
+    FLOORPLAN_WEBHOOK_URL: str = Field(
+        "http://floorplan_service:8000/api/v1/webhook",
+        alias="FLOORPLAN_SERVICE_FLOORPLAN_WEBHOOK_URL",
+        description="This service's own webhook endpoint",
+    )
+
+    # AWS Settings (for S3 operations like GIF conversion)
+    AWS_ACCESS_KEY_ID: str = Field(
+        "",
+        alias="FLOORPLAN_SERVICE_AWS_ACCESS_KEY_ID",
+        description="AWS Access Key ID for S3 operations",
+    )
+    AWS_SECRET_ACCESS_KEY: str = Field(
+        "",
+        alias="FLOORPLAN_SERVICE_AWS_SECRET_ACCESS_KEY",
+        description="AWS Secret Access Key for S3 operations",
+    )
+    AWS_STORAGE_BUCKET_NAME: str = Field(
+        "",
+        alias="FLOORPLAN_SERVICE_AWS_STORAGE_BUCKET_NAME",
+        description="AWS Storage Bucket Name for S3 operations",
+    )
+    AWS_S3_FILE_OVERWRITE: ClassVar[bool] = False
+    AWS_DEFAULT_ACL: ClassVar[Optional[str]] = None
+    AWS_S3_OBJECT_PARAMETERS: ClassVar[dict[str, str]] = {
+        "CacheControl": "max-age-86400"
+    }
+    AWS_LOCATION: ClassVar[str] = "static"
+    AWS_QUERYSTRING_AUTH: ClassVar[bool] = False
+    AWS_HEADERS: ClassVar[dict[str, str]] = {
+        "Access-Control-Allow-Origin": "*",
+    }
+    AWS_S3_REGION_NAME: str = Field(
+        "us-east-1",
+        alias="FLOORPLAN_SERVICE_AWS_S3_REGION_NAME",
+        description="AWS S3 Region Name for S3 operations",
+    )
+
+    # Celery/Background Task Runner Settings
+    CELERY_BROKER_URL: str = Field(
+        "redis://redis:6379/0",
+        alias="FLOORPLAN_SERVICE_CELERY_BROKER_URL",
+        description="Celery Broker URL for background task processing",
+    )
+    CELERY_RESULT_BACKEND: str = Field(
+        "redis://redis:6379/0",
+        alias="FLOORPLAN_SERVICE_CELERY_RESULT_BACKEND",
+        description="Celery Result Backend URL for background task processing",
     )
 
     # JWT configuration for auth with other services
@@ -88,18 +136,6 @@ class Settings(BaseSettings):
         "paservices_microservices",
         alias="FLOORPLAN_SERVICE_M2M_JWT_AUDIENCE",
         description="The audience claim expected in M2M JWTs.",
-    )
-
-    # RapidAPI configuration
-    RAPID_API_KEY: str = Field(
-        ...,
-        alias="FLOORPLAN_SERVICE_RAPID_API_KEY",
-        description="RapidAPI key for accessing Rightmove API",
-    )
-    RAPID_API_HOST: str = Field(
-        "uk-real-estate-rightmove.p.rapidapi.com",
-        alias="FLOORPLAN_SERVICE_RAPID_API_HOST",
-        description="RapidAPI host for Rightmove API",
     )
 
     # Rate limiting
@@ -134,6 +170,10 @@ class Settings(BaseSettings):
         alias="FLOORPLAN_SERVICE_FETCH_INTERVAL_SECONDS",
         description="Interval between data fetch operations in seconds",
     )
+
+    @property
+    def AWS_S3_CUSTOM_DOMAIN(self) -> str:
+        return f"{self.AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com"
 
     @field_validator("DATABASE_URL")
     def validate_database_url(cls, v: str, info: Any) -> str:

@@ -15,8 +15,8 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from floorplan_service.config import settings
+from floorplan_service.routers.floorplan_router import router as floorplan_router
 from floorplan_service.routers.health_router import router as health_router
-from floorplan_service.supabase_client import init_supabase_clients
 from floorplan_service.utils.logging_config import configure_logging, logger
 from floorplan_service.utils.rate_limiting import limiter
 from floorplan_service.utils.security import validate_token
@@ -27,41 +27,17 @@ configure_logging()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Application lifecycle manager with robust initialization and shutdown.
-
-    Handles startup and shutdown sequences with proper error handling.
-    """
+    """Application lifecycle manager."""
     logger.info("Application startup sequence initiated.")
-
-    # Initialize app-wide resources and connections
-    try:
-        await init_supabase_clients()
-        logger.info("Supabase clients initialized successfully")
-    except Exception as e:
-        logger.error(
-            f"Failed to initialize Supabase clients: {e.__class__.__name__}: {str(e)}"
-        )
-
-    # Initialize startup timestamp for health checks
     app.state.startup_time = time.time()
-    logger.info("Application startup complete.")
-
-    # Yield control back to the application
     yield
-
-    # Application Shutdown
     logger.info("Application shutdown sequence initiated.")
-    logger.info("Application shutdown complete.")
 
 
 # Initialize FastAPI app with lifespan
 app = FastAPI(
-    title="Data Capture Rightmove Service",
-    description=(
-        "Service for fetching property data from Rightmove via RapidAPI "
-        "and storing it in a structured database."
-    ),
+    title="Floorplan Service",
+    description="Handles the orchestration of floorplan analysis and data storage.",
     version="0.1.0",
     root_path=settings.ROOT_PATH,
     lifespan=lifespan,
@@ -85,6 +61,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Include routers
 app.include_router(health_router, tags=["Health"])
+app.include_router(floorplan_router, prefix="/floorplans", tags=["Floorplans"])
 
 
 # Add exception handlers
@@ -116,16 +93,4 @@ async def general_exception_handler(request: Request, exc: Exception):
             "detail": "Internal server error.",
             "error_type": str(type(exc).__name__),
         },
-    )
-
-
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "floorplan_service.main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.is_development(),
-        log_level=settings.LOGGING_LEVEL.lower(),
     )
