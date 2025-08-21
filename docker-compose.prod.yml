@@ -102,6 +102,33 @@ services:
       - "traefik.http.routers.data-capture-service.tls.certresolver=letsencrypt"
       - "traefik.http.services.data-capture-service.loadbalancer.server.port=8000"
 
+  ################
+  # FLOORPLAN SERVICE #
+  ################
+  floorplan_service:
+    image: ${DOCKER_USERNAME}/floorplan_service:latest
+    platform: linux/arm64
+    container_name: floorplan_service_prod
+    env_file: ./floorplan_service/.env.prod
+    restart: unless-stopped
+    networks:
+      - paservices-network
+    depends_on:
+      - auth_service
+      - super_id_service
+    environment:
+      - PYTHONPATH=/app/src
+      - FLOORPLAN_SERVICE_M2M_JWT_SECRET_KEY=${SHARED_M2M_JWT_SECRET_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.floorplan-service.rule=Host(`${FLOORPLAN_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.floorplan-service.entrypoints=websecure"
+      - "traefik.http.routers.floorplan-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.floorplan-service.loadbalancer.server.port=8000"
+
+  ################
+  # REDIS SERVICE #
+  ################
   # This internal Redis service can be used by all other services
   redis:
     image: redis:7-alpine

@@ -13,6 +13,7 @@ env:
   AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
   SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
   DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
+  FLOORPLAN_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/floorplan_service
 
 jobs:
   #########################################
@@ -24,6 +25,7 @@ jobs:
       auth_service: ${{ steps.filter.outputs.auth_service }}
       super_id_service: ${{ steps.filter.outputs.super_id_service }}
       data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
+      floorplan_service: ${{ steps.filter.outputs.floorplan_service }}
       workflow_changed: ${{ steps.filter.outputs.workflow_changed }}
     steps:
       - uses: actions/checkout@v3
@@ -37,6 +39,8 @@ jobs:
               - 'super_id_service/**'
             data_capture_rightmove_service:
               - 'data_capture_rightmove_service/**'
+            floorplan_service:
+              - 'floorplan_service/**'
             workflow_changed:
               - '.github/workflows/**'
               - 'docker-compose.prod.yml'
@@ -85,6 +89,19 @@ jobs:
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
 
+  build-floorplan-service:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.floorplan_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/workflows/actions/build-push
+        with:
+          service_name: floorplan_service
+          image_name: ${{ secrets.DOCKERHUB_USERNAME }}/floorplan_service
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
+
   ####################################
   # Job 5: Deploy to Staging Server #
   ####################################
@@ -95,8 +112,9 @@ jobs:
       - build-auth-service
       - build-super-id-service
       - build-data-capture-service
+      - build-floorplan-service
     # It will only proceed if a change was detected or if manually triggered.
-    if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.floorplan_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Server
@@ -143,6 +161,12 @@ jobs:
               -o data_capture_rightmove_service/.env.prod data_capture_rightmove_service/.env.prod.gpg
             echo "✅ Decrypted environment for data_capture_rightmove_service."
 
+            # Decrypt for floorplan_service (note the .env.prod filename)
+            gpg --quiet --batch --yes --decrypt \
+              --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              -o floorplan_service/.env.prod floorplan_service/.env.prod.gpg
+            echo "✅ Decrypted environment for floorplan_service."
+
             echo "Creating root .env file for Docker Compose..."
             cat > .env << EOF
             # Core variables needed by docker-compose.prod.yml
@@ -153,12 +177,14 @@ jobs:
             AUTH_SERVICE_DOMAIN=${{ secrets.AUTH_SERVICE_DOMAIN }}
             SUPER_ID_SERVICE_DOMAIN=${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
             DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN }}
+            FLOORPLAN_SERVICE_DOMAIN=${{ secrets.FLOORPLAN_SERVICE_DOMAIN }}
 
             # These variables are also needed by the services themselves, and Docker Compose
             # will make them available to the containers.
             AUTH_SERVICE_DATABASE_URL='${{ secrets.AUTH_SERVICE_DATABASE_URL }}'
             SUPER_ID_SERVICE_DATABASE_URL='${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}'
             DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL='${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}'
+            FLOORPLAN_SERVICE_DATABASE_URL='${{ secrets.FLOORPLAN_SERVICE_DATABASE_URL }}'
 
             SUPABASE_URL='${{ secrets.SUPABASE_URL }}'
             SUPABASE_ANON_KEY='${{ secrets.SUPABASE_ANON_KEY }}'
@@ -169,7 +195,11 @@ jobs:
 
             DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_ID }}
             DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_CLIENT_SECRET }}
+
             RAPID_API_KEY=${{ secrets.RAPID_API_KEY }}
+
+            FLOORPLAN_SERVICE_M2M_CLIENT_ID=${{ secrets.FLOORPLAN_SERVICE_M2M_CLIENT_ID }}
+            FLOORPLAN_SERVICE_M2M_CLIENT_SECRET=${{ secrets.FLOORPLAN_SERVICE_M2M_CLIENT_SECRET }}
             EOF
             echo "✅ Root .env file created successfully."
 
