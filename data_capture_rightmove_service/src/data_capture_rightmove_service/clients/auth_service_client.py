@@ -13,6 +13,18 @@ from data_capture_rightmove_service.config import settings
 logger = logging.getLogger(__name__)
 
 
+def print_color(text, color):
+    colors = {
+        "green": "\033[92m",
+        "yellow": "\033[93m",
+        "red": "\033[91m",
+        "blue": "\033[94m",
+        "magenta": "\033[95m",
+        "reset": "\033[0m",
+    }
+    print(f"{colors.get(color, '')}{text}{colors['reset']}")
+
+
 class AuthServiceClient:
     """
     Client for interacting with the Auth Service API for M2M authentication.
@@ -58,6 +70,10 @@ class AuthServiceClient:
             return self._token
 
         logger.info("Fetching new M2M token from Auth Service")
+
+        url = f"{self.base_url}/auth/token"
+        logger.info(f"Auth Service Client is attempting to connect to: {url}")
+        print_color(f"DEBUG: Connecting to Auth Service at URL: {url}", "magenta")
 
         try:
             async with httpx.AsyncClient() as client:

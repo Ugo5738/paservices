@@ -95,6 +95,8 @@ services:
     environment:
       - PYTHONPATH=/app/src
       - DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_JWT_SECRET_KEY=${SHARED_M2M_JWT_SECRET_KEY}
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL=http://auth_service:8000/api/v1
+      - DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL=http://super_id_service:8000/api/v1
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.data-capture-service.rule=Host(`${DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN}`)"
