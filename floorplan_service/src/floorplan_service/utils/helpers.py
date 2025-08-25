@@ -3,7 +3,7 @@ from io import BytesIO
 from urllib.parse import urlparse
 
 import boto3
-import requests
+import httpx
 from PIL import Image
 
 from ..config import settings
@@ -69,7 +69,7 @@ def convert_gif_to_jpeg_and_upload_to_s3(super_id, url, property_id):
     logger.info(f"Converting GIF to JPEG for URL: {url}")
     try:
         # Download the GIF
-        response = requests.get(url, stream=True, timeout=30)
+        response = httpx.get(url, stream=True, timeout=30)
         response.raise_for_status()
 
         # Generate a new filename (replacing .gif with .jpg)
