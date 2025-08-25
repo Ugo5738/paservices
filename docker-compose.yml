@@ -63,6 +63,58 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # # --- DJANGO SERVICE ---
+  # sanalysis_service:
+  #   container_name: sanalysis-app # Use a consistent name
+  #   build:
+  #     context: ./sanalysis # The path to your Django project from the root
+  #     dockerfile: Dockerfile
+  #   command: >
+  #     sh -c "
+  #       daphne analysis_service.asgi:application -b 0.0.0.0 -p 8000
+  #     "
+  #   volumes:
+  #     - ./sanalysis:/code # Mount the Django project code
+  #   ports:
+  #     - "8000:8000" # Expose port 8000 to your local machine
+  #   depends_on:
+  #     - sanalysis_redis # Make it depend on its own Redis
+  #   networks:
+  #     - paservices_network
+  #     - supabase_network_paservices
+  #   env_file:
+  #     - ./sanalysis/.env # Path to the .env file from the root
+
+  # sanalysis_redis:
+  #   container_name: sanalysis-app-redis
+  #   image: redis:latest
+  #   networks:
+  #     - paservices_network
+
+  # sanalysis_celery:
+  #   container_name: sanalysis-app-celery
+  #   build:
+  #     context: ./sanalysis
+  #     dockerfile: Dockerfile
+  #   command: >
+  #     sh -c "
+  #       echo 'Waiting for sanalysis_service and redis...';
+  #       while ! nc -z sanalysis_service 8000 || ! nc -z sanalysis_redis 6379; do
+  #         sleep 1;
+  #       done;
+  #       echo 'sanalysis_service and Redis are up - starting celery worker';
+  #       celery -A analysis_service worker --loglevel=info
+  #     "
+  #   volumes:
+  #     - ./sanalysis:/code
+  #   depends_on:
+  #     - sanalysis_redis
+  #     - sanalysis_service # The celery worker depends on the web service
+  #   networks:
+  #     - paservices_network
+  #   env_file:
+  #     - ./sanalysis/.env
+
 networks:
   paservices_network:
     name: paservices_network
