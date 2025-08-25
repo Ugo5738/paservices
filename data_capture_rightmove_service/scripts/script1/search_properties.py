@@ -154,10 +154,51 @@ async def get_super_id(
         return None
 
 
+def setup_clients():
+    """
+    Explicitly re-initializes service clients using environment variables.
+    This ensures the clients have the correct URLs when the script is run from 'exec'.
+    """
+    from data_capture_rightmove_service.clients.auth_service_client import (
+        auth_service_client,
+    )
+    from data_capture_rightmove_service.clients.super_id_service_client import (
+        super_id_service_client,
+    )
+    from data_capture_rightmove_service.config import settings
+
+    auth_url = os.getenv("DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL")
+    super_id_url = os.getenv("DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL")
+
+    if auth_url:
+        auth_service_client.base_url = auth_url
+        print_color(
+            f"DEBUG: Auth Service client re-initialized with URL: {auth_url}", "magenta"
+        )
+    else:
+        print_color(
+            "WARNING: DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_URL not set.", "red"
+        )
+
+    if super_id_url:
+        super_id_service_client.base_url = super_id_url
+        print_color(
+            f"DEBUG: Super ID Service client re-initialized with URL: {super_id_url}",
+            "magenta",
+        )
+    else:
+        print_color(
+            "WARNING: DATA_CAPTURE_RIGHTMOVE_SERVICE_SUPER_ID_SERVICE_URL not set.",
+            "red",
+        )
+
+
 async def main():
     """Main function to parse arguments and trigger the property search."""
     parser = setup_arg_parser()
     args = parser.parse_args()
+
+    setup_clients()
 
     print_color("🚀 Starting Property Search Workflow 🚀", "yellow")
     async with httpx.AsyncClient() as client:
