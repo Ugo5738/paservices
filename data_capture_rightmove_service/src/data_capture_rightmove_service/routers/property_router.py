@@ -810,18 +810,27 @@ async def process_property_search(
                 },
             )
 
+            await db.commit()
+
         except Exception as e:
             logger.error(
                 f"Background search task failed for {search_request.location_identifier}: {e}",
                 exc_info=True,
             )
+            await db.rollback()  # Good practice to explicitly rollback on error
+
             if super_id:
-                await event_crud.log_scrape_event(
-                    db,
-                    super_id,
-                    ScrapeEventTypeEnum.API_CALL_FAILURE,
-                    error_message=str(e),
-                )
+                # This log event might fail if the primary error was DB-related, but try anyway
+                try:
+                    await event_crud.log_scrape_event(
+                        db,
+                        super_id,
+                        ScrapeEventTypeEnum.API_CALL_FAILURE,
+                        error_message=str(e),
+                    )
+                    await db.commit()
+                except:
+                    await db.rollback()
         finally:
             pass  # The session will be closed automatically by the 'async with' block
 
