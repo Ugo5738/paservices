@@ -12,14 +12,16 @@ from jose import jwt
 
 # --- Configuration ---
 # NOTE: When running locally, ensure your services are mapped to these localhost ports in your root docker-compose.yml
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
-SUPER_ID_SERVICE_URL = os.getenv("SUPER_ID_SERVICE_URL", "http://localhost:8002")
-DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = os.getenv(
-    "DATA_CAPTURE_RIGHTMOVE_SERVICE_URL", "http://localhost:8003"
-)
+AUTH_SERVICE_URL = "http://auth_service:8000/api/v1"
+SUPER_ID_SERVICE_URL = "http://super_id_service:8000/api/v1"
+DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "http://data_capture_rightmove_service:8000/api/v1"
 
-M2M_CLIENT_ID = os.getenv("M2M_CLIENT_ID", "fe2c7655-0860-4d98-9034-cd5e1ac90a41")
-M2M_CLIENT_SECRET = os.getenv("M2M_CLIENT_SECRET", "dev-rightmove-service-secret")
+# AUTH_SERVICE_URL = "https://auth.supersami.com"
+# SUPER_ID_SERVICE_URL = "https://superid.supersami.com"
+# DATA_CAPTURE_SERVICE_URL = "https://data-capture-rightmove.supersami.com"
+
+M2M_CLIENT_ID = "fe2c7655-0860-4d98-9034-cd5e1ac90a41"
+M2M_CLIENT_SECRET = "dev-rightmove-service-secret"
 # This secret key MUST match the one used by your auth_service to sign the tokens.
 M2M_JWT_SECRET_KEY = os.getenv(
     "M2M_JWT_SECRET_KEY",
@@ -43,7 +45,7 @@ def print_color(text, color):
 # --- Service Interaction Functions ---
 async def get_auth_token(client: httpx.AsyncClient) -> Optional[Dict[str, Any]]:
     print_color("  - Authenticating with Auth Service...", "blue")
-    url = f"{AUTH_SERVICE_URL}/api/v1/auth/token"
+    url = f"{AUTH_SERVICE_URL}/auth/token"
     payload = {
         "grant_type": "client_credentials",
         "client_id": M2M_CLIENT_ID,
@@ -82,7 +84,7 @@ async def get_super_id(
     client: httpx.AsyncClient, token: str, description: str
 ) -> Optional[str]:
     print_color("  - Requesting new Super ID for this scrape task...", "blue")
-    url = f"{SUPER_ID_SERVICE_URL}/api/v1/super_ids"
+    url = f"{SUPER_ID_SERVICE_URL}/super_ids"
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"count": 1, "description": description}
     try:
@@ -100,7 +102,7 @@ async def trigger_detailed_scrape(
     client: httpx.AsyncClient, property_url: str, scrape_super_id: str
 ):
     print_color(f"  - Triggering detailed scrape for {property_url}...", "blue")
-    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/fetch/combined"
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/fetch/combined"
     headers = {"X-Super-ID": scrape_super_id}
     payload = {"property_url": property_url, "super_id": scrape_super_id}
     try:

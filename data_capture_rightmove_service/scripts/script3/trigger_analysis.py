@@ -17,17 +17,20 @@ from typing import Any, Dict, List, Optional
 import httpx
 
 # Shared utility functions
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
-DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = os.getenv(
-    "DATA_CAPTURE_RIGHTMOVE_SERVICE_URL", "http://localhost:8003"
-)
+AUTH_SERVICE_URL = "http://auth_service:8000/api/v1"
+DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "http://data_capture_rightmove_service:8000/api/v1"
+
+# AUTH_SERVICE_URL = "https://auth.supersami.com"
+# DATA_CAPTURE_SERVICE_URL = "https://data-capture-rightmove.supersami.com"
+
 EXTERNAL_ORCHESTRATION_URL = os.getenv(
     "ORCHESTRATION_API_URL",
     "https://api.supersami.com/api/orchestration/properties/analyze/",
 )
 EXTERNAL_TOKEN_URL = "https://api.supersami.com/api/auth/authenticate-phone/"
-M2M_CLIENT_ID = os.getenv("M2M_CLIENT_ID", "fe2c7655-0860-4d98-9034-cd5e1ac90a41")
-M2M_CLIENT_SECRET = os.getenv("M2M_CLIENT_SECRET", "dev-rightmove-service-secret")
+
+M2M_CLIENT_ID = "fe2c7655-0860-4d98-9034-cd5e1ac90a41"
+M2M_CLIENT_SECRET = "dev-rightmove-service-secret"
 
 
 def print_color(text, color):
@@ -44,7 +47,7 @@ def print_color(text, color):
 
 async def get_internal_auth_token(client: httpx.AsyncClient) -> Optional[str]:
     print_color("▶️  Authenticating with INTERNAL Auth Service...", "blue")
-    url = f"{AUTH_SERVICE_URL}/api/v1/auth/token"
+    url = f"{AUTH_SERVICE_URL}/auth/token"
     payload = {
         "grant_type": "client_credentials",
         "client_id": M2M_CLIENT_ID,
@@ -95,7 +98,7 @@ async def get_properties_for_analysis(
     print_color(
         "\n▶️  Step 2: Finding successfully SCRAPED properties to analyze...", "blue"
     )
-    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/scraped-listings"
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/scraped-listings"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "on_date": args.date,

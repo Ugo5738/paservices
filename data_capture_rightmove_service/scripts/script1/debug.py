@@ -1,3 +1,4 @@
+# scripts/search_properties.py
 #!/usr/bin/env python3
 """
 Triggers a property search based on a comprehensive set of specified criteria.
@@ -19,6 +20,10 @@ import httpx
 AUTH_SERVICE_URL = "http://auth_service:8000/api/v1"
 SUPER_ID_SERVICE_URL = "http://super_id_service:8000/api/v1"
 DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "http://data_capture_rightmove_service:8000/api/v1"
+
+# AUTH_SERVICE_URL = "https://auth.supersami.com"
+# SUPER_ID_SERVICE_URL = "https://superid.supersami.com"
+# DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "https://data-capture-rightmove.supersami.com"
 
 M2M_CLIENT_ID = "fe2c7655-0860-4d98-9034-cd5e1ac90a41"
 M2M_CLIENT_SECRET = "dev-rightmove-service-secret"

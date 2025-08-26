@@ -22,10 +22,10 @@ DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "http://data_capture_rightmove_service:8000
 
 # AUTH_SERVICE_URL = "https://auth.supersami.com"
 # SUPER_ID_SERVICE_URL = "https://superid.supersami.com"
-# DATA_CAPTURE_SERVICE_URL = "https://data-capture-rightmove.supersami.com"
+# DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "https://data-capture-rightmove.supersami.com"
 
-M2M_CLIENT_ID = os.getenv("M2M_CLIENT_ID", "fe2c7655-0860-4d98-9034-cd5e1ac90a41")
-M2M_CLIENT_SECRET = os.getenv("M2M_CLIENT_SECRET", "dev-rightmove-service-secret")
+M2M_CLIENT_ID = "fe2c7655-0860-4d98-9034-cd5e1ac90a41"
+M2M_CLIENT_SECRET = "dev-rightmove-service-secret"
 
 
 def print_color(text, color):
@@ -124,7 +124,8 @@ def setup_arg_parser() -> argparse.ArgumentParser:
 
 async def get_internal_auth_token(client: httpx.AsyncClient) -> Optional[str]:
     print_color("▶️  Step 1: Authenticating with INTERNAL Auth Service...", "blue")
-    url = f"{AUTH_SERVICE_URL}/api/v1/auth/token"
+    url = f"{AUTH_SERVICE_URL}/auth/token"
+    print(f"Attempting to POST to: {url}")
     payload = {
         "grant_type": "client_credentials",
         "client_id": M2M_CLIENT_ID,
@@ -132,13 +133,19 @@ async def get_internal_auth_token(client: httpx.AsyncClient) -> Optional[str]:
     }
     try:
         response = await client.post(url, json=payload)
-        response.raise_for_status()
-        print_color("✅  SUCCESS: Public authentication successful.", "green")
-        return response.json().get("access_token")
+
+        if response.status_code == 200:
+            print_color(
+                "✅ Successfully received a token from the auth_service.", "green"
+            )
+            return response.json().get("access_token")
+        else:
+            print(f"⚠️  REQUEST FAILED! Status Code: {response.status_code}")
+            print("   Response Body:")
+            print(response.text)
+            return None
     except Exception as e:
-        print_color(f"❌ ERROR: Internal authentication failed. Details: {e}", "red")
-        if hasattr(e, "response"):
-            print(e.response.text)
+        print_color(f"❌ AUTHENTICATION FAILED. Error: {e}", "red")
         return None
 
 
@@ -147,7 +154,7 @@ async def get_super_id(
 ) -> Optional[str]:
     """Requests a Super ID for tracking the search workflow."""
     print_color(f"▶️  Step 2: Requesting Super ID for: '{description}'...", "blue")
-    url = f"{SUPER_ID_SERVICE_URL}/api/v1/super_ids"
+    url = f"{SUPER_ID_SERVICE_URL}/super_ids"
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"count": 1, "description": description}
     try:
@@ -161,6 +168,77 @@ async def get_super_id(
         if hasattr(e, "response"):
             print(e.response.text)
         return None
+
+
+async def trigger_data_capture_rightmove_service_search(
+    client: httpx.AsyncClient,
+    token: str,
+    search_super_id: str,
+    args: argparse.Namespace,
+) -> None:
+    """Performs the data capture rightmove service search."""
+    print_color(
+        "▶️  Step 3: Triggering Data Capture Rightmove Service Search...", "blue"
+    )
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/search/for-sale"
+    headers = {"Authorization": f"Bearer {token}", "X-Super-ID": search_super_id}
+
+    # Build payload from all provided arguments, handling booleans correctly.
+    payload: Dict[str, Any] = {
+        "location_identifier": args.identifier,
+        "super_id": search_super_id,
+    }
+
+    args_dict = vars(args)
+
+    # Define the keys that are boolean flags.
+    boolean_keys = {
+        "has_garden",
+        "has_new_home",
+        "has_buying_schemes",
+        "has_parking",
+        "has_retirement_home",
+        "has_auction_property",
+        "has_include_under_offer_sold_stc",
+        "do_not_show_new_home",
+        "do_not_show_buying_schemes",
+        "do_not_show_retirement_home",
+    }
+
+    for key, value in args_dict.items():
+        if key in boolean_keys:
+            # For boolean flags from 'action="store_true"', the value will be True if present,
+            # and False if absent. We only want to send the parameter if it's True.
+            if value is True:
+                payload[key] = True
+        elif value is not None and key not in ["identifier", "dry_run"]:
+            # For all other arguments, add them to the payload if they have a value.
+            payload[key] = value
+
+    if args.dry_run:
+        print_color(
+            "[DRY RUN] Would send the following payload to the search endpoint:",
+            "yellow",
+        )
+        print(json.dumps(payload, indent=2))
+        print_color("\n🎉 Dry run for search complete. 🎉", "green")
+        sys.exit(0)
+
+    try:
+        response = await client.post(url, headers=headers, json=payload, timeout=30)
+        response.raise_for_status()
+        print_color(
+            f"✅ SUCCESS: Search request for '{args.identifier}' accepted.", "green"
+        )
+        print("   Processing will continue in the background.")
+    except httpx.HTTPStatusError as e:
+        print_color(
+            f"❌ ERROR: Search request failed with status {e.response.status_code}",
+            "red",
+        )
+        print(f"   Response: {e.response.text}")
+    except Exception as e:
+        print_color(f"❌ ERROR: Could not trigger property search. Details: {e}", "red")
 
 
 async def main():
@@ -180,71 +258,9 @@ async def main():
         if not search_super_id:
             sys.exit(1)
 
-        print_color("\n▶️  Step 3: Triggering Property Search...", "magenta")
-        url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/search/for-sale"
-        headers = {"Authorization": f"Bearer {token}", "X-Super-ID": search_super_id}
-
-        # Build payload from all provided arguments, handling booleans correctly.
-        payload: Dict[str, Any] = {
-            "location_identifier": args.identifier,
-            "super_id": search_super_id,
-        }
-
-        args_dict = vars(args)
-
-        # Define the keys that are boolean flags.
-        boolean_keys = {
-            "has_garden",
-            "has_new_home",
-            "has_buying_schemes",
-            "has_parking",
-            "has_retirement_home",
-            "has_auction_property",
-            "has_include_under_offer_sold_stc",
-            "do_not_show_new_home",
-            "do_not_show_buying_schemes",
-            "do_not_show_retirement_home",
-        }
-
-        for key, value in args_dict.items():
-            if key in boolean_keys:
-                # For boolean flags from 'action="store_true"', the value will be True if present,
-                # and False if absent. We only want to send the parameter if it's True.
-                if value is True:
-                    payload[key] = True
-            elif value is not None and key not in ["identifier", "dry_run"]:
-                # For all other arguments, add them to the payload if they have a value.
-                payload[key] = value
-
-        if args.dry_run:
-            print_color(
-                "[DRY RUN] Would send the following payload to the search endpoint:",
-                "yellow",
-            )
-            print(json.dumps(payload, indent=2))
-            print_color("\n🎉 Dry run for search complete. 🎉", "green")
-            sys.exit(0)
-
-        try:
-            response = await client.post(url, headers=headers, json=payload, timeout=30)
-            response.raise_for_status()
-            print_color(
-                f"✅ SUCCESS: Search request for '{args.identifier}' accepted.", "green"
-            )
-            print("   Processing will continue in the background.")
-            print_color("\n🎉 Search initiated successfully. 🎉", "green")
-        except httpx.HTTPStatusError as e:
-            print_color(
-                f"❌ ERROR: Search request failed with status {e.response.status_code}",
-                "red",
-            )
-            print(f"   Response: {e.response.text}")
-            sys.exit(1)
-        except Exception as e:
-            print_color(
-                f"❌ ERROR: Could not trigger property search. Details: {e}", "red"
-            )
-            sys.exit(1)
+        await trigger_data_capture_rightmove_service_search(
+            client, token, search_super_id, args
+        )
 
 
 if __name__ == "__main__":

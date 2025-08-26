@@ -15,14 +15,16 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-# Shared utility functions
-AUTH_SERVICE_URL = os.getenv("AUTH_SERVICE_URL", "http://localhost:8001")
-SUPER_ID_SERVICE_URL = os.getenv("SUPER_ID_SERVICE_URL", "http://localhost:8002")
-DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = os.getenv(
-    "DATA_CAPTURE_RIGHTMOVE_SERVICE_URL", "http://localhost:8003"
-)
-M2M_CLIENT_ID = os.getenv("M2M_CLIENT_ID", "fe2c7655-0860-4d98-9034-cd5e1ac90a41")
-M2M_CLIENT_SECRET = os.getenv("M2M_CLIENT_SECRET", "dev-rightmove-service-secret")
+AUTH_SERVICE_URL = "http://auth_service:8000/api/v1"
+SUPER_ID_SERVICE_URL = "http://super_id_service:8000/api/v1"
+DATA_CAPTURE_RIGHTMOVE_SERVICE_URL = "http://data_capture_rightmove_service:8000/api/v1"
+
+# AUTH_SERVICE_URL = "https://auth.supersami.com"
+# SUPER_ID_SERVICE_URL = "https://superid.supersami.com"
+# DATA_CAPTURE_SERVICE_URL = "https://data-capture-rightmove.supersami.com"
+
+M2M_CLIENT_ID = "fe2c7655-0860-4d98-9034-cd5e1ac90a41"
+M2M_CLIENT_SECRET = "dev-rightmove-service-secret"
 
 
 def print_color(text, color):
@@ -40,7 +42,7 @@ def print_color(text, color):
 async def get_internal_auth_token(client: httpx.AsyncClient) -> Optional[str]:
     """Fetches a single, fresh M2M token from the auth service."""
     print_color("▶️  Authenticating with INTERNAL Auth Service...", "blue")
-    url = f"{AUTH_SERVICE_URL}/api/v1/auth/token"
+    url = f"{AUTH_SERVICE_URL}/auth/token"
     payload = {
         "grant_type": "client_credentials",
         "client_id": M2M_CLIENT_ID,
@@ -60,7 +62,7 @@ async def get_super_id(
 ) -> Optional[str]:
     """Requests a Super ID for tracking using a provided token."""
     print_color("   - Requesting Super ID...", "blue")
-    url = f"{SUPER_ID_SERVICE_URL}/api/v1/super_ids"
+    url = f"{SUPER_ID_SERVICE_URL}/super_ids"
     headers = {"Authorization": f"Bearer {token}"}
     payload = {"count": 1, "description": description}
     try:
@@ -82,7 +84,7 @@ async def get_properties_to_scrape(
 ) -> Optional[List[Dict[str, Any]]]:
     """Retrieves properties from the database based on filter criteria."""
     print_color("\n▶️  Step 1: Finding properties to scrape...", "blue")
-    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/listings"
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/listings"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
         "on_date": args.date,
@@ -114,7 +116,7 @@ async def trigger_detailed_scrape(
 ) -> bool:
     """Triggers the detailed property scrape task using a provided token."""
     print_color("   - Triggering detailed scrape...", "blue")
-    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/api/v1/properties/fetch/combined"
+    url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/fetch/combined"
     headers = {"Authorization": f"Bearer {token}", "X-Super-ID": scrape_super_id}
     payload = {"property_url": property_url, "super_id": scrape_super_id}
     try:
