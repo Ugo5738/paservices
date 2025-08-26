@@ -59,7 +59,10 @@ from data_capture_rightmove_service.schemas.property_data import (  # Properties
     ScrapedListingResponse,
 )
 from data_capture_rightmove_service.utils.data_completeness import analyze_response
-from data_capture_rightmove_service.utils.logging_config import logger
+from data_capture_rightmove_service.utils.logging_config import (
+    configure_logging,
+    logger,
+)
 from data_capture_rightmove_service.utils.security import requires_scope, validate_token
 from data_capture_rightmove_service.utils.url_parsing import (
     extract_rightmove_property_id,
@@ -678,6 +681,8 @@ async def process_property_search(
     If `num_properties` is specified in the request, it will paginate through
     results until the threshold is met. Otherwise, it fetches a single page.
     """
+    configure_logging()
+
     super_id = search_request.super_id
     # Use a new DB session for the background task to ensure it's isolated.
     async with AsyncSessionLocal() as db:
