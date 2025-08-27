@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     """
 
     # Core settings
+    PROJECT_NAME: str = Field(
+        "Super ID Service",
+        alias="SUPER_ID_SERVICE_PROJECT_NAME",
+        description="Project name",
+    )
     ENVIRONMENT: Environment = Field(
         Environment.DEVELOPMENT,
         alias="SUPER_ID_SERVICE_ENVIRONMENT",

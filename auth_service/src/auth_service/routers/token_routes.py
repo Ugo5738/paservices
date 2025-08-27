@@ -23,6 +23,28 @@ router = APIRouter(
 )
 
 
+def _redact_sensitive(data):
+    SENSITIVE_KEYS = {
+        "password",
+        "token",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "secret",
+        "client_secret",
+        "api_key",
+        "code",
+    }
+    if isinstance(data, dict):
+        return {
+            k: ("<redacted>" if k.lower() in SENSITIVE_KEYS else _redact_sensitive(v))
+            for k, v in data.items()
+        }
+    if isinstance(data, list):
+        return [_redact_sensitive(v) for v in data]
+    return data
+
+
 @router.post(
     "/token",
     response_model=AccessTokenResponse,
@@ -122,6 +144,24 @@ async def get_client_token(
     - The resulting access token should be transmitted only over HTTPS
     - Tokens have a limited lifetime and should be refreshed as needed
     """
+    # Inbound request logging (strict redaction, no secrets/tokens)
+    try:
+        logger.info(
+            "Inbound request: token issuance",
+            extra={
+                "request": {
+                    "method": request.method,
+                    "path": request.url.path,
+                    "client_host": request.client.host if request.client else None,
+                    "user_agent": request.headers.get("user-agent"),
+                },
+                "body_excerpt": _redact_sensitive(token_request.model_dump()),
+            },
+        )
+    except Exception:
+        # Never block token path due to logging
+        pass
+
     # Validate grant type
     if token_request.grant_type != "client_credentials":
         logger.warning(f"Invalid grant_type '{token_request.grant_type}' provided")
@@ -210,8 +250,15 @@ async def get_client_token(
         expires_delta=expires_delta
     )
     
-    logger.info(f"Generated token for client ID '{token_request.client_id}'")
-    
+    logger.info(
+        "Outbound response: token issuance",
+        extra={
+            "status": status.HTTP_200_OK,
+            "client_id": token_request.client_id,
+            "expires_in": token_expiry_seconds,
+        },
+    )
+
     return AccessTokenResponse(
         access_token=token,
         token_type="Bearer",

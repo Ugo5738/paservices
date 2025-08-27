@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     """
 
     # Core service settings
+    PROJECT_NAME: str = Field(
+        "Data Capture Rightmove Service",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_PROJECT_NAME",
+        description="Project name",
+    )
     ENVIRONMENT: Environment = Field(
         Environment.DEVELOPMENT,
         alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_ENVIRONMENT",

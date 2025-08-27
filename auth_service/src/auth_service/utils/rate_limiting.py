@@ -1,5 +1,5 @@
 """
-Rate limiting configuration for Floorplan Service.
+Rate limiting configuration for Auth Service.
 """
 
 import uuid
@@ -10,6 +10,8 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.responses import JSONResponse
+
+from auth_service.config import settings
 
 # Import the service-specific settings and logger
 from ..config import settings

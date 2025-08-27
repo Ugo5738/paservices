@@ -1,5 +1,5 @@
 """
-Rate limiting configuration for Floorplan Service.
+Rate limiting configuration for Super ID Service.
 """
 
 import uuid

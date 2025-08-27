@@ -15,6 +15,7 @@ class Environment(str, Enum):
 
 class Settings(BaseSettings):
     # General App settings
+    PROJECT_NAME: str = Field("Auth Service", alias="AUTH_SERVICE_PROJECT_NAME")
     ENVIRONMENT: Environment = Field(
         Environment.DEVELOPMENT, alias="AUTH_SERVICE_ENVIRONMENT"
     )

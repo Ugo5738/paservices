@@ -1,8 +1,4 @@
-# main.py - Triggering a new build for multi-arch support
-import asyncio
 import datetime
-import os
-import sys
 import time
 from contextlib import asynccontextmanager
 
@@ -10,27 +6,23 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from gotrue.errors import AuthApiError
-from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
-from auth_service.bootstrap import bootstrap_admin_and_rbac
-from auth_service.config import settings
-from auth_service.db import AsyncSessionLocal, get_db
-from auth_service.logging_config import LoggingMiddleware, logger, setup_logging
-from auth_service.rate_limiting import limiter, setup_rate_limiting
-from auth_service.routers.admin_routes import router as admin_router
-from auth_service.routers.token_routes import router as token_router
-from auth_service.routers.user_auth_routes import router as user_auth_router
-from auth_service.schemas import MessageResponse
-from auth_service.supabase_client import close_supabase_clients
-from auth_service.supabase_client import (
-    get_supabase_client as get_general_supabase_client,
-)
-from auth_service.supabase_client import init_supabase_clients
+from .bootstrap import bootstrap_admin_and_rbac
+from .config import settings
+from .db import AsyncSessionLocal, get_db
+from .routers.admin_routes import router as admin_router
+from .routers.token_routes import router as token_router
+from .routers.user_auth_routes import router as user_auth_router
+from .schemas import MessageResponse
+from .supabase_client import close_supabase_clients
+from .supabase_client import get_supabase_client as get_general_supabase_client
+from .supabase_client import init_supabase_clients
+from .utils.logging_config import LoggingMiddleware, logger, setup_logging
+from .utils.rate_limiting import setup_rate_limiting
 
 
 @asynccontextmanager
@@ -206,10 +198,7 @@ app.startup_time = time.time()
 # Setup logging configuration
 setup_logging(app)
 
-# Setup rate limiting
-setup_rate_limiting(app)
-
-# Add logging middleware (after request_id middleware which is added in setup_logging)
+# Add logging middleware
 app.add_middleware(LoggingMiddleware)
 
 # CORS
@@ -219,6 +208,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup rate limiting
+setup_rate_limiting(app)
 
 # Include Routers
 # Note: FastAPI already applies root_path=/api/v1 to all routes, so we don't need additional prefixes

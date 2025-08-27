@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,34 @@ router = APIRouter(
 )
 
 
+def _redact_sensitive(data):
+    SENSITIVE_KEYS = {
+        "password",
+        "token",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "secret",
+        "client_secret",
+        "api_key",
+        "code",
+    }
+    if isinstance(data, dict):
+        return {
+            k: ("<redacted>" if k.lower() in SENSITIVE_KEYS else _redact_sensitive(v))
+            for k, v in data.items()
+        }
+    if isinstance(data, list):
+        return [_redact_sensitive(v) for v in data]
+    return data
+
+
+def _actor_from_admin(user: SupabaseUser) -> dict:
+    try:
+        return {"user_id": getattr(user, "id", None)}
+    except Exception:
+        return {"user_id": None}
+
 @router.post(
     "",
     response_model=PermissionResponse,
@@ -43,6 +71,7 @@ async def create_permission(
     permission_data: PermissionCreate,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request = None,
 ) -> PermissionResponse:
     """
     Create a new permission. This endpoint is restricted to admin users.
@@ -50,9 +79,22 @@ async def create_permission(
     - **name**: Unique name for the permission (e.g., 'users:read')
     - **description**: Optional description of the permission
     """
-    logger.info(
-        f"Admin user attempting to create permission with name: {permission_data.name}"
-    )
+    # Inbound log (no sensitive fields)
+    try:
+        logger.info(
+            "Inbound request: admin create permission",
+            extra={
+                "request": {
+                    "method": http_request.method if http_request else None,
+                    "path": http_request.url.path if http_request else None,
+                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "body_excerpt": _redact_sensitive(permission_data.model_dump()),
+            },
+        )
+    except Exception:
+        pass
 
     # Check if permission with the same name already exists
     query = select(Permission).where(Permission.name == permission_data.name)
@@ -76,7 +118,8 @@ async def create_permission(
         await db.refresh(new_permission)
 
         logger.info(
-            f"Successfully created permission: {new_permission.name} with ID: {new_permission.id}"
+            "Outbound response: admin create permission",
+            extra={"permission_id": str(new_permission.id), "name": new_permission.name},
         )
         return new_permission
     except IntegrityError as e:
@@ -116,6 +159,7 @@ async def list_permissions(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request = None,
 ) -> PermissionListResponse:
     """
     List all permissions with pagination and optional search. This endpoint is restricted to admin users.
@@ -124,9 +168,21 @@ async def list_permissions(
     - **limit**: Maximum number of permissions to return (pagination)
     - **search**: Optional search term for permission name
     """
-    logger.info(
-        f"Admin user retrieving permissions list with skip={skip}, limit={limit}, search={search}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin list permissions",
+            extra={
+                "request": {
+                    "method": http_request.method if http_request else None,
+                    "path": http_request.url.path if http_request else None,
+                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "query": {"skip": skip, "limit": limit, "search": search},
+            },
+        )
+    except Exception:
+        pass
 
     # Build base query
     query = select(Permission)
@@ -147,7 +203,10 @@ async def list_permissions(
     permissions = result.scalars().all()
     total_count = count_result.scalar_one()
 
-    logger.info(f"Retrieved {len(permissions)} permissions (total: {total_count})")
+    logger.info(
+        "Outbound response: admin list permissions",
+        extra={"count": len(permissions), "total": total_count},
+    )
 
     return PermissionListResponse(items=permissions, count=total_count)
 
@@ -170,13 +229,28 @@ async def get_permission(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request = None,
 ) -> PermissionResponse:
     """
     Get a specific permission by ID. This endpoint is restricted to admin users.
 
     - **permission_id**: The unique identifier of the permission to retrieve
     """
-    logger.info(f"Admin user retrieving permission with ID: {permission_id}")
+    try:
+        logger.info(
+            "Inbound request: admin get permission",
+            extra={
+                "request": {
+                    "method": http_request.method if http_request else None,
+                    "path": http_request.url.path if http_request else None,
+                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "permission_id": str(permission_id),
+            },
+        )
+    except Exception:
+        pass
 
     # Get the permission by ID
     permission = await db.get(Permission, permission_id)
@@ -211,6 +285,7 @@ async def update_permission(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request = None,
 ) -> PermissionResponse:
     """
     Update a permission. This endpoint is restricted to admin users.
@@ -219,7 +294,22 @@ async def update_permission(
     - **name**: New name for the permission (optional)
     - **description**: New description for the permission (optional)
     """
-    logger.info(f"Admin user attempting to update permission with ID: {permission_id}")
+    try:
+        logger.info(
+            "Inbound request: admin update permission",
+            extra={
+                "request": {
+                    "method": http_request.method if http_request else None,
+                    "path": http_request.url.path if http_request else None,
+                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "permission_id": str(permission_id),
+                "body_excerpt": _redact_sensitive(permission_data.model_dump()),
+            },
+        )
+    except Exception:
+        pass
 
     # Validate that at least one field is provided for update
     if not permission_data.name and permission_data.description is None:
@@ -265,7 +355,10 @@ async def update_permission(
         await db.commit()
         await db.refresh(permission)
 
-        logger.info(f"Successfully updated permission with ID: {permission_id}")
+        logger.info(
+            "Outbound response: admin update permission",
+            extra={"permission_id": str(permission_id)},
+        )
         return permission
     except IntegrityError as e:
         await db.rollback()
@@ -301,13 +394,28 @@ async def delete_permission(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request = None,
 ) -> MessageResponse:
     """
     Delete a permission. This endpoint is restricted to admin users.
 
     - **permission_id**: The unique identifier of the permission to delete
     """
-    logger.info(f"Admin user attempting to delete permission with ID: {permission_id}")
+    try:
+        logger.info(
+            "Inbound request: admin delete permission",
+            extra={
+                "request": {
+                    "method": http_request.method if http_request else None,
+                    "path": http_request.url.path if http_request else None,
+                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "permission_id": str(permission_id),
+            },
+        )
+    except Exception:
+        pass
 
     # Get the permission by ID
     permission = await db.get(Permission, permission_id)
@@ -325,7 +433,8 @@ async def delete_permission(
         await db.delete(permission)
         await db.commit()
         logger.info(
-            f"Successfully deleted permission '{permission_name}' with ID: {permission_id}"
+            "Outbound response: admin delete permission",
+            extra={"permission_id": str(permission_id), "name": permission_name},
         )
     except Exception as e:
         await db.rollback()

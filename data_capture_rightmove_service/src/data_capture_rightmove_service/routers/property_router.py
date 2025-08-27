@@ -10,7 +10,8 @@ import uuid
 from datetime import datetime, time, timedelta, timezone
 from typing import Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+import jwt
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -72,9 +73,47 @@ from data_capture_rightmove_service.utils.url_parsing import (
 router = APIRouter(prefix="/properties", tags=["Properties"])
 
 
+def _redact_sensitive(data):
+    SENSITIVE_KEYS = {
+        "password",
+        "token",
+        "access_token",
+        "refresh_token",
+        "authorization",
+        "secret",
+        "api_key",
+    }
+    if isinstance(data, dict):
+        return {
+            k: ("<redacted>" if k.lower() in SENSITIVE_KEYS else _redact_sensitive(v))
+            for k, v in data.items()
+        }
+    if isinstance(data, list):
+        return [_redact_sensitive(v) for v in data]
+    return data
+
+
+def _extract_actor_from_request(request: Request):
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return {"sub": None, "service": None}
+    token = auth.split(" ", 1)[1].strip()
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False})
+        return {
+            "sub": claims.get("sub"),
+            "service": claims.get("service")
+            or claims.get("client_id")
+            or claims.get("azp"),
+        }
+    except Exception:
+        return {"sub": None, "service": None}
+
+
 @router.post("/fetch/combined", response_model=CombinedPropertyResponse)
 async def fetch_combined_property_data(
     request: FetchPropertyDetailsRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> CombinedPropertyResponse:
     """
@@ -94,6 +133,25 @@ async def fetch_combined_property_data(
     Raises:
         HTTPException: If the property ID cannot be determined or other critical errors occur
     """
+    # Log the incoming request, including actor and super_id for business-level tracing
+    actor = _extract_actor_from_request(http_request)
+    payload_excerpt = _redact_sensitive(request.model_dump(mode="json"))
+    logger.info(
+        "Inbound request: fetch combined property data",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": (
+                    http_request.client.host if http_request.client else None
+                ),
+                "actor": actor,
+                "body_excerpt": payload_excerpt,
+            },
+            "super_id": str(request.super_id) if request.super_id else None,
+        },
+    )
+
     # Extract and validate the property ID from URL or direct ID input
     try:
         # Try to extract property ID from URL if provided, otherwise use direct property_id
@@ -103,38 +161,38 @@ async def fetch_combined_property_data(
             else None
         )
         if not extracted_id and not request.property_id:
-            raise HTTPException(
-                status_code=400,
-                detail="Either a valid Rightmove property URL or property ID must be provided",
+            raise ValueError(
+                "Either a valid Rightmove property URL or property ID must be provided"
             )
-
         property_id = int(extracted_id or request.property_id)
+
         logger.info(
-            f"Processing property ID: {property_id} from URL: {request.property_url}"
+            "Successfully parsed property identifier.",
+            extra={"property_id": property_id, "source_url": request.property_url},
         )
     except (ValueError, TypeError) as e:
-        logger.error(f"Failed to parse property ID: {str(e)}")
-        raise HTTPException(
-            status_code=400, detail=f"Invalid property ID format: {str(e)}"
+        logger.error(
+            "Failed to parse property identifier from request.",
+            extra={"request_body": request.model_dump(mode="json"), "error": str(e)},
+            exc_info=True,
         )
+        raise HTTPException(status_code=400, detail=f"Invalid property identifier: {e}")
 
     # Obtain or use provided super_id for tracking this request chain
     try:
         if request.super_id:
             super_id = request.super_id
             logger.info(
-                f"Using provided Super ID: {super_id} for property ID: {property_id}"
+                "Using provided Super ID.",
+                extra={"super_id": super_id, "property_id": property_id},
             )
-        # else:
-        #     super_id = await super_id_service_client.create_super_id(
-        #         description=f"Rightmove data capture for property ID: {property_id}"
-        #     )
-        #     logger.info(
-        #         f"Generated Super ID: {super_id} for property ID: {property_id}"
-        #     )
     except HTTPException as e:
         # If super_id service is unavailable, raise the exception to the client
-        logger.error(f"Super ID service error: {str(e)}")
+        logger.error(
+            "Failed to obtain Super ID from request.",
+            extra={"request_body": request.model_dump(mode="json"), "error": str(e)},
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=503,
             detail=f"Super ID service is required but unavailable: {str(e)}",
@@ -181,7 +239,12 @@ async def fetch_combined_property_data(
         # Step 1: Log API call attempt
         try:
             logger.info(
-                f"Calling Rightmove API endpoint: {endpoint} for property ID: {property_id}"
+                "Calling Rightmove API endpoint.",
+                extra={
+                    "endpoint": endpoint,
+                    "property_id": property_id,
+                    "super_id": super_id,
+                },
             )
             await event_crud.log_scrape_event(
                 db,
@@ -211,7 +274,14 @@ async def fetch_combined_property_data(
                 # Analyze the response for data completeness
                 item_count, null_count = analyze_response(raw_data)
                 logger.info(
-                    f"Received data from {endpoint}: {item_count} items, {null_count} null values"
+                    "Received data from API endpoint.",
+                    extra={
+                        "endpoint": endpoint,
+                        "property_id": property_id,
+                        "super_id": super_id,
+                        "item_count": item_count,
+                        "null_count": null_count,
+                    },
                 )
 
                 # Log successful API call
@@ -228,7 +298,17 @@ async def fetch_combined_property_data(
                         response_null_item_count=null_count,
                     )
                 except Exception as e:
-                    logger.error(f"Failed to log API success: {str(e)}")
+                    logger.error(
+                        "Failed to log API success.",
+                        extra={
+                            "endpoint": endpoint,
+                            "property_id": property_id,
+                            "super_id": super_id,
+                            "item_count": item_count,
+                            "null_count": null_count,
+                            "error": str(e),
+                        },
+                    )
                     # Roll back transaction to prevent PendingRollbackError
                     try:
                         await db.rollback()
@@ -240,7 +320,15 @@ async def fetch_combined_property_data(
             else:
                 message = "API returned empty response"
                 logger.warning(
-                    f"{message} for endpoint {endpoint} and property ID {property_id}"
+                    "API returned empty response.",
+                    extra={
+                        "endpoint": endpoint,
+                        "property_id": property_id,
+                        "super_id": super_id,
+                        "item_count": item_count,
+                        "null_count": null_count,
+                        "error": str(e),
+                    },
                 )
                 try:
                     await event_crud.log_scrape_event(
@@ -277,7 +365,15 @@ async def fetch_combined_property_data(
         except Exception as api_error:
             # Handle API call failure
             error_message = str(api_error)
-            logger.error(f"API call to {endpoint} failed: {error_message}")
+            logger.error(
+                "API call to endpoint failed.",
+                extra={
+                    "endpoint": endpoint,
+                    "property_id": property_id,
+                    "super_id": super_id,
+                    "error_message": error_message,
+                },
+            )
 
             # Log API call failure
             try:
@@ -291,7 +387,16 @@ async def fetch_combined_property_data(
                     error_message=error_message,
                 )
             except Exception as log_error:
-                logger.error(f"Failed to log API call failure: {str(log_error)}")
+                logger.error(
+                    "Failed to log API call failure.",
+                    extra={
+                        "endpoint": endpoint,
+                        "property_id": property_id,
+                        "super_id": super_id,
+                        "error_message": error_message,
+                        "log_error": str(log_error),
+                    },
+                )
                 # Roll back transaction to prevent PendingRollbackError
                 try:
                     await db.rollback()
@@ -408,7 +513,12 @@ async def fetch_combined_property_data(
             )
 
     logger.info(
-        f"Completed processing for property ID {property_id}, endpoints processed: {len(results)}"
+        "Outbound response: fetch combined property data",
+        extra={
+            "property_id": property_id,
+            "results_count": len(results),
+            "super_id": str(request.super_id) if request.super_id else None,
+        },
     )
     return CombinedPropertyResponse(
         property_id=property_id,
@@ -419,7 +529,8 @@ async def fetch_combined_property_data(
 
 @router.get("/validate-url", response_model=PropertyUrlResponse)
 async def validate_property_url(
-    url: str = Query(..., description="Rightmove property URL to validate")
+    url: str = Query(..., description="Rightmove property URL to validate"),
+    http_request: Request = None,
 ):
     """
     Validate a Rightmove property URL and extract the property ID.
@@ -447,12 +558,18 @@ async def validate_property_url(
                 message="Could not extract property ID from URL",
             )
 
-        return PropertyUrlResponse(
+        response = PropertyUrlResponse(
             url=url,
             valid=True,
             property_id=property_id,
             message=f"Successfully extracted property ID: {property_id}",
         )
+        if http_request is not None:
+            logger.info(
+                "Outbound response: validate property url",
+                extra={"status": 200, "valid": True, "property_id": property_id},
+            )
+        return response
     except Exception as e:
         logger.error(f"Error validating property URL: {str(e)}")
         return PropertyUrlResponse(
@@ -467,6 +584,7 @@ async def validate_property_url(
 async def fetch_property_details(
     request: FetchPropertyDetailsRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> PropertyDetailsStorageResponse:
     """
@@ -517,12 +635,21 @@ async def fetch_property_details(
         # Store in database
         success, message = await store_properties_details(db, property_data, super_id)
 
-        return PropertyDetailsStorageResponse(
+        response = PropertyDetailsStorageResponse(
             property_id=property_id,
             super_id=super_id,
             stored=success,
             message=message,
         )
+        logger.info(
+            "Outbound response: fetch property details",
+            extra={
+                "property_id": property_id,
+                "stored": success,
+                "super_id": str(super_id) if super_id else None,
+            },
+        )
+        return response
     except HTTPException:
         raise
     except Exception as e:
@@ -537,6 +664,7 @@ async def fetch_property_details(
 async def fetch_property_for_sale_details(
     request: FetchPropertyDetailsRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> PropertyDetailsStorageResponse:
     """
@@ -640,6 +768,7 @@ async def get_property_for_sale(
 async def search_properties_for_sale(
     request: PropertySearchRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
     update_existing: bool = Query(
         False,
         description="If true, update existing properties. If false, create new snapshot records.",
@@ -654,8 +783,21 @@ async def search_properties_for_sale(
     logger.info(f"Received search request payload: {request.model_dump()}")
     # ------------------------------------
 
+    actor = _extract_actor_from_request(http_request)
     logger.info(
-        f"Received request to search page {request.page_number} for location: {request.location_identifier}"
+        "Inbound request: search properties for sale",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": (
+                    http_request.client.host if http_request.client else None
+                ),
+                "actor": actor,
+            },
+            "body_excerpt": _redact_sensitive(request.model_dump(mode="json")),
+            "update_existing": update_existing,
+        },
     )
 
     # The background task handles everything from this point.
@@ -665,11 +807,16 @@ async def search_properties_for_sale(
         update_existing=update_existing,
     )
 
-    return MessageResponse(
+    response = MessageResponse(
         success=True,
         message=f"Accepted search request for location '{request.location_identifier}'. "
         "Processing will continue in the background.",
     )
+    logger.info(
+        "Outbound response: search properties for sale",
+        extra={"status": 202, "location_identifier": request.location_identifier},
+    )
+    return response
 
 
 async def process_property_search(
@@ -697,12 +844,6 @@ async def process_property_search(
                 )
             else:
                 description += f", page: {search_request.page_number}"
-
-            # # If no super_id was passed, generate one now.
-            # if not super_id:
-            #     description = f"Untracked property search for: {search_request.location_identifier}"
-            #     super_id = await super_id_service_client.create_super_id(description=description)
-            #     logger.warning(f"Search request had no super_id. Generated a new one: {super_id}")
 
             # 2. Log the initial request event
             await event_crud.log_scrape_event(

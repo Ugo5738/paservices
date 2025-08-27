@@ -9,15 +9,18 @@ from typing import Any, Dict, Optional
 from fastapi import FastAPI, Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
-from super_id_service.config import Environment, settings
+from ..config import Environment, settings
 
 # Configure logger
-logger = logging.getLogger("super_id_service")
+SERVICE_NAME = (
+    settings.PROJECT_NAME if hasattr(settings, "PROJECT_NAME") else "default_service"
+)
+logger = logging.getLogger(SERVICE_NAME)
 
 
-# Request ID context for correlating log entries from the same request
+# A thread-safe way to store the request ID for access within your application
 class RequestContext:
-    """Thread-local storage for request context such as request ID"""
+    """A context manager to store and access the request ID throughout a request's lifecycle."""
 
     _request_id: Optional[str] = None
 
@@ -35,7 +38,7 @@ class RequestContext:
 
 
 class RequestIdMiddleware(BaseHTTPMiddleware):
-    """Middleware to add request ID to each request"""
+    """FastAPI middleware to generate a unique request ID for every incoming request."""
 
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
@@ -46,86 +49,14 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class JsonFormatter(logging.Formatter):
-    """Custom JSON formatter for structured logging"""
-
-    def format(self, record: logging.LogRecord) -> str:
-        log_record = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-            "line": record.lineno,
-            # --- FIX: Use uppercase attribute ---
-            "environment": str(settings.ENVIRONMENT.value),
-        }
-        if request_id := RequestContext.get_request_id():
-            log_record["request_id"] = request_id
-        if record.exc_info:
-            log_record["exception"] = self.formatException(record.exc_info)
-        if hasattr(record, "extra") and record.extra:
-            log_record.update(record.extra)
-        return json.dumps(log_record)
-
-
-# For backward compatibility with imports
-def configure_logging():
-    """Configure logging for non-FastAPI applications like Alembic"""
-    setup_logging()
-
-
-def setup_logging(app: FastAPI = None) -> None:
-    """Configure logging for the application
-
-    Args:
-        app: Optional FastAPI application to add middleware to.
-             If None, only configures logging without middleware.
-    """
-    # --- FIX: Use uppercase attribute ---
-    log_level = getattr(logging, settings.LOGGING_LEVEL.upper(), logging.INFO)
-
-    root_logger = logging.getLogger()
-    if root_logger.hasHandlers():
-        root_logger.handlers.clear()
-
-    # --- FIX: Use uppercase attribute ---
-    if settings.ENVIRONMENT == Environment.PRODUCTION:
-        formatter = JsonFormatter()
-    else:
-        formatter = logging.Formatter(
-            "%(asctime)s - %(levelname)s - %(name)s - %(message)s"
-        )
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    root_logger.addHandler(console_handler)
-    root_logger.setLevel(log_level)
-
-    # Configure specific loggers if needed
-    logging.getLogger("auth_service").setLevel(log_level)
-    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
-
-    # Only add middleware if app is provided
-    if app:
-        app.add_middleware(RequestIdMiddleware)
-        logger.info(
-            # --- FIX: Use uppercase attribute ---
-            f"Logging configured with level {settings.LOGGING_LEVEL} "
-            f"and {'JSON' if settings.ENVIRONMENT == Environment.PRODUCTION else 'plain text'} format"
-        )
-
-
 class LoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware to log request and response information"""
+    """FastAPI middleware to log every request and its response automatically."""
 
     async def dispatch(self, request: Request, call_next):
-        if request.url.path in ["/health", "/internal/health"]:
-            return await call_next(request)
-
         start_time = time.time()
-        request_id = RequestContext.get_request_id()
+
+        # We don't log the request body here to avoid logging sensitive data by default.
+        # Sensitive endpoints should log their sanitized payloads manually.
 
         try:
             response = await call_next(request)
@@ -137,8 +68,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     "request": {
                         "method": request.method,
                         "path": request.url.path,
-                        "client_host": request.client.host,
-                        "request_id": request_id,
+                        "client_host": (
+                            request.client.host if request.client else "unknown"
+                        ),
                     },
                     "response": {
                         "status_code": response.status_code,
@@ -148,7 +80,75 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             )
             return response
         except Exception as e:
-            logger.error(
-                f"Request failed: {e}", exc_info=True, extra={"request_id": request_id}
-            )
+            logger.error(f"Request failed: {e}", exc_info=True)
             raise
+
+
+class JsonFormatter(logging.Formatter):
+    """A custom formatter to output logs in a structured JSON format."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_record = {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname.upper(),
+            "message": record.getMessage(),
+            "service": record.name,
+            "request_id": RequestContext.get_request_id(),
+            "location": f"{record.module}.{record.funcName}:{record.lineno}",
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        # Add any extra fields passed to the logger
+        if hasattr(record, "extra"):
+            log_record.update(record.extra)
+
+        return json.dumps(log_record)
+
+
+def setup_logging(app: Optional[FastAPI] = None) -> None:
+    """
+    Configures logging for the application.
+
+    Args:
+        app: An optional FastAPI app instance to which middleware will be added.
+    """
+    log_level = getattr(logging, settings.LOGGING_LEVEL.upper(), logging.INFO)
+
+    formatter = (
+        JsonFormatter()
+        if settings.is_production()
+        else logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    )
+
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(formatter)
+
+    # Configure the root logger
+    root_logger = logging.getLogger()
+    # Remove any existing handlers to avoid duplicate logs
+    if root_logger.hasHandlers():
+        root_logger.handlers.clear()
+    root_logger.addHandler(handler)
+    root_logger.setLevel(log_level)
+
+    # Configure your service's specific logger
+    service_logger = logging.getLogger(SERVICE_NAME)
+    service_logger.setLevel(log_level)
+
+    # Silence overly verbose libraries
+    logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
+
+    if app:
+        app.add_middleware(RequestIdMiddleware)
+        # The LoggingMiddleware is added separately in main.py for clarity on ordering.
+
+    logger.info(
+        f"Logging configured for '{SERVICE_NAME}' at level {settings.LOGGING_LEVEL}"
+    )
+
+
+# This is the backward-compatibility helper for scripts
+def configure_logging():
+    """Configure logging for non-FastAPI applications like Alembic."""
+    setup_logging()

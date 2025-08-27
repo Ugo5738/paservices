@@ -5,30 +5,17 @@ Main application entry point for the Data Capture Rightmove Service.
 import time
 from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from data_capture_rightmove_service.config import settings
-from data_capture_rightmove_service.routers.health_router import router as health_router
-from data_capture_rightmove_service.routers.property_router import (
-    router as property_router,
-)
-from data_capture_rightmove_service.supabase_client import init_supabase_clients
-from data_capture_rightmove_service.utils.logging_config import (
-    configure_logging,
-    logger,
-)
-from data_capture_rightmove_service.utils.rate_limiting import limiter
-from data_capture_rightmove_service.utils.security import validate_token
-
-# Configure logging using our custom configuration
-configure_logging()
+from .config import settings
+from .routers.health_router import router as health_router
+from .routers.property_router import router as property_router
+from .supabase_client import init_supabase_clients
+from .utils.logging_config import LoggingMiddleware, logger, setup_logging
+from .utils.rate_limiting import setup_rate_limiting
 
 
 @asynccontextmanager
@@ -74,6 +61,16 @@ app = FastAPI(
 )
 
 
+# Track app startup time for uptime monitoring in health checks
+app.startup_time = time.time()
+
+# Setup logging configuration
+setup_logging(app)
+
+
+# Add logging middleware
+app.add_middleware(LoggingMiddleware)
+
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -84,10 +81,8 @@ app.add_middleware(
 )
 
 
-# Add rate limiter middleware
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
+# Setup rate limiting
+setup_rate_limiting(app)
 
 # Include routers
 app.include_router(health_router, tags=["Health"])

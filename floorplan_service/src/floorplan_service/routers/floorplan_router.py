@@ -3,7 +3,9 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+import jwt
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -20,8 +22,33 @@ from ..services.analysis_service import (
     process_webhook_data_task,
     trigger_floorplan_analysis,
 )
+from ..utils.logging_config import logger
 
 router = APIRouter()
+
+
+def _redact_sensitive(data):
+    SENSITIVE_KEYS = {"password", "token", "access_token", "refresh_token", "authorization", "secret", "api_key"}
+    if isinstance(data, dict):
+        return {k: ("<redacted>" if k.lower() in SENSITIVE_KEYS else _redact_sensitive(v)) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_redact_sensitive(v) for v in data]
+    return data
+
+
+def _extract_actor_from_request(request: Request):
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return {"sub": None, "service": None}
+    token = auth.split(" ", 1)[1].strip()
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False})
+        return {
+            "sub": claims.get("sub"),
+            "service": claims.get("service") or claims.get("client_id") or claims.get("azp"),
+        }
+    except Exception:
+        return {"sub": None, "service": None}
 
 
 @router.post(
@@ -30,8 +57,22 @@ router = APIRouter()
 async def analyze_floorplans(
     request: FloorplanAnalysisRequest,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ):
     """Initiates floorplan analysis by sending data to an external service."""
+    actor = _extract_actor_from_request(http_request)
+    logger.info(
+        "Inbound request: floorplan analyze",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": http_request.client.host if http_request.client else None,
+                "actor": actor,
+            },
+            "body_excerpt": _redact_sensitive(request.model_dump()),
+        },
+    )
     background_tasks.add_task(
         trigger_floorplan_analysis,
         super_id=request.super_id,
@@ -40,7 +81,12 @@ async def analyze_floorplans(
             "floorplans"
         ],  # Use model_dump for Pydantic v2
     )
-    return MessageResponse(message="Floorplan analysis initiated.")
+    response = MessageResponse(message="Floorplan analysis initiated.")
+    logger.info(
+        "Outbound response: floorplan analyze",
+        extra={"status": status.HTTP_202_ACCEPTED, "super_id": str(request.super_id) if request.super_id else None},
+    )
+    return response
 
 
 @router.post(
@@ -49,27 +95,76 @@ async def analyze_floorplans(
 async def floorplan_webhook(
     payload: WebhookPayload,
     background_tasks: BackgroundTasks,
+    http_request: Request,
 ):
     """Webhook to receive results from the floorplan analysis service."""
+    actor = _extract_actor_from_request(http_request)
+    logger.info(
+        "Inbound request: floorplan webhook",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": http_request.client.host if http_request.client else None,
+                "actor": actor,
+            },
+            "body_excerpt": _redact_sensitive(payload.model_dump()),
+        },
+    )
     background_tasks.add_task(
         process_webhook_data_task,
         payload_data=payload.model_dump(),  # Use model_dump for Pydantic v2
     )
-    return MessageResponse(message="Webhook received. Processing initiated.")
+    response = MessageResponse(message="Webhook received. Processing initiated.")
+    logger.info(
+        "Outbound response: floorplan webhook",
+        extra={"status": status.HTTP_202_ACCEPTED},
+    )
+    return response
 
 
 @router.get("/properties", response_model=List[PropertyOverviewResponse])
-async def list_properties(db: AsyncSession = Depends(get_db)):
+async def list_properties(http_request: Request, db: AsyncSession = Depends(get_db)):
     """Lists all properties that have been analyzed."""
+    actor = _extract_actor_from_request(http_request)
+    logger.info(
+        "Inbound request: list floorplan properties",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": http_request.client.host if http_request.client else None,
+                "actor": actor,
+            }
+        },
+    )
     result = await db.execute(
         select(FpPropertyData).order_by(FpPropertyData.created_at.desc())
     )
-    return result.scalars().all()
+    items = result.scalars().all()
+    logger.info(
+        "Outbound response: list floorplan properties",
+        extra={"count": len(items)},
+    )
+    return items
 
 
 @router.get("/properties/{property_id}", response_model=List[PropertyDetailResponse])
-async def get_property_detail(property_id: str, db: AsyncSession = Depends(get_db)):
+async def get_property_detail(property_id: str, http_request: Request, db: AsyncSession = Depends(get_db)):
     """Retrieves all analysis results for a specific property ID."""
+    actor = _extract_actor_from_request(http_request)
+    logger.info(
+        "Inbound request: get floorplan property detail",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": http_request.client.host if http_request.client else None,
+                "actor": actor,
+            },
+            "property_id": property_id,
+        },
+    )
     result = await db.execute(
         select(FpPropertyData).where(FpPropertyData.property_id == property_id)
     )
@@ -78,12 +173,29 @@ async def get_property_detail(property_id: str, db: AsyncSession = Depends(get_d
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Property not found"
         )
+    logger.info(
+        "Outbound response: get floorplan property detail",
+        extra={"count": len(properties), "property_id": property_id},
+    )
     return properties
 
 
 @router.get("/floorplans/{floorplan_id}", response_model=PropertyDetailResponse)
-async def get_floorplan_detail(floorplan_id: str, db: AsyncSession = Depends(get_db)):
+async def get_floorplan_detail(floorplan_id: str, http_request: Request, db: AsyncSession = Depends(get_db)):
     """Retrieves the analysis result for a specific floorplan ID."""
+    actor = _extract_actor_from_request(http_request)
+    logger.info(
+        "Inbound request: get floorplan detail",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": http_request.client.host if http_request.client else None,
+                "actor": actor,
+            },
+            "floorplan_id": floorplan_id,
+        },
+    )
     result = await db.execute(
         select(FpPropertyData).where(FpPropertyData.floorplan_id == floorplan_id)
     )
@@ -92,4 +204,8 @@ async def get_floorplan_detail(floorplan_id: str, db: AsyncSession = Depends(get
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Floorplan not found"
         )
+    logger.info(
+        "Outbound response: get floorplan detail",
+        extra={"floorplan_id": floorplan_id},
+    )
     return floorplan

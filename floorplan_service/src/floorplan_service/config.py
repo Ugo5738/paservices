@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     """
 
     # Core service settings
+    PROJECT_NAME: str = Field(
+        "Floorplan Service",
+        alias="FLOORPLAN_SERVICE_PROJECT_NAME",
+        description="Project name",
+    )
     ENVIRONMENT: Environment = Field(
         Environment.DEVELOPMENT,
         alias="FLOORPLAN_SERVICE_ENVIRONMENT",

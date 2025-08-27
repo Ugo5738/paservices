@@ -4,18 +4,16 @@ Super ID Service - Main application entry point
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 
-from super_id_service.config import settings
-from super_id_service.db import AsyncSessionLocal, get_db
-from super_id_service.routers.health_router import router as health_router
-from super_id_service.routers.super_id_router import router as super_id_router
-from super_id_service.utils.logging_config import logger, setup_logging
+from .config import settings
+from .db import AsyncSessionLocal
+from .routers.health_router import router as health_router
+from .routers.super_id_router import router as super_id_router
+from .utils.logging_config import LoggingMiddleware, logger, setup_logging
+from .utils.rate_limiting import setup_rate_limiting
 
 
 @asynccontextmanager
@@ -32,7 +30,6 @@ async def lifespan(app: FastAPI):
 
     logger.info("Application startup complete.")
     yield
-    logger.info("Application shutdown sequence initiated.")
     logger.info("Application shutdown complete.")
 
 
@@ -45,8 +42,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Setup logging
+# Setup logging configuration
 setup_logging(app)
+
+# Add logging middleware
+app.add_middleware(LoggingMiddleware)
 
 # Add CORS middleware
 app.add_middleware(
@@ -56,6 +56,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Setup rate limiting
+setup_rate_limiting(app)
 
 # Include routers
 app.include_router(health_router, tags=["Health"])

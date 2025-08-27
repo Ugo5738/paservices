@@ -7,7 +7,8 @@ from functools import wraps
 from typing import Callable, Union
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+import jwt
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -47,6 +48,30 @@ def conditional_limiter(limit_value: str) -> Callable:
 router = APIRouter()
 
 
+def _redact_sensitive(data):
+    SENSITIVE_KEYS = {"password", "token", "access_token", "refresh_token", "authorization", "secret", "api_key"}
+    if isinstance(data, dict):
+        return {k: ("<redacted>" if k.lower() in SENSITIVE_KEYS else _redact_sensitive(v)) for k, v in data.items()}
+    if isinstance(data, list):
+        return [_redact_sensitive(v) for v in data]
+    return data
+
+
+def _extract_actor_from_request(request: Request):
+    auth = request.headers.get("authorization") or request.headers.get("Authorization")
+    if not auth or not auth.lower().startswith("bearer "):
+        return {"sub": None, "service": None}
+    token = auth.split(" ", 1)[1].strip()
+    try:
+        claims = jwt.decode(token, options={"verify_signature": False})
+        return {
+            "sub": claims.get("sub"),
+            "service": claims.get("service") or claims.get("client_id") or claims.get("azp"),
+        }
+    except Exception:
+        return {"sub": None, "service": None}
+
+
 @router.post(
     "",
     # Corrected response model name
@@ -59,6 +84,7 @@ router = APIRouter()
 # @conditional_limiter(settings.rate_limit_requests_per_minute)
 async def create_super_id(
     request: SuperIdRequest,
+    http_request: Request,
     token_data: TokenData = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
 ) -> Union[SingleSuperIDResponse, BatchSuperIDResponse]:
@@ -77,6 +103,20 @@ async def create_super_id(
     Raises:
         HTTPException: If database operations fail or permissions are insufficient.
     """
+    actor = _extract_actor_from_request(http_request)
+    logger.info(
+        "Inbound request: create super_id(s)",
+        extra={
+            "request": {
+                "method": http_request.method,
+                "path": http_request.url.path,
+                "client_host": http_request.client.host if http_request.client else None,
+                "actor": actor,
+            },
+            "body_excerpt": _redact_sensitive(request.model_dump()),
+        },
+    )
+
     if "super_id:generate" not in token_data.permissions:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -113,6 +153,16 @@ async def create_super_id(
         )
 
     if request.count == 1:
-        return SingleSuperIDResponse(super_id=generated_ids[0])
+        response = SingleSuperIDResponse(super_id=generated_ids[0])
+        logger.info(
+            "Outbound response: create single super_id",
+            extra={"count": 1, "super_id": str(generated_ids[0])},
+        )
+        return response
     else:
-        return BatchSuperIDResponse(super_ids=generated_ids)
+        response = BatchSuperIDResponse(super_ids=generated_ids)
+        logger.info(
+            "Outbound response: create batch super_ids",
+            extra={"count": len(generated_ids)},
+        )
+        return response
