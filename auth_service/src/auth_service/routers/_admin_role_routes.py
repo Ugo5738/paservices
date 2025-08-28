@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,44 @@ router = APIRouter(
 )
 
 
+# Local helpers for safe structured logging
+SENSITIVE_KEYS = {
+    "password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "secret",
+    "client_secret",
+    "api_key",
+    "code",
+}
+
+
+def _redact_sensitive(data: dict | None) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    redacted: dict = {}
+    for k, v in data.items():
+        if k and str(k).lower() in SENSITIVE_KEYS:
+            redacted[k] = "[REDACTED]"
+        else:
+            redacted[k] = v
+    return redacted
+
+
+def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
+    if not admin:
+        return None
+    try:
+        return {
+            "id": getattr(admin, "id", None),
+            "email": getattr(admin, "email", None),
+        }
+    except Exception:
+        return None
+
+
 @router.post(
     "",
     response_model=RoleResponse,
@@ -43,6 +81,7 @@ async def create_role(
     role_data: RoleCreate,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> RoleResponse:
     """
     Create a new role. This endpoint is restricted to admin users.
@@ -50,7 +89,25 @@ async def create_role(
     - **name**: Unique name for the role
     - **description**: Optional description of the role
     """
-    logger.info(f"Admin user attempting to create role with name: {role_data.name}")
+    try:
+        logger.info(
+            "Inbound request: admin create role",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "body_excerpt": _redact_sensitive(role_data.model_dump()),
+            },
+        )
+    except Exception:
+        pass
 
     # Check if role with the same name already exists
     query = select(Role).where(Role.name == role_data.name)
@@ -71,9 +128,16 @@ async def create_role(
         await db.commit()
         await db.refresh(new_role)
 
-        logger.info(
-            f"Successfully created role: {new_role.name} with ID: {new_role.id}"
-        )
+        try:
+            logger.info(
+                "Outbound response: admin create role",
+                extra={
+                    "status": 201,
+                    "role": {"id": str(new_role.id), "name": new_role.name},
+                },
+            )
+        except Exception:
+            pass
         return new_role
     except IntegrityError as e:
         await db.rollback()
@@ -112,6 +176,7 @@ async def list_roles(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> RoleListResponse:
     """
     List all roles with pagination and optional search. This endpoint is restricted to admin users.
@@ -120,9 +185,25 @@ async def list_roles(
     - **limit**: Maximum number of roles to return (pagination)
     - **search**: Optional search term for role name
     """
-    logger.info(
-        f"Admin user retrieving roles list with skip={skip}, limit={limit}, search={search}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin list roles",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "query": {"skip": skip, "limit": limit, "search": search},
+            },
+        )
+    except Exception:
+        pass
 
     # Build base query
     query = select(Role)
@@ -143,7 +224,17 @@ async def list_roles(
     roles = result.scalars().all()
     total_count = count_result.scalar_one()
 
-    logger.info(f"Retrieved {len(roles)} roles (total: {total_count})")
+    try:
+        logger.info(
+            "Outbound response: admin list roles",
+            extra={
+                "status": 200,
+                "count": len(roles),
+                "total": total_count,
+            },
+        )
+    except Exception:
+        pass
 
     return RoleListResponse(items=roles, count=total_count)
 
@@ -164,13 +255,32 @@ async def get_role(
     role_id: uuid.UUID = Path(..., description="The ID of the role to retrieve"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> RoleResponse:
     """
     Get a specific role by ID. This endpoint is restricted to admin users.
 
     - **role_id**: The unique identifier of the role to retrieve
     """
-    logger.info(f"Admin user retrieving role with ID: {role_id}")
+    try:
+        logger.info(
+            "Inbound request: admin get role",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"role_id": str(role_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Get the role by ID
     role = await db.get(Role, role_id)
@@ -203,6 +313,7 @@ async def update_role(
     role_id: uuid.UUID = Path(..., description="The ID of the role to update"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> RoleResponse:
     """
     Update a role. This endpoint is restricted to admin users.
@@ -211,7 +322,28 @@ async def update_role(
     - **name**: New name for the role (optional)
     - **description**: New description for the role (optional)
     """
-    logger.info(f"Admin user attempting to update role with ID: {role_id}")
+    try:
+        logger.info(
+            "Inbound request: admin update role",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"role_id": str(role_id)},
+                "body_excerpt": _redact_sensitive(
+                    role_data.model_dump(exclude_unset=True)
+                ),
+            },
+        )
+    except Exception:
+        pass
 
     # Validate that at least one field is provided for update
     if not role_data.name and role_data.description is None:
@@ -253,7 +385,13 @@ async def update_role(
         await db.commit()
         await db.refresh(role)
 
-        logger.info(f"Successfully updated role with ID: {role_id}")
+        try:
+            logger.info(
+                "Outbound response: admin update role",
+                extra={"status": 200, "role": {"id": str(role.id), "name": role.name}},
+            )
+        except Exception:
+            pass
         return role
     except IntegrityError as e:
         await db.rollback()
@@ -287,13 +425,32 @@ async def delete_role(
     role_id: uuid.UUID = Path(..., description="The ID of the role to delete"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> MessageResponse:
     """
     Delete a role. This endpoint is restricted to admin users.
 
     - **role_id**: The unique identifier of the role to delete
     """
-    logger.info(f"Admin user attempting to delete role with ID: {role_id}")
+    try:
+        logger.info(
+            "Inbound request: admin delete role",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"role_id": str(role_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Get the role by ID
     role = await db.get(Role, role_id)
@@ -310,7 +467,16 @@ async def delete_role(
         # Delete the role
         await db.delete(role)
         await db.commit()
-        logger.info(f"Successfully deleted role '{role_name}' with ID: {role_id}")
+        try:
+            logger.info(
+                "Outbound response: admin delete role",
+                extra={
+                    "status": 200,
+                    "role": {"id": str(role_id), "name": role_name},
+                },
+            )
+        except Exception:
+            pass
     except Exception as e:
         await db.rollback()
         logger.error(f"Error deleting role '{role_name}' with ID {role_id}: {e}")

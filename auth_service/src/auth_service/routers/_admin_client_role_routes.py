@@ -1,7 +1,7 @@
 import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Path, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Request, status
 from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -22,6 +22,41 @@ from auth_service.schemas.user_schemas import SupabaseUser
 router = APIRouter(tags=["admin", "client-roles"])
 logger = logging.getLogger(__name__)
 
+# Local helpers for safe structured logging
+SENSITIVE_KEYS = {
+    "password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "secret",
+    "client_secret",
+    "client_secret_hash",
+    "api_key",
+    "code",
+}
+
+
+def _redact_sensitive(data: dict | None) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    redacted: dict = {}
+    for k, v in data.items():
+        if k and str(k).lower() in SENSITIVE_KEYS:
+            redacted[k] = "[REDACTED]"
+        else:
+            redacted[k] = v
+    return redacted
+
+
+def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
+    if not admin:
+        return None
+    try:
+        return {"id": getattr(admin, "id", None), "email": getattr(admin, "email", None)}
+    except Exception:
+        return None
+
 
 @router.post(
     "/{client_id}/roles",
@@ -34,11 +69,27 @@ async def assign_role_to_client(
     client_id: uuid.UUID = Path(..., description="ID of the app client"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> AppClientRoleResponse:
     """Assign a role to an app client. Admin only."""
-    logger.info(
-        f"Admin user attempting to assign role {role_assignment.role_id} to app client {client_id}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin assign role to app client",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(current_admin),
+                },
+                "params": {"client_id": str(client_id)},
+                "body_excerpt": _redact_sensitive(role_assignment.model_dump()),
+            },
+        )
+    except Exception:
+        pass
 
     # Check if role exists
     role_query = select(Role).where(Role.id == role_assignment.role_id)
@@ -86,7 +137,17 @@ async def assign_role_to_client(
     await db.commit()
     await db.refresh(new_client_role)
 
-    logger.info(f"Successfully assigned role '{role.name}' to app client {client_id}")
+    try:
+        logger.info(
+            "Outbound response: admin assign role to app client",
+            extra={
+                "status": 201,
+                "client_id": str(client_id),
+                "role": {"id": str(role.id), "name": role.name},
+            },
+        )
+    except Exception:
+        pass
 
     return AppClientRoleResponse(
         app_client_id=new_client_role.app_client_id,
@@ -104,9 +165,26 @@ async def list_client_roles(
     client_id: uuid.UUID = Path(..., description="ID of the app client"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> AppClientRoleListResponse:
     """List all roles assigned to an app client. Admin only."""
-    logger.info(f"Admin user listing roles for app client {client_id}")
+    try:
+        logger.info(
+            "Inbound request: admin list client roles",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(current_admin),
+                },
+                "params": {"client_id": str(client_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Check if app client exists
     client_query = select(AppClient).where(AppClient.id == client_id)
@@ -138,6 +216,17 @@ async def list_client_roles(
         for client_role in client_roles
     ]
 
+    try:
+        logger.info(
+            "Outbound response: admin list client roles",
+            extra={
+                "status": 200,
+                "client_id": str(client_id),
+                "count": len(client_role_responses),
+            },
+        )
+    except Exception:
+        pass
     return AppClientRoleListResponse(
         items=client_role_responses, count=len(client_role_responses)
     )
@@ -153,11 +242,26 @@ async def remove_role_from_client(
     role_id: uuid.UUID = Path(..., description="ID of the role to remove"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> MessageResponse:
     """Remove a role from an app client. Admin only."""
-    logger.info(
-        f"Admin user attempting to remove role {role_id} from app client {client_id}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin remove role from app client",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(current_admin),
+                },
+                "params": {"client_id": str(client_id), "role_id": str(role_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Check if app client exists
     client_query = select(AppClient).where(AppClient.id == client_id)
@@ -199,6 +303,16 @@ async def remove_role_from_client(
     await db.delete(client_role)
     await db.commit()
 
-    logger.info(f"Successfully removed role '{role.name}' from app client {client_id}")
+    try:
+        logger.info(
+            "Outbound response: admin remove role from app client",
+            extra={
+                "status": 200,
+                "client_id": str(client_id),
+                "role": {"id": str(role.id), "name": role.name},
+            },
+        )
+    except Exception:
+        pass
 
     return MessageResponse(message=f"Successfully removed role from app client")

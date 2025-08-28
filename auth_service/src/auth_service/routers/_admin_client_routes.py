@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,6 +34,42 @@ router = APIRouter(
 )
 
 
+# Local helpers for safe structured logging
+SENSITIVE_KEYS = {
+    "password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "secret",
+    "client_secret",
+    "client_secret_hash",
+    "api_key",
+    "code",
+}
+
+
+def _redact_sensitive(data: dict | None) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    redacted: dict = {}
+    for k, v in data.items():
+        if k and str(k).lower() in SENSITIVE_KEYS:
+            redacted[k] = "[REDACTED]"
+        else:
+            redacted[k] = v
+    return redacted
+
+
+def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
+    if not admin:
+        return None
+    try:
+        return {"id": getattr(admin, "id", None), "email": getattr(admin, "email", None)}
+    except Exception:
+        return None
+
+
 @router.post(
     "",
     response_model=AppClientCreatedResponse,
@@ -50,6 +86,7 @@ async def create_app_client(
     client_data: AppClientCreateRequest,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),  # Ensures admin access
+    http_request: Request | None = None,
 ) -> AppClientCreatedResponse:
     """
     Create a new application client. This endpoint is restricted to admin users.
@@ -59,9 +96,23 @@ async def create_app_client(
     - **allowed_callback_urls**: Optional list of callback URLs.
     - **assigned_roles**: Optional list of role names to assign to the client.
     """
-    logger.info(
-        f"Admin user attempting to create app client: {client_data.client_name}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin create app client",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "body_excerpt": _redact_sensitive(client_data.model_dump()),
+            },
+        )
+    except Exception:
+        pass
 
     # Check if client name already exists
     existing_client_stmt = select(AppClient).where(
@@ -111,9 +162,16 @@ async def create_app_client(
         db.add(new_client)
         await db.commit()
         await db.refresh(new_client)
-        logger.info(
-            f"Successfully created app client '{new_client.client_name}' with ID: {new_client.id}"
-        )
+        try:
+            logger.info(
+                "Outbound response: admin create app client",
+                extra={
+                    "status": 201,
+                    "client": {"id": str(new_client.id), "name": new_client.client_name},
+                },
+            )
+        except Exception:
+            pass
     except IntegrityError as e:
         await db.rollback()
         logger.error(
@@ -169,6 +227,7 @@ async def list_app_clients(
         100, ge=1, le=100, description="Maximum number of items to return"
     ),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
+    http_request: Request | None = None,
 ) -> AppClientListResponse:
     """
     List all application clients. This endpoint is restricted to admin users.
@@ -177,9 +236,23 @@ async def list_app_clients(
     - **limit**: Maximum number of items to return (pagination).
     - **is_active**: Optional filter for active status.
     """
-    logger.info(
-        f"Admin user retrieving list of app clients with params: skip={skip}, limit={limit}, is_active={is_active}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin list app clients",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "query": {"skip": skip, "limit": limit, "is_active": is_active},
+            },
+        )
+    except Exception:
+        pass
 
     # Build query
     query = select(AppClient)
@@ -225,6 +298,13 @@ async def list_app_clients(
             )
         )
 
+    try:
+        logger.info(
+            "Outbound response: admin list app clients",
+            extra={"status": 200, "count": len(client_list), "total": total_count},
+        )
+    except Exception:
+        pass
     return AppClientListResponse(clients=client_list, count=total_count)
 
 
@@ -245,13 +325,30 @@ async def get_app_client(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> AppClientResponse:
     """
     Get a specific application client by ID. This endpoint is restricted to admin users.
 
     - **client_id**: The unique identifier of the app client to retrieve.
     """
-    logger.info(f"Admin user retrieving app client with ID: {client_id}")
+    try:
+        logger.info(
+            "Inbound request: admin get app client",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"client_id": str(client_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Get the client by ID
     client = await db.get(AppClient, client_id)
@@ -297,6 +394,7 @@ async def update_app_client(
     client_id: uuid.UUID = Path(..., description="The ID of the app client to update"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> AppClientResponse:
     """
     Update an application client. This endpoint is restricted to admin users.
@@ -307,7 +405,24 @@ async def update_app_client(
     - **allowed_callback_urls**: New list of allowed callback URLs (optional).
     - **is_active**: New active status (optional).
     """
-    logger.info(f"Admin user attempting to update app client with ID: {client_id}")
+    try:
+        logger.info(
+            "Inbound request: admin update app client",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"client_id": str(client_id)},
+                "body_excerpt": _redact_sensitive(client_data.model_dump(exclude_unset=True)),
+            },
+        )
+    except Exception:
+        pass
 
     # Get the client by ID
     client = await db.get(AppClient, client_id)
@@ -359,9 +474,16 @@ async def update_app_client(
             # Refresh to get relationships
             await db.refresh(client, ["roles"])
 
-            logger.info(
-                f"Successfully updated app client '{client.client_name}' with ID: {client.id}"
-            )
+            try:
+                logger.info(
+                    "Outbound response: admin update app client",
+                    extra={
+                        "status": 200,
+                        "client": {"id": str(client.id), "name": client.client_name},
+                    },
+                )
+            except Exception:
+                pass
         except IntegrityError as e:
             await db.rollback()
             logger.error(
@@ -412,13 +534,30 @@ async def delete_app_client(
     client_id: uuid.UUID = Path(..., description="The ID of the app client to delete"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> MessageResponse:
     """
     Delete an application client. This endpoint is restricted to admin users.
 
     - **client_id**: The unique identifier of the app client to delete.
     """
-    logger.info(f"Admin user attempting to delete app client with ID: {client_id}")
+    try:
+        logger.info(
+            "Inbound request: admin delete app client",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host if http_request and http_request.client else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"client_id": str(client_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Get the client by ID
     client = await db.get(AppClient, client_id)
@@ -435,9 +574,16 @@ async def delete_app_client(
         # Delete the client
         await db.delete(client)
         await db.commit()
-        logger.info(
-            f"Successfully deleted app client '{client_name}' with ID: {client_id}"
-        )
+        try:
+            logger.info(
+                "Outbound response: admin delete app client",
+                extra={
+                    "status": 200,
+                    "client": {"id": str(client_id), "name": client_name},
+                },
+            )
+        except Exception:
+            pass
     except Exception as e:
         await db.rollback()
         logger.error(

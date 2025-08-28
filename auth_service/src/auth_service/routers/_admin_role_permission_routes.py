@@ -2,7 +2,7 @@ import logging
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,6 +28,44 @@ router = APIRouter(
 )
 
 
+# Local helpers for safe structured logging
+SENSITIVE_KEYS = {
+    "password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "authorization",
+    "secret",
+    "client_secret",
+    "api_key",
+    "code",
+}
+
+
+def _redact_sensitive(data: dict | None) -> dict | None:
+    if not isinstance(data, dict):
+        return None
+    redacted: dict = {}
+    for k, v in data.items():
+        if k and str(k).lower() in SENSITIVE_KEYS:
+            redacted[k] = "[REDACTED]"
+        else:
+            redacted[k] = v
+    return redacted
+
+
+def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
+    if not admin:
+        return None
+    try:
+        return {
+            "id": getattr(admin, "id", None),
+            "email": getattr(admin, "email", None),
+        }
+    except Exception:
+        return None
+
+
 @router.post(
     "",
     response_model=RolePermissionResponse,
@@ -49,6 +87,7 @@ async def assign_permission_to_role(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> RolePermissionResponse:
     """
     Assign a permission to a role. This endpoint is restricted to admin users.
@@ -56,9 +95,26 @@ async def assign_permission_to_role(
     - **role_id**: The unique identifier of the role
     - **permission_id**: The unique identifier of the permission to assign
     """
-    logger.info(
-        f"Admin user attempting to assign permission {role_assignment.permission_id} to role {role_id}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin assign permission to role",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"role_id": str(role_id)},
+                "body_excerpt": _redact_sensitive(role_assignment.model_dump()),
+            },
+        )
+    except Exception:
+        pass
 
     # Verify the role exists
     role = await db.get(Role, role_id)
@@ -106,9 +162,17 @@ async def assign_permission_to_role(
         await db.commit()
         await db.refresh(role_permission)
 
-        logger.info(
-            f"Successfully assigned permission '{permission.name}' to role '{role.name}'"
-        )
+        try:
+            logger.info(
+                "Outbound response: admin assign permission to role",
+                extra={
+                    "status": 201,
+                    "role_id": str(role_id),
+                    "permission_id": str(role_assignment.permission_id),
+                },
+            )
+        except Exception:
+            pass
         return role_permission
     except IntegrityError as e:
         await db.rollback()
@@ -144,13 +208,32 @@ async def list_role_permissions(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> RolePermissionListResponse:
     """
     List all permissions assigned to a role. This endpoint is restricted to admin users.
 
     - **role_id**: The unique identifier of the role to list permissions for
     """
-    logger.info(f"Admin user retrieving permissions for role with ID: {role_id}")
+    try:
+        logger.info(
+            "Inbound request: admin list role permissions",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {"role_id": str(role_id)},
+            },
+        )
+    except Exception:
+        pass
 
     # Verify the role exists
     role = await db.get(Role, role_id)
@@ -176,7 +259,17 @@ async def list_role_permissions(
     role_permissions = result.scalars().all()
     total_count = count_result.scalar_one()
 
-    logger.info(f"Retrieved {len(role_permissions)} permissions for role '{role.name}'")
+    try:
+        logger.info(
+            "Outbound response: admin list role permissions",
+            extra={
+                "status": 200,
+                "count": len(role_permissions),
+                "role_id": str(role_id),
+            },
+        )
+    except Exception:
+        pass
 
     return RolePermissionListResponse(items=role_permissions, count=total_count)
 
@@ -202,6 +295,7 @@ async def remove_permission_from_role(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
+    http_request: Request | None = None,
 ) -> MessageResponse:
     """
     Remove a permission from a role. This endpoint is restricted to admin users.
@@ -209,9 +303,28 @@ async def remove_permission_from_role(
     - **role_id**: The unique identifier of the role
     - **permission_id**: The unique identifier of the permission to remove
     """
-    logger.info(
-        f"Admin user attempting to remove permission {permission_id} from role {role_id}"
-    )
+    try:
+        logger.info(
+            "Inbound request: admin remove permission from role",
+            extra={
+                "request": {
+                    "method": (http_request.method if http_request else None),
+                    "path": (http_request.url.path if http_request else None),
+                    "client_host": (
+                        http_request.client.host
+                        if http_request and http_request.client
+                        else None
+                    ),
+                    "actor": _actor_from_admin(_current_admin),
+                },
+                "params": {
+                    "role_id": str(role_id),
+                    "permission_id": str(permission_id),
+                },
+            },
+        )
+    except Exception:
+        pass
 
     # Verify the role exists
     role = await db.get(Role, role_id)
@@ -251,9 +364,17 @@ async def remove_permission_from_role(
     try:
         await db.delete(assignment)
         await db.commit()
-        logger.info(
-            f"Successfully removed permission '{permission.name}' from role '{role.name}'"
-        )
+        try:
+            logger.info(
+                "Outbound response: admin remove permission from role",
+                extra={
+                    "status": 200,
+                    "role_id": str(role_id),
+                    "permission_id": str(permission_id),
+                },
+            )
+        except Exception:
+            pass
         return MessageResponse(
             message=f"Permission '{permission.name}' successfully removed from role '{role.name}'"
         )
