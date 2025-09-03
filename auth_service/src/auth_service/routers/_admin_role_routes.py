@@ -78,10 +78,10 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     },
 )
 async def create_role(
+    request: Request,
     role_data: RoleCreate,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> RoleResponse:
     """
     Create a new role. This endpoint is restricted to admin users.
@@ -94,12 +94,10 @@ async def create_role(
             "Inbound request: admin create role",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -167,6 +165,7 @@ async def create_role(
     },
 )
 async def list_roles(
+    request: Request,
     skip: int = Query(0, ge=0, description="Number of roles to skip"),
     limit: int = Query(
         100, ge=1, le=100, description="Maximum number of roles to return"
@@ -176,7 +175,6 @@ async def list_roles(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> RoleListResponse:
     """
     List all roles with pagination and optional search. This endpoint is restricted to admin users.
@@ -190,12 +188,10 @@ async def list_roles(
             "Inbound request: admin list roles",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -252,10 +248,10 @@ async def list_roles(
     },
 )
 async def get_role(
+    request: Request,
     role_id: uuid.UUID = Path(..., description="The ID of the role to retrieve"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> RoleResponse:
     """
     Get a specific role by ID. This endpoint is restricted to admin users.
@@ -267,12 +263,10 @@ async def get_role(
             "Inbound request: admin get role",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -309,11 +303,11 @@ async def get_role(
     },
 )
 async def update_role(
+    request: Request,
     role_data: RoleUpdate,
     role_id: uuid.UUID = Path(..., description="The ID of the role to update"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> RoleResponse:
     """
     Update a role. This endpoint is restricted to admin users.
@@ -327,12 +321,10 @@ async def update_role(
             "Inbound request: admin update role",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -422,10 +414,10 @@ async def update_role(
     },
 )
 async def delete_role(
+    request: Request,
     role_id: uuid.UUID = Path(..., description="The ID of the role to delete"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> MessageResponse:
     """
     Delete a role. This endpoint is restricted to admin users.
@@ -437,12 +429,10 @@ async def delete_role(
             "Inbound request: admin delete role",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },

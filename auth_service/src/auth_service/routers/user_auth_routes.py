@@ -18,16 +18,16 @@ from auth_service.dependencies import (
     get_current_supabase_user,
     oauth2_scheme,
 )
-from auth_service.rate_limiting import (
-    LOGIN_LIMIT,
-    PASSWORD_RESET_LIMIT,
-    REGISTRATION_LIMIT,
-    limiter,
-)
 from auth_service.schemas.common_schemas import MessageResponse
 from auth_service.schemas.user_schemas import *
 from auth_service.security_audit import *
 from auth_service.supabase_client import get_supabase_client
+from auth_service.utils.rate_limiting import (
+    LOGIN_LIMIT,
+    PASSWORD_RESET_LIMIT,
+    REGISTER_LIMIT,
+    limiter,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -143,7 +143,7 @@ async def login_magic_link(
 @router.post(
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
-@limiter.limit(REGISTRATION_LIMIT)
+@limiter.limit(REGISTER_LIMIT)
 async def register_user(
     request: Request,
     user_in: UserCreate,

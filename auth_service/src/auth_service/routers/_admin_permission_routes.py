@@ -54,6 +54,7 @@ def _actor_from_admin(user: SupabaseUser) -> dict:
     except Exception:
         return {"user_id": None}
 
+
 @router.post(
     "",
     response_model=PermissionResponse,
@@ -68,10 +69,10 @@ def _actor_from_admin(user: SupabaseUser) -> dict:
     },
 )
 async def create_permission(
+    request: Request,
     permission_data: PermissionCreate,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request = None,
 ) -> PermissionResponse:
     """
     Create a new permission. This endpoint is restricted to admin users.
@@ -85,9 +86,11 @@ async def create_permission(
             "Inbound request: admin create permission",
             extra={
                 "request": {
-                    "method": http_request.method if http_request else None,
-                    "path": http_request.url.path if http_request else None,
-                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "method": request.method if request else None,
+                    "path": request.url.path if request else None,
+                    "client_host": (
+                        request.client.host if request and request.client else None
+                    ),
                     "actor": _actor_from_admin(_current_admin),
                 },
                 "body_excerpt": _redact_sensitive(permission_data.model_dump()),
@@ -119,7 +122,10 @@ async def create_permission(
 
         logger.info(
             "Outbound response: admin create permission",
-            extra={"permission_id": str(new_permission.id), "name": new_permission.name},
+            extra={
+                "permission_id": str(new_permission.id),
+                "name": new_permission.name,
+            },
         )
         return new_permission
     except IntegrityError as e:
@@ -150,6 +156,7 @@ async def create_permission(
     },
 )
 async def list_permissions(
+    request: Request,
     skip: int = Query(0, ge=0, description="Number of permissions to skip"),
     limit: int = Query(
         100, ge=1, le=100, description="Maximum number of permissions to return"
@@ -159,7 +166,6 @@ async def list_permissions(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request = None,
 ) -> PermissionListResponse:
     """
     List all permissions with pagination and optional search. This endpoint is restricted to admin users.
@@ -173,9 +179,11 @@ async def list_permissions(
             "Inbound request: admin list permissions",
             extra={
                 "request": {
-                    "method": http_request.method if http_request else None,
-                    "path": http_request.url.path if http_request else None,
-                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "method": request.method if request else None,
+                    "path": request.url.path if request else None,
+                    "client_host": (
+                        request.client.host if request and request.client else None
+                    ),
                     "actor": _actor_from_admin(_current_admin),
                 },
                 "query": {"skip": skip, "limit": limit, "search": search},
@@ -224,12 +232,12 @@ async def list_permissions(
     },
 )
 async def get_permission(
+    request: Request,
     permission_id: uuid.UUID = Path(
         ..., description="The ID of the permission to retrieve"
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request = None,
 ) -> PermissionResponse:
     """
     Get a specific permission by ID. This endpoint is restricted to admin users.
@@ -241,9 +249,11 @@ async def get_permission(
             "Inbound request: admin get permission",
             extra={
                 "request": {
-                    "method": http_request.method if http_request else None,
-                    "path": http_request.url.path if http_request else None,
-                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "method": request.method if request else None,
+                    "path": request.url.path if request else None,
+                    "client_host": (
+                        request.client.host if request and request.client else None
+                    ),
                     "actor": _actor_from_admin(_current_admin),
                 },
                 "permission_id": str(permission_id),
@@ -279,13 +289,13 @@ async def get_permission(
     },
 )
 async def update_permission(
+    request: Request,
     permission_data: PermissionUpdate,
     permission_id: uuid.UUID = Path(
         ..., description="The ID of the permission to update"
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request = None,
 ) -> PermissionResponse:
     """
     Update a permission. This endpoint is restricted to admin users.
@@ -299,9 +309,11 @@ async def update_permission(
             "Inbound request: admin update permission",
             extra={
                 "request": {
-                    "method": http_request.method if http_request else None,
-                    "path": http_request.url.path if http_request else None,
-                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "method": request.method if request else None,
+                    "path": request.url.path if request else None,
+                    "client_host": (
+                        request.client.host if request and request.client else None
+                    ),
                     "actor": _actor_from_admin(_current_admin),
                 },
                 "permission_id": str(permission_id),
@@ -389,12 +401,12 @@ async def update_permission(
     },
 )
 async def delete_permission(
+    request: Request,
     permission_id: uuid.UUID = Path(
         ..., description="The ID of the permission to delete"
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request = None,
 ) -> MessageResponse:
     """
     Delete a permission. This endpoint is restricted to admin users.
@@ -406,9 +418,11 @@ async def delete_permission(
             "Inbound request: admin delete permission",
             extra={
                 "request": {
-                    "method": http_request.method if http_request else None,
-                    "path": http_request.url.path if http_request else None,
-                    "client_host": (http_request.client.host if http_request and http_request.client else None),
+                    "method": request.method if request else None,
+                    "path": request.url.path if request else None,
+                    "client_host": (
+                        request.client.host if request and request.client else None
+                    ),
                     "actor": _actor_from_admin(_current_admin),
                 },
                 "permission_id": str(permission_id),

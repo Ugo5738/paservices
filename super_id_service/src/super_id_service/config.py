@@ -69,6 +69,12 @@ class Settings(BaseSettings):
         validation_alias="SUPER_ID_SERVICE_AUTH_SERVICE_ISSUER",
     )
 
+    AUTH_SERVICE_ACQUISITION_URL: str = Field(
+        "https://auth.supersami.com/api/v1/auth/token",
+        alias="SUPER_ID_SERVICE_AUTH_SERVICE_ACQUISITION_URL",
+        description="Auth Service URL for token acquisition",
+    )
+
     # Rate limiting
     rate_limit_requests_per_minute: str = "60/minute"
 

@@ -66,6 +66,18 @@ class Settings(BaseSettings):
         description="Super ID Service URL for UUID generation",
     )
 
+    AUTH_SERVICE_ACQUISITION_URL: str = Field(
+        "https://auth.supersami.com/api/v1/auth/token",
+        alias="FLOORPLAN_SERVICE_AUTH_SERVICE_ACQUISITION_URL",
+        description="Auth Service URL for token acquisition",
+    )
+
+    SUPER_ID_SERVICE_ACQUISITION_URL: str = Field(
+        "https://superid.supersami.com/api/v1/super_ids",
+        alias="FLOORPLAN_SERVICE_SUPER_ID_SERVICE_ACQUISITION_URL",
+        description="Super ID Service URL for UUID generation",
+    )
+
     FLOORPLAN_ANALYZER_URL: str = Field(
         "http://floorplan_analyzer:8000/api/v1",
         alias="FLOORPLAN_SERVICE_INDIAN_FLOORPLAN_ANALYZER_URL",

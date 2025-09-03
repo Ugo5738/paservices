@@ -11,7 +11,8 @@ from jose import JWTError, jwt
 
 from supabase import Client, create_client
 from super_id_service.config import settings
-from super_id_service.schemas import TokenData
+
+from .schemas import TokenData
 
 logger = logging.getLogger(__name__)
 security = HTTPBearer()

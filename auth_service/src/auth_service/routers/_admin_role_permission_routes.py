@@ -81,13 +81,13 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     },
 )
 async def assign_permission_to_role(
+    request: Request,
     role_assignment: RolePermissionAssign,
     role_id: uuid.UUID = Path(
         ..., description="The ID of the role to assign the permission to"
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> RolePermissionResponse:
     """
     Assign a permission to a role. This endpoint is restricted to admin users.
@@ -100,12 +100,10 @@ async def assign_permission_to_role(
             "Inbound request: admin assign permission to role",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -203,12 +201,12 @@ async def assign_permission_to_role(
     },
 )
 async def list_role_permissions(
+    request: Request,
     role_id: uuid.UUID = Path(
         ..., description="The ID of the role to list permissions for"
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> RolePermissionListResponse:
     """
     List all permissions assigned to a role. This endpoint is restricted to admin users.
@@ -220,12 +218,10 @@ async def list_role_permissions(
             "Inbound request: admin list role permissions",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -287,6 +283,7 @@ async def list_role_permissions(
     },
 )
 async def remove_permission_from_role(
+    request: Request,
     role_id: uuid.UUID = Path(
         ..., description="The ID of the role to remove the permission from"
     ),
@@ -295,7 +292,6 @@ async def remove_permission_from_role(
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> MessageResponse:
     """
     Remove a permission from a role. This endpoint is restricted to admin users.
@@ -308,12 +304,10 @@ async def remove_permission_from_role(
             "Inbound request: admin remove permission from role",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },

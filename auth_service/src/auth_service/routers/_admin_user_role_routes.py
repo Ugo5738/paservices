@@ -67,11 +67,11 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     description="Assign a role to a user (admin only)",
 )
 async def assign_role_to_user(
+    request: Request,
     role_assignment: UserRoleAssign,
     user_id: uuid.UUID = Path(..., description="ID of the user"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> UserRoleResponse:
     """Assign a role to a user. Admin only."""
     try:
@@ -79,12 +79,10 @@ async def assign_role_to_user(
             "Inbound request: admin assign role to user",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(current_admin),
                 },
@@ -153,10 +151,10 @@ async def assign_role_to_user(
     description="List all roles assigned to a user (admin only)",
 )
 async def list_user_roles(
+    request: Request,
     user_id: uuid.UUID = Path(..., description="ID of the user"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> UserRoleListResponse:
     """List all roles assigned to a user. Admin only."""
     try:
@@ -164,12 +162,10 @@ async def list_user_roles(
             "Inbound request: admin list user roles",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(current_admin),
                 },
@@ -220,11 +216,11 @@ async def list_user_roles(
     description="Remove a role from a user (admin only)",
 )
 async def remove_role_from_user(
+    request: Request,
     user_id: uuid.UUID = Path(..., description="ID of the user"),
     role_id: uuid.UUID = Path(..., description="ID of the role to remove"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> MessageResponse:
     """Remove a role from a user. Admin only."""
     try:
@@ -232,12 +228,10 @@ async def remove_role_from_user(
             "Inbound request: admin remove role from user",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host
-                        if http_request and http_request.client
-                        else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(current_admin),
                 },

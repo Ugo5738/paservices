@@ -53,7 +53,10 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     if not admin:
         return None
     try:
-        return {"id": getattr(admin, "id", None), "email": getattr(admin, "email", None)}
+        return {
+            "id": getattr(admin, "id", None),
+            "email": getattr(admin, "email", None),
+        }
     except Exception:
         return None
 
@@ -65,11 +68,11 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     description="Assign a role to an app client (admin only)",
 )
 async def assign_role_to_client(
+    request: Request,
     role_assignment: AppClientRoleAssign,
     client_id: uuid.UUID = Path(..., description="ID of the app client"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> AppClientRoleResponse:
     """Assign a role to an app client. Admin only."""
     try:
@@ -77,10 +80,10 @@ async def assign_role_to_client(
             "Inbound request: admin assign role to app client",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(current_admin),
                 },
@@ -162,10 +165,10 @@ async def assign_role_to_client(
     description="List all roles assigned to an app client (admin only)",
 )
 async def list_client_roles(
+    request: Request,
     client_id: uuid.UUID = Path(..., description="ID of the app client"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> AppClientRoleListResponse:
     """List all roles assigned to an app client. Admin only."""
     try:
@@ -173,10 +176,10 @@ async def list_client_roles(
             "Inbound request: admin list client roles",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(current_admin),
                 },
@@ -238,11 +241,11 @@ async def list_client_roles(
     description="Remove a role from an app client (admin only)",
 )
 async def remove_role_from_client(
+    request: Request,
     client_id: uuid.UUID = Path(..., description="ID of the app client"),
     role_id: uuid.UUID = Path(..., description="ID of the role to remove"),
     db: AsyncSession = Depends(get_db),
     current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> MessageResponse:
     """Remove a role from an app client. Admin only."""
     try:
@@ -250,10 +253,10 @@ async def remove_role_from_client(
             "Inbound request: admin remove role from app client",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(current_admin),
                 },

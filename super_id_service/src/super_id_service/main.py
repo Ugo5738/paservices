@@ -4,8 +4,9 @@ Super ID Service - Main application entry point
 
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from .config import settings
@@ -47,6 +48,22 @@ setup_logging(app)
 
 # Add logging middleware
 app.add_middleware(LoggingMiddleware)
+
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    # Check if the detail is a dict, which indicates our custom MCP response
+    if isinstance(exc.detail, dict) and "status" in exc.detail:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content=exc.detail,
+        )
+    # Default behavior for all other HTTPErrors
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"detail": exc.detail},
+    )
+
 
 # Add CORS middleware
 app.add_middleware(

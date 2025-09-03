@@ -65,7 +65,10 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     if not admin:
         return None
     try:
-        return {"id": getattr(admin, "id", None), "email": getattr(admin, "email", None)}
+        return {
+            "id": getattr(admin, "id", None),
+            "email": getattr(admin, "email", None),
+        }
     except Exception:
         return None
 
@@ -83,10 +86,10 @@ def _actor_from_admin(admin: SupabaseUser | None) -> dict | None:
     },
 )
 async def create_app_client(
+    request: Request,
     client_data: AppClientCreateRequest,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),  # Ensures admin access
-    http_request: Request | None = None,
 ) -> AppClientCreatedResponse:
     """
     Create a new application client. This endpoint is restricted to admin users.
@@ -101,10 +104,10 @@ async def create_app_client(
             "Inbound request: admin create app client",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -167,7 +170,10 @@ async def create_app_client(
                 "Outbound response: admin create app client",
                 extra={
                     "status": 201,
-                    "client": {"id": str(new_client.id), "name": new_client.client_name},
+                    "client": {
+                        "id": str(new_client.id),
+                        "name": new_client.client_name,
+                    },
                 },
             )
         except Exception:
@@ -220,6 +226,7 @@ async def create_app_client(
     },
 )
 async def list_app_clients(
+    request: Request,
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
     skip: int = Query(0, ge=0, description="Number of items to skip"),
@@ -227,7 +234,6 @@ async def list_app_clients(
         100, ge=1, le=100, description="Maximum number of items to return"
     ),
     is_active: Optional[bool] = Query(None, description="Filter by active status"),
-    http_request: Request | None = None,
 ) -> AppClientListResponse:
     """
     List all application clients. This endpoint is restricted to admin users.
@@ -241,10 +247,10 @@ async def list_app_clients(
             "Inbound request: admin list app clients",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -320,12 +326,12 @@ async def list_app_clients(
     },
 )
 async def get_app_client(
+    request: Request,
     client_id: uuid.UUID = Path(
         ..., description="The ID of the app client to retrieve"
     ),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> AppClientResponse:
     """
     Get a specific application client by ID. This endpoint is restricted to admin users.
@@ -337,10 +343,10 @@ async def get_app_client(
             "Inbound request: admin get app client",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
@@ -390,11 +396,11 @@ async def get_app_client(
     },
 )
 async def update_app_client(
+    request: Request,
     client_data: AppClientUpdateRequest,
     client_id: uuid.UUID = Path(..., description="The ID of the app client to update"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> AppClientResponse:
     """
     Update an application client. This endpoint is restricted to admin users.
@@ -410,15 +416,17 @@ async def update_app_client(
             "Inbound request: admin update app client",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },
                 "params": {"client_id": str(client_id)},
-                "body_excerpt": _redact_sensitive(client_data.model_dump(exclude_unset=True)),
+                "body_excerpt": _redact_sensitive(
+                    client_data.model_dump(exclude_unset=True)
+                ),
             },
         )
     except Exception:
@@ -531,10 +539,10 @@ async def update_app_client(
     },
 )
 async def delete_app_client(
+    request: Request,
     client_id: uuid.UUID = Path(..., description="The ID of the app client to delete"),
     db: AsyncSession = Depends(get_db),
     _current_admin: SupabaseUser = Depends(require_admin_user),
-    http_request: Request | None = None,
 ) -> MessageResponse:
     """
     Delete an application client. This endpoint is restricted to admin users.
@@ -546,10 +554,10 @@ async def delete_app_client(
             "Inbound request: admin delete app client",
             extra={
                 "request": {
-                    "method": (http_request.method if http_request else None),
-                    "path": (http_request.url.path if http_request else None),
+                    "method": (request.method if request else None),
+                    "path": (request.url.path if request else None),
                     "client_host": (
-                        http_request.client.host if http_request and http_request.client else None
+                        request.client.host if request and request.client else None
                     ),
                     "actor": _actor_from_admin(_current_admin),
                 },

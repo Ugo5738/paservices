@@ -26,13 +26,13 @@ docker-compose exec auth_service alembic upgrade head
 ```
 
 For a detailed guide on the migration workflow, especially its interaction with the Supabase auth schema, see MIGRATIONS.md.
+
 ## API Documentation
 
 Once the service is running, API documentation is available at:
 
 - [Swagger UI](http://localhost:8001/docs)
 - [ReDoc](http://localhost:8001/redoc)
-
 
 ## Environment variables
 
@@ -143,4 +143,3 @@ See the central guide: `../../docs/integrating_external_services.md` and the con
 - `../../docs/system_workflow.md` — End-to-end call sequence.
 - `../../docs/integrating_external_services.md` — External integration cookbook.
 - `../../docs/service_env_var_conventions.md` — Env var prefixing standard.
-
