@@ -5,6 +5,7 @@
 !.env.example
 .env.cloud
 !*.env.*.gpg
+*.pem
 
 # Python
 __pycache__/

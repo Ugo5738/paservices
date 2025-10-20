@@ -1,0 +1,89 @@
+--
+-- PostgreSQL database dump
+--
+
+\restrict kIVncHZbl6VcmPdpayqP45JMMZbvjJJaJIryu3eSn3cbqRKir31J1yf5Nj9AhIT
+
+-- Dumped from database version 17.4
+-- Dumped by pg_dump version 17.6 (Homebrew)
+
+SET statement_timeout = 0;
+SET lock_timeout = 0;
+SET idle_in_transaction_session_timeout = 0;
+SET transaction_timeout = 0;
+SET client_encoding = 'UTF8';
+SET standard_conforming_strings = on;
+SELECT pg_catalog.set_config('search_path', '', false);
+SET check_function_bodies = false;
+SET xmloption = content;
+SET client_min_messages = warning;
+SET row_security = off;
+
+--
+-- Name: super_id; Type: SCHEMA; Schema: -; Owner: postgres
+--
+
+
+
+ALTER SCHEMA super_id OWNER TO postgres;
+
+SET default_tablespace = '';
+
+SET default_table_access_method = heap;
+
+--
+-- Name: alembic_version; Type: TABLE; Schema: super_id; Owner: postgres
+--
+
+CREATE TABLE super_id.alembic_version (
+    version_num character varying(32) NOT NULL
+);
+
+
+ALTER TABLE super_id.alembic_version OWNER TO postgres;
+
+--
+-- Name: generated_super_ids; Type: TABLE; Schema: super_id; Owner: postgres
+--
+
+CREATE TABLE super_id.generated_super_ids (
+    id bigint DEFAULT nextval('super_id.generated_super_ids_id_seq'::regclass) NOT NULL,
+    super_id uuid NOT NULL,
+    generated_at timestamp with time zone DEFAULT now() NOT NULL,
+    requested_by_client_id character varying,
+    super_id_metadata jsonb
+);
+
+
+ALTER TABLE super_id.generated_super_ids OWNER TO postgres;
+
+--
+-- Name: alembic_version alembic_version_pkey; Type: CONSTRAINT; Schema: super_id; Owner: postgres
+--
+
+ALTER TABLE ONLY super_id.alembic_version
+    ADD CONSTRAINT alembic_version_pkey PRIMARY KEY (version_num);
+
+
+--
+-- Name: generated_super_ids generated_super_ids_pkey; Type: CONSTRAINT; Schema: super_id; Owner: postgres
+--
+
+ALTER TABLE ONLY super_id.generated_super_ids
+    ADD CONSTRAINT generated_super_ids_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: generated_super_ids generated_super_ids_super_id_key; Type: CONSTRAINT; Schema: super_id; Owner: postgres
+--
+
+ALTER TABLE ONLY super_id.generated_super_ids
+    ADD CONSTRAINT generated_super_ids_super_id_key UNIQUE (super_id);
+
+
+--
+-- PostgreSQL database dump complete
+--
+
+\unrestrict kIVncHZbl6VcmPdpayqP45JMMZbvjJJaJIryu3eSn3cbqRKir31J1yf5Nj9AhIT
+

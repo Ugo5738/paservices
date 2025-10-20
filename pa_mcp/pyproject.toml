@@ -1,0 +1,25 @@
+[tool.poetry]
+name = "pa-mcp"
+version = "0.1.0"
+description = "PA MCP service"
+authors = ["PA Services Team"]
+packages = [{include = "pa_mcp"}]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = ">=0.101.0,<1.0.0"
+uvicorn = {extras = ["standard"], version = ">=0.22.0,<1.0.0"}
+pydantic = {extras = ["email"], version = ">=2.5.0,<3.0.0"}
+pydantic-settings = ">=2.0.0,<3.0.0"
+python-jose = {extras = ["cryptography"], version = ">=3.3.0,<4.0.0"}
+fastmcp = "^2.12.3"
+httpx = "^0.28.1"
+scalekit-sdk-python = "^2.4.5"
+mcp = "^1.14.1"
+
+[tool.poetry.dev-dependencies]
+pytest = "^8.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

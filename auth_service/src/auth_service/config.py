@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     M2M_JWT_AUDIENCE: str = Field(
         "paservices_microservices", alias="AUTH_SERVICE_M2M_JWT_AUDIENCE"
     )
+    M2M_JWT_KID: str = Field(..., alias="AUTH_SERVICE_M2M_JWT_KID")
     M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
         30, alias="AUTH_SERVICE_M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
     )
@@ -142,7 +143,10 @@ class Settings(BaseSettings):
         return self.ENVIRONMENT == Environment.TESTING
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
     )
 
 

@@ -1,0 +1,21 @@
+services:
+  pa_mcp_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./src:/app/src
+    env_file:
+      - ./.env.dev
+    networks:
+      - paservices_network
+      - supabase_network_paservices
+
+networks:
+  paservices_network:
+    name: paservices_network
+    driver: bridge
+  supabase_network_paservices:
+    external: true

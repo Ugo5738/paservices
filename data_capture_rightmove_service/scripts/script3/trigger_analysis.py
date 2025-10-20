@@ -230,20 +230,8 @@ async def main():
         #     )
 
         if not args.dry_run:
-            # if await trigger_external_orchestration(
-            #     client, external_api_token, full_url, super_id
-            # ):
-            #     print_color(
-            #         f"   - ✅ External analysis triggered using Super ID {super_id} as phone_number.",
-            #         "green",
-            #     )
-            #     success_count += 1
             await asyncio.sleep(2)
         else:
-            # print_color(
-            #     f"   - [DRY RUN] Would call external orchestrator for {full_url} with phone_number={super_id}",
-            #     "yellow",
-            # )
             success_count += 1
 
         print_color("\n🎉 External Analysis Trigger Workflow Complete! 🎉", "green")

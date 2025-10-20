@@ -3,7 +3,17 @@ import sys
 
 # Define sets for faster lookups
 EXCLUDED_FILENAMES = {".DS_Store", "poetry.lock"}
-EXCLUDED_EXTENSIONS = {".log"}
+EXCLUDED_EXTENSIONS = {
+    ".log",
+    ".csv",
+    ".gpg",
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".pyi",
+    ".json",
+    ".lock",
+}
 # Directories whose *contents* (and subdirectories) should be entirely excluded if their name appears anywhere in the path
 EXCLUDED_DIR_COMPONENTS = {
     "migrations",
@@ -18,10 +28,11 @@ EXCLUDED_DIR_COMPONENTS = {
     "venv",
     ".venv",
     "app",
-    "keys",
+    # "keys",
     "k8s",
     "sql",
     "docs",
+    ".github",
 }
 # Directory names to prune from os.walk (won't descend into them)
 PRUNE_DIRS = {

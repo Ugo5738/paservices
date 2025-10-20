@@ -1,13 +1,16 @@
-"""
-Super ID Service - Main application entry point
-"""
-
+import json
+import uuid
 from contextlib import asynccontextmanager
+from typing import Any, Awaitable, Callable, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+
+# from mcp.server.fastmcp import FastMCP  # official MCP SDK FastMCP
+from fastmcp import FastMCP
 from sqlalchemy import text
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from .config import settings
 from .db import AsyncSessionLocal
@@ -19,7 +22,8 @@ from .utils.rate_limiting import setup_rate_limiting
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifecycle manager."""
+    """Application's original lifecycle manager for DB connections etc."""
+
     logger.info("Application startup sequence initiated.")
     # Perform a quick database connection test on startup.
     try:
@@ -29,14 +33,13 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.error(f"Database connection failed on startup: {e}", exc_info=True)
 
-    logger.info("Application startup complete.")
     yield
     logger.info("Application shutdown complete.")
 
 
-# Initialize FastAPI app
+# FastAPI app
 app = FastAPI(
-    title="Super ID Service",
+    title="Super ID Service API",
     description="Service for generating and recording unique identifiers (UUIDs)",
     version="0.1.0",
     root_path=settings.ROOT_PATH,
@@ -48,22 +51,6 @@ setup_logging(app)
 
 # Add logging middleware
 app.add_middleware(LoggingMiddleware)
-
-
-@app.exception_handler(HTTPException)
-async def custom_http_exception_handler(request: Request, exc: HTTPException):
-    # Check if the detail is a dict, which indicates our custom MCP response
-    if isinstance(exc.detail, dict) and "status" in exc.detail:
-        return JSONResponse(
-            status_code=exc.status_code,
-            content=exc.detail,
-        )
-    # Default behavior for all other HTTPErrors
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail},
-    )
-
 
 # Add CORS middleware
 app.add_middleware(
@@ -77,6 +64,22 @@ app.add_middleware(
 # Setup rate limiting
 setup_rate_limiting(app)
 
-# Include routers
+
 app.include_router(health_router, tags=["Health"])
-app.include_router(super_id_router, prefix="/super_ids", tags=["Super IDs"])
+app.include_router(super_id_router, prefix="/super_ids", tags=["Super IDs (REST API)"])
+
+
+# Resource Metadata
+@app.get("/.well-known/oauth-protected-resource")
+async def protected_resource_metadata():
+    return JSONResponse(
+        {
+            "resource": settings.SUPER_ID_SERVICE_RESOURCE_URL,
+            "authorization_servers": [settings.AUTH_SERVICE_ISSUER],
+            "scopes_supported": ["super_id:generate"],
+            "bearer_methods_supported": ["header"],
+            "resource_documentation": settings.SUPER_ID_SERVICE_DOCUMENTATION_URL,
+            "mcp_protocol_version": "2025-06-18",
+            "resource_type": "mcp-server",
+        }
+    )

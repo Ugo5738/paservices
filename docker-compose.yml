@@ -47,21 +47,21 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # Floorplan Service
-  floorplan_service:
-    extends:
-      file: floorplan_service/docker-compose.dev.yml
-      service: floorplan_service_dev
-    ports:
-      - "8004:8000"
-    networks:
-      - paservices_network
-      - supabase_network_paservices
-    logging:
-      driver: "json-file"
-      options:
-        max-size: "10m"
-        max-file: "3"
+  # # Floorplan Service
+  # floorplan_service:
+  #   extends:
+  #     file: floorplan_service/docker-compose.dev.yml
+  #     service: floorplan_service_dev
+  #   ports:
+  #     - "8004:8000"
+  #   networks:
+  #     - paservices_network
+  #     - supabase_network_paservices
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "3"
 
   # # --- DJANGO SERVICE ---
   # sanalysis_service:
@@ -115,6 +115,22 @@ services:
   #   env_file:
   #     - ./sanalysis/.env
 
+  # MCP Service
+  pa_mcp:
+    extends:
+      file: pa_mcp/docker-compose.dev.yml
+      service: pa_mcp_dev
+    ports:
+      - "8765:8765"
+    networks:
+      - paservices_network
+      - supabase_network_paservices
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 networks:
   paservices_network:
     name: paservices_network
@@ -122,3 +138,8 @@ networks:
   supabase_network_paservices:
     external: true
     # The actual network name as created by Supabase CLI
+
+
+# repo name = paservices
+# .env encrypt with paservices
+# gpg --symmetric --cipher-algo AES256 --output .env.gpg .env

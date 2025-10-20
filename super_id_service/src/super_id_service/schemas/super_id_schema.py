@@ -19,20 +19,14 @@ class SuperIdRequest(BaseModel):
     )
 
 
-class SingleSuperIDResponse(BaseModel):
+class SuperIDResponse(BaseModel):
     """
     Response model for a single super_id.
     """
 
     super_id: UUID
 
-
-class BatchSuperIDResponse(BaseModel):
-    """
-    Response model for a batch of super_ids.
-    """
-
-    super_ids: List[UUID]
+    model_config = {"from_attributes": True}
 
 
 class MessageResponse(BaseModel):

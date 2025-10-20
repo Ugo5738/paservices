@@ -1,16 +1,23 @@
 # src/auth_service/security.py
-import secrets  # For generating client secrets
+import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from jose import JWTError, jwt
+from jose import jwt
+from jose.exceptions import JWTError
 from passlib.context import CryptContext
 
-from auth_service.config import settings  # Import settings
+from .config import settings
 
 # It's recommended to create a CryptContext instance once and reuse it.
 # Configure it for bcrypt.
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Construct absolute paths for the key files.
+_PRIVATE_KEY_PATH = os.path.join(_BASE_DIR, "keys", "private.pem")
+_PUBLIC_KEY_PATH = os.path.join(_BASE_DIR, "keys", "public.pem")
 
 
 def generate_client_secret(n_bytes: int = 32) -> str:
@@ -51,7 +58,7 @@ def create_m2m_access_token(
     else:
         expire = now + timedelta(minutes=settings.M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
 
-    to_encode: Dict[str, Any] = {
+    payload: Dict[str, Any] = {
         "sub": client_id,
         "exp": expire,
         "iat": now,
@@ -61,8 +68,21 @@ def create_m2m_access_token(
         "permissions": permissions,
         "token_type": "m2m_access",  # Custom claim to identify token type
     }
+
+    with open(_PRIVATE_KEY_PATH, "rb") as f:
+        private_key = f.read()
+
+    headers = {
+        "alg": settings.M2M_JWT_ALGORITHM,
+        "kid": settings.M2M_JWT_KID,
+        "typ": "JWT",
+    }
+
     encoded_jwt = jwt.encode(
-        to_encode, settings.M2M_JWT_SECRET_KEY, algorithm=settings.M2M_JWT_ALGORITHM
+        claims=payload,
+        key=private_key,
+        algorithm=settings.M2M_JWT_ALGORITHM,
+        headers=headers,
     )
     return encoded_jwt
 
@@ -73,9 +93,11 @@ def decode_m2m_access_token(token: str) -> Optional[Dict[str, Any]]:
     Returns the token payload if valid, None otherwise.
     """
     try:
+        with open(_PUBLIC_KEY_PATH, "rb") as f:
+            public_key = f.read()
         payload = jwt.decode(
             token,
-            settings.M2M_JWT_SECRET_KEY,
+            public_key,
             algorithms=[settings.M2M_JWT_ALGORITHM],
             audience=settings.M2M_JWT_AUDIENCE,
             issuer=settings.M2M_JWT_ISSUER,

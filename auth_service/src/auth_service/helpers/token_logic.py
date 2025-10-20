@@ -1,9 +1,10 @@
-# auth_service/src/auth_service/logic/token_logic.py
+# auth_service/src/auth_service/helpers/token_logic.py
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Dict
 
 from fastapi import HTTPException, status
+from jose import jwt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

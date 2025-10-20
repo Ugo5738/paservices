@@ -1,20 +1,26 @@
-import logging
+import base64
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from jwcrypto import jwk
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..db import get_db
 from ..helpers.token_logic import generate_client_token
 from ..schemas.app_client_schemas import AccessTokenResponse, AppClientTokenRequest
 from ..schemas.common_schemas import MessageResponse
+from ..utils.logging_config import logger
 from ..utils.rate_limiting import TOKEN_LIMIT, limiter
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/auth",
     tags=["Token Acquisition"],
 )
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PUBLIC_KEY_PATH = os.path.join(_BASE_DIR, "..", "keys", "public.pem")
 
 
 def _redact_sensitive(data):
@@ -175,3 +181,18 @@ async def get_client_token(
     )
 
     return AccessTokenResponse(**token_data)
+
+
+@router.get("/.well-known/jwks.json")
+async def jwks():
+    # Load public key
+    with open(_PUBLIC_KEY_PATH, "rb") as f:
+        pub = jwk.JWK.from_pem(f.read())
+
+    # Dump as JWKS
+    jwks = {"keys": [pub.export(as_dict=True)]}
+    jwks["keys"][0]["alg"] = settings.M2M_JWT_ALGORITHM
+    jwks["keys"][0]["use"] = "sig"
+    jwks["keys"][0]["kid"] = settings.M2M_JWT_KID
+
+    return JSONResponse(jwks)

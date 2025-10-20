@@ -6,7 +6,6 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi_mcp import FastApiMCP
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -218,22 +217,6 @@ setup_rate_limiting(app)
 app.include_router(user_auth_router, tags=["User Authentication"])
 app.include_router(token_router, tags=["Token Acquisition"])
 app.include_router(admin_router, prefix="/admin", tags=["Administration"])
-
-mcp = FastApiMCP(
-    app,
-    name="Authentication Service MCP",
-    description="Provides tools for M2M authentication and user management.",
-    describe_all_responses=True,
-    describe_full_response_schema=True,
-    # This is the whitelist of which FastAPI endpoints should become MCP tools.
-    include_operations=[
-        "create_m2m_token"
-    ],  # Matches the operation_id from token_routes.py
-)
-
-
-# Mount the MCP server directly to your FastAPI app
-mcp.mount_http()
 
 
 # Exception handlers

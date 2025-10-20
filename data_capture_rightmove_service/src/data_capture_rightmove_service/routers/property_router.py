@@ -110,7 +110,11 @@ def _extract_actor_from_request(request: Request):
         return {"sub": None, "service": None}
 
 
-@router.post("/fetch/combined", response_model=CombinedPropertyResponse)
+@router.post(
+    "/fetch/combined",
+    response_model=CombinedPropertyResponse,
+    operation_id="fetch_combined_property_data",
+)
 async def fetch_combined_property_data(
     request: FetchPropertyDetailsRequest,
     http_request: Request,
@@ -124,7 +128,7 @@ async def fetch_combined_property_data(
     from both API calls, including success/failure status for each step in the process.
 
     Args:
-        request: Property details request containing URL or ID and optional super_id
+        request: Property details request containing URL or ID and super_id
         db: Database session from dependency injection
 
     Returns:
@@ -580,7 +584,11 @@ async def validate_property_url(
         )
 
 
-@router.post("/fetch/details", response_model=PropertyDetailsStorageResponse)
+@router.post(
+    "/fetch/details",
+    response_model=PropertyDetailsStorageResponse,
+    operation_id="fetch_property_details",
+)
 async def fetch_property_details(
     request: FetchPropertyDetailsRequest,
     background_tasks: BackgroundTasks,

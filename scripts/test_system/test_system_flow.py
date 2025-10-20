@@ -168,6 +168,7 @@ async def main():
 
     # Step 2
     super_id = await get_super_id(token)
+    print_color(f"\nSuper ID: {super_id}", "green")
     if not super_id:
         print_color("\n🛑 Test failed at Super ID generation step.", "red")
         sys.exit(1)

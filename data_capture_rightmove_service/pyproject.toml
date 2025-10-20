@@ -31,6 +31,7 @@ dependencies = [
   "supabase[async]>=2.5.0,<3.0.0", # Switched to the official async client
   "fastapi-limiter>=0.1.6,<1.0.0",
   "slowapi>=0.1.9,<1.0.0", # Required for rate limiting
+  "fastapi-mcp>=0.4.0,<1.0.0"
 ]
 
 # Modern way to declare optional dependency groups like 'dev'.
@@ -67,7 +68,7 @@ passlib = {extras = ["bcrypt"], version = "^1.7.4"}
 supabase = {extras = ["async"], version = "^2.5.0"}
 fastapi-limiter = "^0.1.6"
 slowapi = "^0.1.9"
-
+fastapi-mcp = "^0.4.0"
 
 # A comprehensive set of development dependencies
 [tool.poetry.group.dev.dependencies]

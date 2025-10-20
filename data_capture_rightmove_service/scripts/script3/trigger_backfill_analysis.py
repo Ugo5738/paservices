@@ -268,19 +268,3 @@ if __name__ == "__main__":
     asyncio.run(
         main(args.csv_path, args.start_index, args.api_phone, args.api_password)
     )
-
-
-# -- The DISTINCT keyword ensures that each unique URL is returned only once.
-# SELECT DISTINCT
-#   'https://www.rightmove.co.uk' || property_url AS full_url
-# FROM
-#   rightmove.property_listings
-# WHERE
-#   id IN (
-#     -- This subquery correctly identifies the UNIQUE missing property IDs
-#     SELECT id FROM rightmove.property_listings WHERE DATE(created_at) = '2025-07-24'
-#     EXCEPT
-#     SELECT id FROM rightmove.api_properties_details_v2 WHERE DATE(created_at) = '2025-07-26'
-#   )
-#   -- Ensure we only get URLs for properties discovered on the correct date
-#   AND DATE(created_at) = '2025-07-24';
