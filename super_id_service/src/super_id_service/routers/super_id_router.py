@@ -93,7 +93,7 @@ def _extract_actor_from_request(request: Request):
 async def create_super_ids_api(
     request_body: SuperIdRequest,
     request: Request,
-    token_data: TokenData | None = Depends(validate_token),
+    token_data: TokenData = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
 ) -> SuperIDResponse:
     """
@@ -119,19 +119,17 @@ async def create_super_ids_api(
 
     # token_data: TokenData = request.state.token_data
 
-    # If token_data is present, enforce permission checks. If absent, allow unauthenticated
-    # creation but record no user_id.
-    if token_data is not None:
-        if "super_id:generate" not in token_data.permissions:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Missing required permission: super_id:generate",
-            )
+    # Enforce required permission for all authenticated callers.
+    if "super_id:generate" not in token_data.permissions:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing required permission: super_id:generate",
+        )
 
     try:
         record = await create_and_store_super_id(
             db=db,
-            user_id=(token_data.client_id if token_data is not None else None),
+            user_id=token_data.client_id,
             metadata=request_body.metadata,
         )
 

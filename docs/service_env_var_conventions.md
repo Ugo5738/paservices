@@ -27,7 +27,7 @@ These names are intentionally similar across services for muscle memory while re
 ### Auth-specific
 
 - `AUTH_SERVICE_M2M_JWT_SECRET_KEY` — Symmetric key for signing M2M tokens.
-- `AUTH_SERVICE_M2M_JWT_ALGORITHM` — e.g., `HS256`.
+- `AUTH_SERVICE_M2M_JWT_ALGORITHM` — e.g., `RS256`.
 - `AUTH_SERVICE_M2M_ACCESS_TOKEN_EXPIRE_MINUTES` — token TTL in minutes.
 
 ### Super ID-specific

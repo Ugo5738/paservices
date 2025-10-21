@@ -118,6 +118,7 @@ def _extract_actor_from_request(request: Request):
 async def fetch_combined_property_data(
     request: FetchPropertyDetailsRequest,
     http_request: Request,
+    _token_data: dict = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
 ) -> CombinedPropertyResponse:
     """
@@ -183,24 +184,21 @@ async def fetch_combined_property_data(
         raise HTTPException(status_code=400, detail=f"Invalid property identifier: {e}")
 
     # Obtain or use provided super_id for tracking this request chain
-    try:
-        if request.super_id:
-            super_id = request.super_id
-            logger.info(
-                "Using provided Super ID.",
-                extra={"super_id": super_id, "property_id": property_id},
-            )
-    except HTTPException as e:
-        # If super_id service is unavailable, raise the exception to the client
+    super_id = request.super_id
+    if not super_id:
         logger.error(
-            "Failed to obtain Super ID from request.",
-            extra={"request_body": request.model_dump(mode="json"), "error": str(e)},
-            exc_info=True,
+            "Request missing required super_id.",
+            extra={"property_id": property_id, "request_body": payload_excerpt},
         )
         raise HTTPException(
-            status_code=503,
-            detail=f"Super ID service is required but unavailable: {str(e)}",
+            status_code=400,
+            detail="super_id is required to fetch combined property data.",
         )
+
+    logger.info(
+        "Using provided Super ID.",
+        extra={"super_id": super_id, "property_id": property_id},
+    )
 
     # Log the initial request event
     try:
@@ -593,6 +591,7 @@ async def fetch_property_details(
     request: FetchPropertyDetailsRequest,
     background_tasks: BackgroundTasks,
     http_request: Request,
+    _token_data: dict = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
 ) -> PropertyDetailsStorageResponse:
     """
@@ -618,16 +617,13 @@ async def fetch_property_details(
                 detail="Either property_id or property_url must be provided",
             )
 
-        # Use provided super_id or create a new one
+        # Require a super_id to proceed
         super_id = request.super_id
-        # if not super_id:
-        #     description = (
-        #         request.description
-        #         or f"Rightmove property details fetch for property ID: {property_id}"
-        #     )
-        #     super_id = await super_id_service_client.create_super_id(
-        #         description=description
-        #     )
+        if not super_id:
+            raise HTTPException(
+                status_code=400,
+                detail="super_id is required to fetch property details.",
+            )
 
         # Fetch from Rightmove API
         property_data = await rightmove_api_client.get_property_details(
@@ -673,6 +669,7 @@ async def fetch_property_for_sale_details(
     request: FetchPropertyDetailsRequest,
     background_tasks: BackgroundTasks,
     http_request: Request,
+    _token_data: dict = Depends(validate_token),
     db: AsyncSession = Depends(get_db),
 ) -> PropertyDetailsStorageResponse:
     """
@@ -698,15 +695,12 @@ async def fetch_property_for_sale_details(
                 detail="Either property_id or property_url must be provided",
             )
 
-        # Use provided super_id or create a new one
+        # Require caller-provided super_id
         super_id = request.super_id
-        if not super_id:  # remove this
-            description = (
-                request.description
-                or f"Rightmove property for sale fetch for property ID: {property_id}"
-            )
-            super_id = await super_id_service_client.create_super_id(
-                description=description
+        if not super_id:
+            raise HTTPException(
+                status_code=400,
+                detail="super_id is required to fetch property-for-sale details.",
             )
 
         # Fetch from Rightmove API
@@ -777,6 +771,7 @@ async def search_properties_for_sale(
     request: PropertySearchRequest,
     background_tasks: BackgroundTasks,
     http_request: Request,
+    _token_data: dict = Depends(validate_token),
     update_existing: bool = Query(
         False,
         description="If true, update existing properties. If false, create new snapshot records.",
@@ -808,6 +803,16 @@ async def search_properties_for_sale(
         },
     )
 
+    if not request.super_id:
+        logger.error(
+            "Rejecting search request without super_id.",
+            extra={"location_identifier": request.location_identifier},
+        )
+        raise HTTPException(
+            status_code=400,
+            detail="super_id is required for property search requests.",
+        )
+
     # The background task handles everything from this point.
     background_tasks.add_task(
         process_property_search,
@@ -838,6 +843,12 @@ async def process_property_search(
     """
     configure_logging()
 
+    if not search_request.super_id:
+        logger.error(
+            "Background task invoked without super_id; aborting.",
+            extra={"location_identifier": search_request.location_identifier},
+        )
+        return
     super_id = search_request.super_id
     # Use a new DB session for the background task to ensure it's isolated.
     async with AsyncSessionLocal() as db:

@@ -48,7 +48,7 @@ All variables are prefixed with `AUTH_SERVICE_` to avoid cross-service collision
 - `AUTH_SERVICE_SUPABASE_EMAIL_CONFIRMATION_REQUIRED` — Require email confirmation (true/false).
 - `AUTH_SERVICE_SUPABASE_AUTO_CONFIRM_NEW_USERS` — Auto-confirm on signup (true/false).
 - `AUTH_SERVICE_M2M_JWT_SECRET_KEY` — Symmetric key for signing M2M tokens.
-- `AUTH_SERVICE_M2M_JWT_ALGORITHM` — Signing algorithm (e.g., HS256).
+- `AUTH_SERVICE_M2M_JWT_ALGORITHM` — Signing algorithm (e.g., RS256).
 - `AUTH_SERVICE_M2M_ACCESS_TOKEN_EXPIRE_MINUTES` — M2M token lifetime in minutes.
 - `AUTH_SERVICE_INITIAL_ADMIN_EMAIL` — Seed admin email.
 - `AUTH_SERVICE_INITIAL_ADMIN_PASSWORD` — Seed admin password.

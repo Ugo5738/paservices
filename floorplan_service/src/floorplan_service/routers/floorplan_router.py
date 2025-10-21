@@ -31,6 +31,7 @@ from ..services.analysis_service import (
     trigger_floorplan_analysis,
 )
 from ..utils.logging_config import logger
+from ..utils.security import validate_token
 
 router = APIRouter()
 
@@ -79,6 +80,7 @@ async def analyze_floorplans(
     request_data: FloorplanAnalysisRequest,
     background_tasks: BackgroundTasks,
     request: Request,
+    _token_data: dict = Depends(validate_token),
 ):
     """
     Initiates floorplan analysis by sending data to an external service.
@@ -103,6 +105,12 @@ async def analyze_floorplans(
 
     # At this point, you know the token exists. A proper security dependency can now validate it.
     # For simplicity, we'll assume the token is valid for this example.
+    if not request_data.super_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="super_id is required for floorplan analysis.",
+        )
+
     background_tasks.add_task(
         trigger_floorplan_analysis,
         super_id=request_data.super_id,
@@ -157,7 +165,11 @@ async def floorplan_webhook(
 
 
 @router.get("/properties", response_model=List[PropertyOverviewResponse])
-async def list_properties(request: Request, db: AsyncSession = Depends(get_db)):
+async def list_properties(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _token_data: dict = Depends(validate_token),
+):
     """Lists all properties that have been analyzed."""
     actor = _extract_actor_from_request(request)
     logger.info(
@@ -184,7 +196,10 @@ async def list_properties(request: Request, db: AsyncSession = Depends(get_db)):
 
 @router.get("/properties/{property_id}", response_model=List[PropertyDetailResponse])
 async def get_property_detail(
-    property_id: str, request: Request, db: AsyncSession = Depends(get_db)
+    property_id: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    _token_data: dict = Depends(validate_token),
 ):
     """Retrieves all analysis results for a specific property ID."""
     actor = _extract_actor_from_request(request)

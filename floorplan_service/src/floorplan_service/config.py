@@ -154,6 +154,21 @@ class Settings(BaseSettings):
         alias="FLOORPLAN_SERVICE_M2M_JWT_AUDIENCE",
         description="The audience claim expected in M2M JWTs.",
     )
+    AUTH_SERVICE_ISSUER: str = Field(
+        "paservices_auth_service",
+        alias="FLOORPLAN_SERVICE_AUTH_SERVICE_ISSUER",
+        description="Expected issuer claim for Auth Service tokens.",
+    )
+    AUTH_SERVICE_JWT_ALGORITHM: str = Field(
+        "RS256",
+        alias="FLOORPLAN_SERVICE_AUTH_SERVICE_JWT_ALGORITHM",
+        description="JWT signing algorithm used by the Auth Service.",
+    )
+    AUTH_SERVICE_JWKS_URL: Optional[str] = Field(
+        None,
+        alias="FLOORPLAN_SERVICE_AUTH_SERVICE_JWKS_URL",
+        description="Override URL for the Auth Service JWKS endpoint.",
+    )
 
     # Rate limiting
     RATE_LIMIT_REQUESTS_PER_MINUTE: int = Field(

@@ -16,6 +16,13 @@ from .utils.logging_config import logger
 security = HTTPBearer(auto_error=False)
 
 
+def _auth_challenge_headers() -> Dict[str, str]:
+    """Standard WWW-Authenticate header pointing callers to resource metadata."""
+    return {
+        "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
+    }
+
+
 async def fetch_jwks() -> Dict[str, Any]:
     """
     Fetch the JWKS from the auth service.
@@ -73,9 +80,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Missing Authorization header",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     parts = authorization_header.split()
@@ -83,9 +88,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid authorization header format",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     token = parts[1]
@@ -99,9 +102,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid JWT header",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     kid = unverified_header.get("kid")
@@ -109,9 +110,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token missing 'kid' header",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     jwks = await fetch_jwks()
@@ -121,9 +120,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Unable to find matching JWK for token 'kid'",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     public_key = _build_public_key_from_jwk(jwk_dict)
@@ -142,9 +139,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Token validation failed: {e}",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     # Optional: enforce custom claim checks
@@ -154,9 +149,7 @@ async def validate_jwt_and_get_claims(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
-            headers={
-                "WWW-Authenticate": f'Bearer resource_metadata="{settings.SUPER_ID_SERVICE_RESOURCE_METADATA_URL}"'
-            },
+            headers=_auth_challenge_headers(),
         )
 
     return claims
@@ -168,9 +161,13 @@ async def validate_token(
     """
     Dependency for FastAPI endpoints: provides structured TokenData
     """
-    # If no credentials were provided, return None to indicate unauthenticated caller.
+    # If no credentials were provided, demand authentication explicitly.
     if not credentials:
-        return None
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header required",
+            headers=_auth_challenge_headers(),
+        )
 
     token = credentials.credentials
     auth_header = f"Bearer {token}"

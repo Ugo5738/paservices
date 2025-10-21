@@ -96,6 +96,21 @@ class Settings(BaseSettings):
         alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_JWT_AUDIENCE",
         description="The audience claim expected in M2M JWTs.",
     )
+    AUTH_SERVICE_ISSUER: str = Field(
+        "paservices_auth_service",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_ISSUER",
+        description="Expected issuer claim for Auth Service tokens.",
+    )
+    AUTH_SERVICE_JWT_ALGORITHM: str = Field(
+        "RS256",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_JWT_ALGORITHM",
+        description="JWT signing algorithm used by the Auth Service.",
+    )
+    AUTH_SERVICE_JWKS_URL: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AUTH_SERVICE_JWKS_URL",
+        description="Override URL for the Auth Service JWKS endpoint.",
+    )
 
     # RapidAPI configuration
     RAPID_API_KEY: str = Field(

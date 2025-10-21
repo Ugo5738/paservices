@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     # M2M JWT Configuration
     M2M_JWT_SECRET_KEY: str = Field(..., alias="AUTH_SERVICE_M2M_JWT_SECRET_KEY")
-    M2M_JWT_ALGORITHM: str = Field("HS256", alias="AUTH_SERVICE_M2M_JWT_ALGORITHM")
+    M2M_JWT_ALGORITHM: str = Field("RS256", alias="AUTH_SERVICE_M2M_JWT_ALGORITHM")
     M2M_JWT_ISSUER: str = Field(
         "paservices_auth_service", alias="AUTH_SERVICE_M2M_JWT_ISSUER"
     )

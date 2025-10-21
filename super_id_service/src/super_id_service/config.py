@@ -107,19 +107,6 @@ class Settings(BaseSettings):
     # CORS settings
     cors_allow_origins: List[str] = Field(default_factory=lambda: ["*"])
 
-    # # MCP settings
-    # MCP_PROJECT_ID: str = Field(
-    #     ..., validation_alias="SUPER_ID_SERVICE_STYTCH_PROJECT_ID"
-    # )
-    # MCP_DOMAIN: str = Field(..., validation_alias="SUPER_ID_SERVICE_STYTCH_DOMAIN")
-    # MCP_SECRET_KEY: str = Field(..., validation_alias="SUPER_ID_SERVICE_STYTCH_SECRET")
-    # MCP_CLIENT_ID: str = Field(
-    #     ..., validation_alias="SUPER_ID_SERVICE_STYTCH_CLIENT_ID"
-    # )
-    # MCP_CLIENT_SECRET: str = Field(
-    #     ..., validation_alias="SUPER_ID_SERVICE_STYTCH_CLIENT_SECRET"
-    # )
-
     @field_validator("database_url")
     def validate_database_url(cls, v: str, info: Any) -> str:
         # Return the database URL as is, add validation if needed
