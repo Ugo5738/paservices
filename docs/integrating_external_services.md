@@ -119,6 +119,23 @@ async def get_super_id(base_url: str, access_token: str, metadata: dict | None =
   - `Authorization: Bearer <access_token>`
   - The `super_id` in the JSON body when required. Rightmove endpoints accept `super_id` in the body. The `X-Super-ID` header is optional and may be ignored by some services.
 
+- Optional: include a `callback` object if you want asynchronous status updates pushed to a webhook while the workflow executes. Example:
+
+```json
+{
+  "super_id": "...",
+  "property_url": "https://www.rightmove.co.uk/properties/123",
+  "callback": {
+    "url": "https://your-service/webhooks/rightmove",
+    "headers": {
+      "Authorization": "Bearer <token>"
+    }
+  }
+}
+```
+
+When supplied, the Data Capture Rightmove Service writes progress snapshots to S3 and posts status payloads to the provided `callback.url`. The payload includes `status` (e.g., `started`, `in_progress`, `completed`, `failed`) and a `data_location` pointing to the latest snapshot JSON.
+
 - Example cURL (Rightmove search):
 
 ```bash

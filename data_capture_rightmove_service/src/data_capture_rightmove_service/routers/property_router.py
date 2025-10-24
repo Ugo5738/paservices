@@ -8,7 +8,7 @@ import json
 import math
 import uuid
 from datetime import datetime, time, timedelta, timezone
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 import jwt
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
@@ -58,6 +58,7 @@ from data_capture_rightmove_service.schemas.property_data import (  # Properties
     PropertySearchRequest,
     PropertyUrlResponse,
     ScrapedListingResponse,
+    WorkflowCallback,
 )
 from data_capture_rightmove_service.utils.data_completeness import analyze_response
 from data_capture_rightmove_service.utils.logging_config import (
@@ -65,6 +66,7 @@ from data_capture_rightmove_service.utils.logging_config import (
     logger,
 )
 from data_capture_rightmove_service.utils.security import requires_scope, validate_token
+from data_capture_rightmove_service.utils.status_notifier import get_status_notifier
 from data_capture_rightmove_service.utils.url_parsing import (
     extract_rightmove_property_id,
     is_valid_rightmove_url,
@@ -110,35 +112,19 @@ def _extract_actor_from_request(request: Request):
         return {"sub": None, "service": None}
 
 
+
 @router.post(
     "/fetch/combined",
-    response_model=CombinedPropertyResponse,
+    response_model=MessageResponse,
+    status_code=202,
     operation_id="fetch_combined_property_data",
 )
 async def fetch_combined_property_data(
     request: FetchPropertyDetailsRequest,
+    background_tasks: BackgroundTasks,
     http_request: Request,
-    _token_data: dict = Depends(validate_token),
-    db: AsyncSession = Depends(get_db),
-) -> CombinedPropertyResponse:
-    """
-    Combined endpoint to fetch data from multiple Rightmove API endpoints and store in database.
-
-    This endpoint orchestrates calls to two Rightmove API endpoints and handles the storage
-    of their responses in the database. It provides a comprehensive response with details
-    from both API calls, including success/failure status for each step in the process.
-
-    Args:
-        request: Property details request containing URL or ID and super_id
-        db: Database session from dependency injection
-
-    Returns:
-        CombinedPropertyResponse with results from each endpoint
-
-    Raises:
-        HTTPException: If the property ID cannot be determined or other critical errors occur
-    """
-    # Log the incoming request, including actor and super_id for business-level tracing
+    token_data: dict = Depends(validate_token),
+) -> MessageResponse:
     actor = _extract_actor_from_request(http_request)
     payload_excerpt = _redact_sensitive(request.model_dump(mode="json"))
     logger.info(
@@ -157,9 +143,72 @@ async def fetch_combined_property_data(
         },
     )
 
-    # Extract and validate the property ID from URL or direct ID input
     try:
-        # Try to extract property ID from URL if provided, otherwise use direct property_id
+        extracted_id = (
+            extract_rightmove_property_id(request.property_url)
+            if request.property_url
+            else None
+        )
+        if not extracted_id and not request.property_id:
+            raise ValueError(
+                "Either a valid Rightmove property URL or property ID must be provided"
+            )
+    except (ValueError, TypeError) as exc:
+        logger.error(
+            "Failed to parse property identifier from request.",
+            extra={"request_body": request.model_dump(mode="json"), "error": str(exc)},
+            exc_info=True,
+        )
+        raise HTTPException(status_code=400, detail=f"Invalid property identifier: {exc}")
+
+    if not request.super_id:
+        raise HTTPException(
+            status_code=400,
+            detail="super_id is required to fetch combined property data.",
+        )
+
+    callback_payload = (
+        request.callback.model_dump(mode="json") if request.callback else None
+    )
+
+    background_tasks.add_task(
+        process_combined_property_fetch,
+        request.model_dump(mode="json"),
+        token_data,
+        callback_payload,
+    )
+
+    return MessageResponse(
+        message=(
+            "Accepted combined fetch request. Processing will continue in the background."
+        ),
+        success=True,
+    )
+
+
+async def process_combined_property_fetch(
+    request_payload: Dict[str, Any],
+    token_data: Dict[str, Any],
+    callback_payload: Optional[Dict[str, Any]] = None,
+) -> None:
+    try:
+        request = FetchPropertyDetailsRequest.model_validate(request_payload)
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.error(
+            "Failed to validate combined fetch payload.",
+            extra={"payload": request_payload, "error": str(exc)},
+        )
+        return
+
+    callback = (
+        WorkflowCallback.model_validate(callback_payload)
+        if callback_payload
+        else None
+    )
+    callback_url = callback.url if callback else None
+    callback_headers = callback.headers if callback else None
+
+    try:
         extracted_id = (
             extract_rightmove_property_id(request.property_url)
             if request.property_url
@@ -170,58 +219,21 @@ async def fetch_combined_property_data(
                 "Either a valid Rightmove property URL or property ID must be provided"
             )
         property_id = int(extracted_id or request.property_id)
-
-        logger.info(
-            "Successfully parsed property identifier.",
-            extra={"property_id": property_id, "source_url": request.property_url},
-        )
-    except (ValueError, TypeError) as e:
+    except Exception as exc:
         logger.error(
-            "Failed to parse property identifier from request.",
-            extra={"request_body": request.model_dump(mode="json"), "error": str(e)},
-            exc_info=True,
+            "Failed resolving property identifier for combined fetch.",
+            extra={"payload": request_payload, "error": str(exc)},
         )
-        raise HTTPException(status_code=400, detail=f"Invalid property identifier: {e}")
+        return
 
-    # Obtain or use provided super_id for tracking this request chain
     super_id = request.super_id
     if not super_id:
         logger.error(
-            "Request missing required super_id.",
-            extra={"property_id": property_id, "request_body": payload_excerpt},
+            "Combined fetch task invoked without super_id.",
+            extra={"property_id": property_id},
         )
-        raise HTTPException(
-            status_code=400,
-            detail="super_id is required to fetch combined property data.",
-        )
+        return
 
-    logger.info(
-        "Using provided Super ID.",
-        extra={"super_id": super_id, "property_id": property_id},
-    )
-
-    # Log the initial request event
-    try:
-        await event_crud.log_scrape_event(
-            db,
-            super_id,
-            ScrapeEventTypeEnum.REQUEST_RECEIVED,
-            rightmove_property_id=property_id,
-            payload=request.model_dump(mode="json"),
-        )
-    except Exception as e:
-        logger.error(f"Failed to log initial request event: {str(e)}")
-        # Explicitly roll back transaction to prevent PendingRollbackError
-        try:
-            await db.rollback()
-            logger.info("Rolled back transaction after failed event logging")
-        except Exception as rollback_error:
-            logger.error(f"Failed to roll back transaction: {str(rollback_error)}")
-        # Continue with processing even if logging fails
-
-    results = []
-
-    # Define the endpoints to call and their respective storage functions
     endpoints = {
         "properties/details": (
             rightmove_api_client.get_property_details,
@@ -233,302 +245,266 @@ async def fetch_combined_property_data(
         ),
     }
 
-    for endpoint, (api_call, store_func) in endpoints.items():
-        raw_data = None
-        stored_successfully = False
-        message = ""
+    notifier = get_status_notifier()
+    status_context = "fetch_combined"
+    status_results: List[Dict[str, Any]] = []
+    status_data: Dict[str, Any] = {
+        "property_id": property_id,
+        "property_url": request.property_url,
+        "super_id": str(super_id),
+        "results": status_results,
+    }
+    status_metadata: Dict[str, Any] = {
+        "property_id": property_id,
+        "property_url": request.property_url,
+        "client_id": token_data.get("sub"),
+        "callback_url": callback_url,
+    }
+    status_summary: Dict[str, Any] = {
+        "total_endpoints": len(endpoints),
+        "completed_endpoints": 0,
+    }
 
-        # Step 1: Log API call attempt
+    notification_status = "completed"
+    failure_summary: Optional[Dict[str, Any]] = None
+
+    if notifier:
+        await notifier.notify(
+            super_id=super_id,
+            status="started",
+            context=status_context,
+            data=status_data,
+            summary=dict(status_summary),
+            metadata=status_metadata,
+            webhook_url=callback_url,
+            webhook_headers=callback_headers,
+        )
+
+    async with AsyncSessionLocal() as db:
         try:
-            logger.info(
-                "Calling Rightmove API endpoint.",
-                extra={
-                    "endpoint": endpoint,
-                    "property_id": property_id,
-                    "super_id": super_id,
-                },
-            )
             await event_crud.log_scrape_event(
                 db,
                 super_id,
-                ScrapeEventTypeEnum.API_CALL_ATTEMPT,
+                ScrapeEventTypeEnum.REQUEST_RECEIVED,
                 rightmove_property_id=property_id,
-                api_endpoint_called=endpoint,
+                payload=request_payload,
             )
-        except Exception as e:
-            logger.error(f"Failed to log API call attempt: {str(e)}")
-            # Roll back transaction to prevent PendingRollbackError
-            try:
-                await db.rollback()
-                logger.info(
-                    f"Rolled back transaction after failed API call attempt logging"
-                )
-            except Exception as rollback_error:
-                logger.error(f"Failed to roll back transaction: {str(rollback_error)}")
-            # Continue with API call even if logging fails
+            await db.commit()
+        except Exception as log_exc:
+            logger.error(
+                "Failed to log initial combined fetch event.",
+                extra={"super_id": str(super_id), "error": str(log_exc)},
+            )
+            await db.rollback()
 
-        # Step 2: Make API call
         try:
-            raw_data = await api_call(str(property_id))
+            for endpoint, (api_call, store_func) in endpoints.items():
+                raw_data = None
+                stored_successfully = False
+                message = ""
 
-            # Log successful API call
-            if raw_data:
-                # Analyze the response for data completeness
-                item_count, null_count = analyze_response(raw_data)
-                logger.info(
-                    "Received data from API endpoint.",
-                    extra={
-                        "endpoint": endpoint,
-                        "property_id": property_id,
-                        "super_id": super_id,
-                        "item_count": item_count,
-                        "null_count": null_count,
-                    },
-                )
-
-                # Log successful API call
                 try:
                     await event_crud.log_scrape_event(
                         db,
                         super_id,
-                        ScrapeEventTypeEnum.API_CALL_SUCCESS,
+                        ScrapeEventTypeEnum.API_CALL_ATTEMPT,
                         rightmove_property_id=property_id,
                         api_endpoint_called=endpoint,
-                        http_status_code=200,
-                        payload=raw_data,
-                        response_item_count=item_count,
-                        response_null_item_count=null_count,
                     )
-                except Exception as e:
+                    await db.commit()
+                except Exception as log_exc:
                     logger.error(
-                        "Failed to log API success.",
+                        "Failed to log API attempt for combined fetch.",
+                        extra={"endpoint": endpoint, "error": str(log_exc)},
+                    )
+                    await db.rollback()
+
+                try:
+                    raw_data = await api_call(str(property_id))
+                except Exception as api_exc:
+                    message = f"API call failed: {api_exc}"
+                    notification_status = "failed"
+                    failure_summary = {"error": str(api_exc)}
+                    logger.error(
+                        "Combined fetch API call failed.",
                         extra={
                             "endpoint": endpoint,
                             "property_id": property_id,
-                            "super_id": super_id,
-                            "item_count": item_count,
-                            "null_count": null_count,
-                            "error": str(e),
+                            "super_id": str(super_id),
+                            "error": str(api_exc),
                         },
                     )
-                    # Roll back transaction to prevent PendingRollbackError
                     try:
+                        await event_crud.log_scrape_event(
+                            db,
+                            super_id,
+                            ScrapeEventTypeEnum.API_CALL_FAILURE,
+                            rightmove_property_id=property_id,
+                            api_endpoint_called=endpoint,
+                            error_code="API_ERROR",
+                            error_message=str(api_exc),
+                        )
+                        await db.commit()
+                    except Exception:
                         await db.rollback()
-                    except Exception as rollback_error:
-                        logger.error(
-                            f"Failed to roll back transaction: {str(rollback_error)}"
-                        )
-                    # Continue with storage even if logging fails
-            else:
-                message = "API returned empty response"
-                logger.warning(
-                    "API returned empty response.",
-                    extra={
-                        "endpoint": endpoint,
-                        "property_id": property_id,
-                        "super_id": super_id,
-                        "item_count": item_count,
-                        "null_count": null_count,
-                        "error": str(e),
-                    },
-                )
-                try:
-                    await event_crud.log_scrape_event(
-                        db,
-                        super_id,
-                        ScrapeEventTypeEnum.API_CALL_SUCCESS_EMPTY,
-                        rightmove_property_id=property_id,
-                        api_endpoint_called=endpoint,
-                    )
-                except Exception as e:
-                    logger.error(f"Failed to log empty API response: {str(e)}")
-                    # Roll back transaction to prevent PendingRollbackError
-                    try:
-                        await db.rollback()
-                        logger.info(
-                            "Rolled back transaction after failed empty API logging"
-                        )
-                    except Exception as rollback_error:
-                        logger.error(
-                            f"Failed to roll back transaction: {str(rollback_error)}"
-                        )
+                else:
+                    if raw_data:
+                        item_count, null_count = analyze_response(raw_data)
+                        try:
+                            await event_crud.log_scrape_event(
+                                db,
+                                super_id,
+                                ScrapeEventTypeEnum.API_CALL_SUCCESS,
+                                rightmove_property_id=property_id,
+                                api_endpoint_called=endpoint,
+                                http_status_code=200,
+                                payload=raw_data,
+                                response_item_count=item_count,
+                                response_null_item_count=null_count,
+                            )
+                            await db.commit()
+                        except Exception as log_exc:
+                            logger.error(
+                                "Failed to log API success for combined fetch.",
+                                extra={"endpoint": endpoint, "error": str(log_exc)},
+                            )
+                            await db.rollback()
 
-                results.append(
+                        try:
+                            stored_successfully, message = await store_func(
+                                db, raw_data, super_id
+                            )
+                            await db.commit()
+                            if stored_successfully:
+                                await event_crud.log_scrape_event(
+                                    db,
+                                    super_id,
+                                    ScrapeEventTypeEnum.DATA_STORED_SUCCESS,
+                                    rightmove_property_id=property_id,
+                                    api_endpoint_called=endpoint,
+                                )
+                            else:
+                                await event_crud.log_scrape_event(
+                                    db,
+                                    super_id,
+                                    ScrapeEventTypeEnum.DATA_STORED_FAILURE,
+                                    rightmove_property_id=property_id,
+                                    api_endpoint_called=endpoint,
+                                    error_code="STORAGE_ERROR",
+                                    error_message=message,
+                                )
+                            await db.commit()
+                        except Exception as storage_exc:
+                            stored_successfully = False
+                            message = f"Failed to store data: {storage_exc}"
+                            notification_status = "failed"
+                            failure_summary = {"error": str(storage_exc)}
+                            logger.error(
+                                "Combined fetch storage failure.",
+                                extra={
+                                    "endpoint": endpoint,
+                                    "property_id": property_id,
+                                    "error": str(storage_exc),
+                                },
+                            )
+                            await db.rollback()
+                            try:
+                                await event_crud.log_scrape_event(
+                                    db,
+                                    super_id,
+                                    ScrapeEventTypeEnum.DATA_STORED_FAILURE,
+                                    rightmove_property_id=property_id,
+                                    api_endpoint_called=endpoint,
+                                    error_code="STORAGE_ERROR",
+                                    error_message=str(storage_exc),
+                                )
+                                await db.commit()
+                            except Exception:
+                                await db.rollback()
+                    else:
+                        message = "API returned empty response"
+                        logger.warning(
+                            "Combined fetch endpoint returned empty payload.",
+                            extra={
+                                "endpoint": endpoint,
+                                "property_id": property_id,
+                                "super_id": str(super_id),
+                            },
+                        )
+                        try:
+                            await event_crud.log_scrape_event(
+                                db,
+                                super_id,
+                                ScrapeEventTypeEnum.API_CALL_SUCCESS_EMPTY,
+                                rightmove_property_id=property_id,
+                                api_endpoint_called=endpoint,
+                            )
+                            await db.commit()
+                        except Exception:
+                            await db.rollback()
+
+                status_results.append(
                     CombinedPropertyResponseItem(
                         api_endpoint=endpoint,
                         property_id=property_id,
                         super_id=super_id,
-                        stored=False,
+                        stored=stored_successfully,
                         message=message,
-                    )
+                        raw_data=raw_data,
+                    ).model_dump(mode="json")
                 )
-                continue  # Skip to the next endpoint
+                status_summary["completed_endpoints"] = len(status_results)
 
-        except Exception as api_error:
-            # Handle API call failure
-            error_message = str(api_error)
+                if notifier:
+                    await notifier.notify(
+                        super_id=super_id,
+                        status="in_progress",
+                        context=status_context,
+                        data=status_data,
+                        summary=dict(status_summary),
+                        metadata=status_metadata,
+                        webhook_url=callback_url,
+                        webhook_headers=callback_headers,
+                    )
+
+        except Exception as exc:
+            notification_status = "failed"
+            failure_summary = {"error": str(exc)}
             logger.error(
-                "API call to endpoint failed.",
+                "Combined fetch task encountered an error.",
                 extra={
-                    "endpoint": endpoint,
+                    "super_id": str(super_id),
                     "property_id": property_id,
-                    "super_id": super_id,
-                    "error_message": error_message,
+                    "error": str(exc),
                 },
+                exc_info=True,
             )
-
-            # Log API call failure
-            try:
-                await event_crud.log_scrape_event(
-                    db,
-                    super_id,
-                    ScrapeEventTypeEnum.API_CALL_FAILURE,
-                    rightmove_property_id=property_id,
-                    api_endpoint_called=endpoint,
-                    error_code="API_ERROR",
-                    error_message=error_message,
-                )
-            except Exception as log_error:
-                logger.error(
-                    "Failed to log API call failure.",
-                    extra={
-                        "endpoint": endpoint,
-                        "property_id": property_id,
-                        "super_id": super_id,
-                        "error_message": error_message,
-                        "log_error": str(log_error),
-                    },
-                )
-                # Roll back transaction to prevent PendingRollbackError
+            await db.rollback()
+        finally:
+            if notifier:
                 try:
-                    await db.rollback()
-                    logger.info(
-                        "Rolled back transaction after failed API failure logging"
+                    summary_payload = dict(status_summary)
+                    if failure_summary:
+                        summary_payload.update(failure_summary)
+                    await notifier.notify(
+                        super_id=super_id,
+                        status=notification_status,
+                        context=status_context,
+                        data=status_data,
+                        summary=summary_payload,
+                        metadata=status_metadata,
+                        webhook_url=callback_url,
+                        webhook_headers=callback_headers,
                     )
-                except Exception as rollback_error:
+                except Exception as notify_error:
                     logger.error(
-                        f"Failed to roll back transaction: {str(rollback_error)}"
+                        "Failed to broadcast combined fetch status update.",
+                        extra={
+                            "context": status_context,
+                            "super_id": str(super_id),
+                            "error": str(notify_error),
+                        },
                     )
-
-            results.append(
-                CombinedPropertyResponseItem(
-                    api_endpoint=endpoint,
-                    property_id=property_id,
-                    super_id=super_id,
-                    stored=False,
-                    message=f"API call failed: {error_message}",
-                )
-            )
-            continue  # Skip to next endpoint
-
-        # Step 3: Store data in the database if API call was successful
-        if raw_data:
-            try:
-                logger.info(
-                    f"Storing data from {endpoint} in database for property ID: {property_id}"
-                )
-                stored_successfully, message = await store_func(db, raw_data, super_id)
-
-                if stored_successfully:
-                    logger.info(f"Successfully stored {endpoint} data: {message}")
-                    # Log storage success
-                    try:
-                        await event_crud.log_scrape_event(
-                            db,
-                            super_id,
-                            ScrapeEventTypeEnum.DATA_STORED_SUCCESS,
-                            rightmove_property_id=property_id,
-                            api_endpoint_called=endpoint,
-                        )
-                    except Exception as log_error:
-                        logger.error(
-                            f"Failed to log successful storage: {str(log_error)}"
-                        )
-                        # Explicitly roll back to prevent PendingRollbackError
-                        await db.rollback()
-                else:
-                    logger.warning(f"Failed to store data: {message}")
-                    # This is not an exception but a controlled failure response from storage function
-                    try:
-                        await event_crud.log_scrape_event(
-                            db,
-                            super_id,
-                            ScrapeEventTypeEnum.DATA_STORED_FAILURE,
-                            rightmove_property_id=property_id,
-                            api_endpoint_called=endpoint,
-                            error_code="STORAGE_ERROR",
-                            error_message=message,
-                        )
-                    except Exception as log_error:
-                        logger.error(f"Failed to log storage failure: {str(log_error)}")
-                        # Explicitly roll back to prevent PendingRollbackError
-                        await db.rollback()
-
-            except Exception as storage_error:
-                # Handle unexpected database storage errors
-                error_message = str(storage_error)
-                logger.error(
-                    f"Exception during database storage for {endpoint}: {error_message}"
-                )
-                stored_successfully = False
-                message = f"Failed to store data: {error_message}"
-
-                # Explicitly roll back the transaction to prevent PendingRollbackError
-                try:
-                    await db.rollback()
-                    logger.info(
-                        f"Successfully rolled back transaction after storage error"
-                    )
-                except Exception as rollback_error:
-                    logger.error(
-                        f"Failed to roll back transaction: {str(rollback_error)}"
-                    )
-
-                # Log storage failure
-                try:
-                    await event_crud.log_scrape_event(
-                        db,
-                        super_id,
-                        ScrapeEventTypeEnum.DATA_STORED_FAILURE,
-                        rightmove_property_id=property_id,
-                        api_endpoint_called=endpoint,
-                        error_code="STORAGE_ERROR",
-                        error_message=error_message,
-                    )
-                except Exception as log_error:
-                    logger.error(f"Failed to log storage failure: {str(log_error)}")
-                    # Try to roll back again if logging failed
-                    try:
-                        await db.rollback()
-                    except Exception:
-                        pass
-
-            # Add result for this endpoint
-            results.append(
-                CombinedPropertyResponseItem(
-                    api_endpoint=endpoint,
-                    property_id=property_id,
-                    super_id=super_id,
-                    stored=stored_successfully,
-                    message=message,
-                )
-            )
-
-    logger.info(
-        "Outbound response: fetch combined property data",
-        extra={
-            "property_id": property_id,
-            "results_count": len(results),
-            "super_id": str(request.super_id) if request.super_id else None,
-        },
-    )
-    return CombinedPropertyResponse(
-        property_id=property_id,
-        property_url=request.property_url,
-        results=results,
-    )
-
-
 @router.get("/validate-url", response_model=PropertyUrlResponse)
 async def validate_property_url(
     url: str = Query(..., description="Rightmove property URL to validate"),
@@ -850,6 +826,48 @@ async def process_property_search(
         )
         return
     super_id = search_request.super_id
+
+    callback = search_request.callback
+    callback_url = callback.url if callback else None
+    callback_headers = callback.headers if callback else None
+
+    notifier = get_status_notifier()
+    status_context = "search"
+    collected_properties: List[Dict[str, Any]] = []
+    status_data: Dict[str, Any] = {
+        "location_identifier": search_request.location_identifier,
+        "super_id": str(super_id),
+        "properties": collected_properties,
+    }
+    status_summary: Dict[str, Any] = {
+        "total_successful": 0,
+        "total_failed": 0,
+        "current_page": 0,
+        "total_pages": None,
+    }
+    status_metadata: Dict[str, Any] = {
+        "location_identifier": search_request.location_identifier,
+        "num_properties_requested": search_request.num_properties,
+        "update_existing": update_existing,
+        "callback_url": callback_url,
+    }
+
+    if notifier:
+        await notifier.notify(
+            super_id=super_id,
+            status="started",
+            context=status_context,
+            data=status_data,
+            summary=dict(status_summary),
+            metadata=status_metadata,
+            webhook_url=callback_url,
+            webhook_headers=callback_headers,
+        )
+    notification_status = "completed"
+    failure_summary: Optional[Dict[str, Any]] = None
+    total_successful = 0
+    total_failed = 0
+
     # Use a new DB session for the background task to ensure it's isolated.
     async with AsyncSessionLocal() as db:
         try:
@@ -896,6 +914,8 @@ async def process_property_search(
             properties_on_page = initial_response.get("data", [])
             if not properties_on_page:
                 logger.info("No properties found on the first page. Exiting task.")
+                status_summary["total_pages"] = 0
+                status_summary["current_page"] = 0
                 return
 
             # Store the first page of results
@@ -915,9 +935,29 @@ async def process_property_search(
                 f"Total properties available: {total_results}. Total pages: {total_pages}"
             )
 
+            collected_properties.extend(properties_on_page)
+            status_summary["total_successful"] = total_successful
+            status_summary["total_failed"] = total_failed
+            status_summary["current_page"] = 1
+            status_summary["total_pages"] = total_pages
+            status_metadata["total_results_available"] = total_results
+            status_metadata["results_per_page"] = per_page
+            if notifier:
+                await notifier.notify(
+                    super_id=super_id,
+                    status="in_progress",
+                    context=status_context,
+                    data=status_data,
+                    summary=dict(status_summary),
+                    metadata=status_metadata,
+                    webhook_url=callback_url,
+                    webhook_headers=callback_headers,
+                )
+
             # Loop through subsequent pages
             for page_num in range(2, total_pages + 1):
-                if total_successful >= num_to_fetch:
+                if num_to_fetch and total_successful >= num_to_fetch:
+                    status_metadata["target_reached"] = True
                     logger.info(
                         f"Target of {num_to_fetch} properties reached. Stopping fetch."
                     )
@@ -953,11 +993,30 @@ async def process_property_search(
                     f"Page {page_num}: Stored {successful} properties, {failed} failed. Cumulative totals: {total_successful} successful, {total_failed} failed."
                 )
 
+                collected_properties.extend(properties_on_page)
+                status_summary["total_successful"] = total_successful
+                status_summary["total_failed"] = total_failed
+                status_summary["current_page"] = page_num
+                status_summary["total_pages"] = total_pages
+                if notifier:
+                    await notifier.notify(
+                        super_id=super_id,
+                        status="in_progress",
+                        context=status_context,
+                        data=status_data,
+                        summary=dict(status_summary),
+                        metadata=status_metadata,
+                        webhook_url=callback_url,
+                        webhook_headers=callback_headers,
+                    )
+
                 await asyncio.sleep(0.5)  # Politeness delay
 
             logger.info(
                 f"Search for {search_request.location_identifier} complete. Total Stored: {total_successful}, Total Failed: {total_failed}"
             )
+            status_metadata["total_successful"] = total_successful
+            status_metadata["total_failed"] = total_failed
             # Final log event summarizing the entire operation
             await event_crud.log_scrape_event(
                 db,
@@ -973,6 +1032,8 @@ async def process_property_search(
             await db.commit()
 
         except Exception as e:
+            notification_status = "failed"
+            failure_summary = {"error": str(e)}
             logger.error(
                 f"Background search task failed for {search_request.location_identifier}: {e}",
                 exc_info=True,
@@ -992,7 +1053,34 @@ async def process_property_search(
                 except:
                     await db.rollback()
         finally:
-            pass  # The session will be closed automatically by the 'async with' block
+            if notifier:
+                try:
+                    status_summary["total_successful"] = total_successful
+                    status_summary["total_failed"] = total_failed
+                    status_summary.setdefault("current_page", 0)
+                    status_summary.setdefault("total_pages", None)
+                    summary_payload = dict(status_summary)
+                    if failure_summary:
+                        summary_payload.update(failure_summary)
+                    await notifier.notify(
+                        super_id=super_id,
+                        status=notification_status,
+                        context=status_context,
+                        data=status_data,
+                        summary=summary_payload,
+                        metadata=status_metadata,
+                        webhook_url=callback_url,
+                        webhook_headers=callback_headers,
+                    )
+                except Exception as notify_error:
+                    logger.error(
+                        "Failed to broadcast search status update",
+                        extra={
+                            "context": status_context,
+                            "super_id": str(super_id),
+                            "error": str(notify_error),
+                        },
+                    )
 
 
 @router.get("/ids", response_model=List[int])

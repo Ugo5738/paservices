@@ -27,6 +27,16 @@ class PropertyBase(BaseModel):
     )
 
 
+class WorkflowCallback(BaseModel):
+    """Optional callback configuration for workflow status updates."""
+
+    url: HttpUrl = Field(..., description="Webhook URL that receives status updates")
+    headers: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional HTTP headers to include when invoking the webhook.",
+    )
+
+
 # Request schemas
 class FetchPropertyDetailsRequest(BaseModel):
     """Request to fetch property details from Rightmove."""
@@ -40,6 +50,10 @@ class FetchPropertyDetailsRequest(BaseModel):
     )
     description: Optional[str] = Field(
         None, description="Optional description for tracking purposes"
+    )
+    callback: Optional[WorkflowCallback] = Field(
+        default=None,
+        description="Optional callback configuration for status updates.",
     )
 
     @model_validator(mode="after")
@@ -147,6 +161,10 @@ class CombinedPropertyResponseItem(BaseModel):
     super_id: UUID = Field(..., description="Super ID for tracking purposes")
     stored: bool = Field(..., description="Whether the data was stored successfully")
     message: str = Field(..., description="Success or error message")
+    raw_data: Optional[Any] = Field(
+        default=None,
+        description="Raw data returned by the Rightmove API for this endpoint.",
+    )
 
 
 class CombinedPropertyResponse(BaseModel):
@@ -208,6 +226,10 @@ class PropertySearchRequest(BaseModel):
     do_not_show_new_home: Optional[bool] = None
     do_not_show_buying_schemes: Optional[bool] = None
     do_not_show_retirement_home: Optional[bool] = None
+    callback: Optional[WorkflowCallback] = Field(
+        default=None,
+        description="Optional callback configuration for status updates.",
+    )
 
 
 class PropertyListingResponse(BaseModel):
