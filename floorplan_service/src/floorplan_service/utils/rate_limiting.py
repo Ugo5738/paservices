@@ -4,7 +4,7 @@ Rate limiting configuration for Floorplan Service.
 
 import uuid
 
-from fastapi import Request
+from fastapi import FastAPI, Request
 from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware

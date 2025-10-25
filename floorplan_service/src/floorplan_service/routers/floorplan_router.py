@@ -115,9 +115,12 @@ async def analyze_floorplans(
         trigger_floorplan_analysis,
         super_id=request_data.super_id,
         property_id=request_data.property_id,
-        floorplans_data=request_data.model_dump()[
-            "floorplans"
-        ],  # Use model_dump for Pydantic v2
+        floorplans_data=request_data.model_dump()["floorplans"],
+        callback_payload=(
+            request_data.callback.model_dump(mode="json")
+            if request_data.callback
+            else None
+        ),
     )
     response = MessageResponse(message="Floorplan analysis initiated.")
     logger.info(

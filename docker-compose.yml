@@ -47,21 +47,21 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # # Floorplan Service
-  # floorplan_service:
-  #   extends:
-  #     file: floorplan_service/docker-compose.dev.yml
-  #     service: floorplan_service_dev
-  #   ports:
-  #     - "8004:8000"
-  #   networks:
-  #     - paservices_network
-  #     - supabase_network_paservices
-  #   logging:
-  #     driver: "json-file"
-  #     options:
-  #       max-size: "10m"
-  #       max-file: "3"
+  # Floorplan Service
+  floorplan_service:
+    extends:
+      file: floorplan_service/docker-compose.dev.yml
+      service: floorplan_service_dev
+    ports:
+      - "8004:8000"
+    networks:
+      - paservices_network
+      - supabase_network_paservices
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # # --- DJANGO SERVICE ---
   # sanalysis_service:

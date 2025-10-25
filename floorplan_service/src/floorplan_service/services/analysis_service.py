@@ -3,9 +3,11 @@
 import csv
 import uuid
 from io import StringIO
+from typing import Any, Dict, List, Optional
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
 
 from ..config import settings
 from ..crud import event_crud, floorplan_crud
@@ -19,12 +21,50 @@ from ..models.floorplan_models import (
 )
 from ..utils.helpers import convert_gif_to_jpeg_and_upload_to_s3
 from ..utils.logging_config import logger
+from ..utils.status_notifier import get_status_notifier
 
 
 async def trigger_floorplan_analysis(
-    super_id: uuid.UUID, property_id: str, floorplans_data: dict
+    super_id: uuid.UUID,
+    property_id: str,
+    floorplans_data: dict,
+    callback_payload: Optional[dict] = None,
 ):
     """Orchestrates the initiation of the floorplan analysis."""
+    notifier = get_status_notifier()
+    callback_url = (
+        callback_payload.get("url") if callback_payload else None  # type: ignore[union-attr]
+    )
+    callback_headers = (
+        callback_payload.get("headers") if callback_payload else None  # type: ignore[union-attr]
+    )
+    total_floorplans = len(floorplans_data)
+    status_context = "floorplan_analyze"
+    status_results: List[Dict[str, Any]] = []
+    status_data: Dict[str, Any] = {
+        "property_id": property_id,
+        "super_id": str(super_id),
+        "floorplans": status_results,
+        "total_floorplans": total_floorplans,
+    }
+    status_summary: Dict[str, Any] = {
+        "total_floorplans": total_floorplans,
+        "processed_floorplans": 0,
+        "analyzer_triggered": False,
+    }
+
+    if notifier:
+        await notifier.notify(
+            super_id=super_id,
+            status="started",
+            context=status_context,
+            data=status_data,
+            summary=dict(status_summary),
+            metadata={"callback_url": callback_url},
+            webhook_url=callback_url,
+            webhook_headers=callback_headers,
+        )
+
     async with AsyncSessionLocal() as db:
         await event_crud.log_floorplan_event(
             db,
@@ -46,13 +86,29 @@ async def trigger_floorplan_analysis(
 
                 # Create initial DB record to store the super_id association
                 await floorplan_crud.create_initial_property_record(
-                    db, super_id, property_id, client_key, original_url
+                    db,
+                    super_id,
+                    property_id,
+                    client_key,
+                    original_url,
+                    callback_url=callback_url,
+                    callback_headers=callback_headers,
+                    total_floorplans=total_floorplans,
                 )
 
                 payload_floorplans[client_key] = {
                     "url": processed_url,
                     "notes": fp_data.get("notes", ""),
                 }
+                status_results.append(
+                    {
+                        "floorplan_id": client_key,
+                        "original_url": original_url,
+                        "processed_url": processed_url,
+                        "status": "queued",
+                    }
+                )
+                status_summary["processed_floorplans"] = len(status_results)
             except Exception as e:
                 logger.error(
                     f"Error processing floorplan URL {fp_data.get('url')}: {e}",
@@ -63,6 +119,20 @@ async def trigger_floorplan_analysis(
             logger.warning(
                 f"No valid floorplans to process for property {property_id}."
             )
+            if notifier:
+                await notifier.notify(
+                    super_id=super_id,
+                    status="failed",
+                    context=status_context,
+                    data=status_data,
+                    summary=dict(status_summary),
+                    metadata={
+                        "callback_url": callback_url,
+                        "error": "No valid floorplans to process.",
+                    },
+                    webhook_url=callback_url,
+                    webhook_headers=callback_headers,
+                )
             return
 
         payload = {
@@ -94,6 +164,18 @@ async def trigger_floorplan_analysis(
                 logger.info(
                     f"Successfully initiated analysis for property {property_id} with super_id {super_id}"
                 )
+                status_summary["analyzer_triggered"] = True
+                if notifier:
+                    await notifier.notify(
+                        super_id=super_id,
+                        status="in_progress",
+                        context=status_context,
+                        data=status_data,
+                        summary=dict(status_summary),
+                        metadata={"callback_url": callback_url},
+                        webhook_url=callback_url,
+                        webhook_headers=callback_headers,
+                    )
             except httpx.RequestError as e:
                 await event_crud.log_floorplan_event(
                     db,
@@ -104,43 +186,91 @@ async def trigger_floorplan_analysis(
                 logger.error(
                     f"Failed to call analyzer API for property {property_id}: {e}"
                 )
+                if notifier:
+                    await notifier.notify(
+                        super_id=super_id,
+                        status="failed",
+                        context=status_context,
+                        data=status_data,
+                        summary=dict(status_summary),
+                        metadata={
+                            "callback_url": callback_url,
+                            "error": str(e),
+                        },
+                        webhook_url=callback_url,
+                        webhook_headers=callback_headers,
+                    )
 
         await db.commit()
 
 
 async def process_webhook_data_task(payload_data: dict):
     """Processes the webhook data in the background."""
+    notifier = get_status_notifier()
+    output_items = payload_data.get("output_data", [])
+    if not output_items:
+        logger.warning("Webhook payload contained no output_data.")
+        return
+
     async with AsyncSessionLocal() as db:
-        for item_data in payload_data.get("output_data", []):
+        callback_url: Optional[str] = None
+        callback_headers: Optional[Dict[str, str]] = None
+        property_id: Optional[str] = payload_data.get("property_id")
+        super_id: Optional[uuid.UUID] = None
+        total_floorplans: Optional[int] = None
+        status_context = "floorplan_analyze"
+        status_results: List[Dict[str, Any]] = []
+        failure_summary: Optional[Dict[str, Any]] = None
+
+        for item_data in output_items:
             floorplan_id = item_data.get("floorplan_id")
+            fp_property: Optional[FpPropertyData] = None
             try:
-                # Find the super_id from the initial record
-                stmt = select(FpPropertyData.super_id).where(
-                    FpPropertyData.floorplan_id == floorplan_id
+                stmt = select(FpPropertyData).where(
+                    FpPropertyData.floorplan_id == floorplan_id,
+                    FpPropertyData.property_id == item_data.get("property_id"),
                 )
                 result = await db.execute(stmt)
-                super_id = result.scalars().first()
+                fp_property = result.scalars().first()
 
-                if not super_id:
+                if not fp_property:
                     logger.error(
                         f"Webhook received for unknown floorplan_id: {floorplan_id}. Cannot process."
                     )
                     continue
 
+                if super_id is None:
+                    super_id = fp_property.super_id
+                if property_id is None:
+                    property_id = fp_property.property_id
+                if callback_url is None:
+                    callback_url = fp_property.callback_url
+                if callback_headers is None and fp_property.callback_headers:
+                    callback_headers = fp_property.callback_headers
+                if total_floorplans is None and fp_property.total_floorplans:
+                    total_floorplans = fp_property.total_floorplans
+
                 await event_crud.log_floorplan_event(
                     db,
-                    super_id,
+                    fp_property.super_id,
                     FloorplanEventTypeEnum.WEBHOOK_RECEIVED,
                     floorplan_id=floorplan_id,
                 )
                 await floorplan_crud.update_property_with_webhook_data(
-                    db, item_data, super_id
+                    db, item_data, fp_property.super_id
                 )
                 await event_crud.log_floorplan_event(
                     db,
-                    super_id,
+                    fp_property.super_id,
                     FloorplanEventTypeEnum.DATA_STORAGE_SUCCESS,
                     floorplan_id=floorplan_id,
+                )
+                status_results.append(
+                    {
+                        "floorplan_id": floorplan_id,
+                        "original_url": item_data.get("original_url"),
+                        "analysis": item_data.get("all_floors", {}),
+                    }
                 )
                 await db.commit()
             except Exception as e:
@@ -148,15 +278,45 @@ async def process_webhook_data_task(payload_data: dict):
                     f"Failed to process webhook item for floorplan_id {floorplan_id}: {e}",
                     exc_info=True,
                 )
-                if "super_id" in locals() and super_id:
+                failure_summary = {"error": str(e), "floorplan_id": floorplan_id}
+                if "fp_property" in locals() and fp_property:
                     await event_crud.log_floorplan_event(
                         db,
-                        super_id,
+                        fp_property.super_id,
                         FloorplanEventTypeEnum.DATA_STORAGE_FAILURE,
                         floorplan_id=floorplan_id,
                         error_message=str(e),
                     )
                 await db.rollback()
+
+        if notifier and super_id:
+            summary_payload: Dict[str, Any] = {
+                "processed_floorplans": len(status_results),
+                "total_floorplans": total_floorplans or len(output_items),
+            }
+            if failure_summary:
+                status = "failed"
+                summary_payload.update(failure_summary)
+            else:
+                status = "completed"
+
+            await notifier.notify(
+                super_id=super_id,
+                status=status,
+                context=status_context,
+                data={
+                    "super_id": str(super_id),
+                    "property_id": property_id,
+                    "floorplans": status_results,
+                },
+                summary=summary_payload,
+                metadata={
+                    "callback_url": callback_url,
+                    "property_id": property_id,
+                },
+                webhook_url=callback_url,
+                webhook_headers=callback_headers,
+            )
 
 
 # async def _process_single_floorplan_item(

@@ -16,12 +16,26 @@ class FloorplanInput(BaseModel):
     notes: Optional[str] = None
 
 
+class WorkflowCallback(BaseModel):
+    """Optional callback configuration for workflow status updates."""
+
+    url: HttpUrl = Field(..., description="Webhook URL that receives status updates")
+    headers: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional HTTP headers to include when invoking the webhook.",
+    )
+
+
 class FloorplanAnalysisRequest(BaseModel):
     """Payload to initiate the floorplan analysis process."""
 
     super_id: uuid.UUID
     property_id: str
     floorplans: Dict[str, FloorplanInput]
+    callback: Optional[WorkflowCallback] = Field(
+        default=None,
+        description="Optional callback configuration for status updates.",
+    )
 
 
 # --- Webhook Schemas (Matching incoming data from the analyzer) ---

@@ -1,6 +1,7 @@
 import csv
 import uuid
 from io import StringIO
+from typing import Optional
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,10 @@ async def create_initial_property_record(
     property_id: str,
     floorplan_id: str,
     original_url: str,
+    *,
+    callback_url: Optional[str] = None,
+    callback_headers: Optional[dict] = None,
+    total_floorplans: Optional[int] = None,
 ) -> FpPropertyData:
     """Creates the initial FpPropertyData record before calling the analyzer."""
     new_record = FpPropertyData(
@@ -31,6 +36,9 @@ async def create_initial_property_record(
         floorplan_id=floorplan_id,
         original_url=original_url,
         message="Analysis initiated",
+        callback_url=callback_url,
+        callback_headers=callback_headers,
+        total_floorplans=total_floorplans,
     )
     db.add(new_record)
     await db.flush()
@@ -59,13 +67,18 @@ async def update_property_with_webhook_data(
 
     # Create child records
     all_floors_info = item_data["all_floors"]
+    def _coerce_url(value: Optional[str]) -> Optional[str]:
+        if not value:
+            return None
+        return str(value)
+
     analysis_urls = FpAnalysisUrls(
         fp_property_data_id=fp_property.id,
         super_id=super_id,
-        json_file_url=str(all_floors_info.get("json_file_url")),
-        csv_url=str(all_floors_info.get("csv_url")),
-        total_area_csv_url=str(all_floors_info.get("total_area_csv_url")),
-        image_labelme_side_by_side_url=str(
+        json_file_url=_coerce_url(all_floors_info.get("json_file_url")),
+        csv_url=_coerce_url(all_floors_info.get("csv_url")),
+        total_area_csv_url=_coerce_url(all_floors_info.get("total_area_csv_url")),
+        image_labelme_side_by_side_url=_coerce_url(
             all_floors_info.get("image_labelme_side_by_side_url")
         ),
         notes=all_floors_info.get("notes"),
