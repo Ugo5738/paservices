@@ -2,9 +2,10 @@
 Configuration module for the Data Capture Rightmove Service.
 """
 
+import json
 import os
 from enum import Enum
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -169,10 +170,79 @@ class Settings(BaseSettings):
         description="Interval between data fetch operations in seconds",
     )
 
+    # Status notification and S3 configuration
+    STATUS_WEBHOOK_URL: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_WEBHOOK_URL",
+        description="Webhook URL to receive workflow status updates.",
+    )
+    STATUS_WEBHOOK_HEADERS: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_WEBHOOK_HEADERS",
+        description="JSON object of HTTP headers to include when sending webhook notifications.",
+    )
+    STATUS_S3_BUCKET_NAME: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_S3_BUCKET_NAME",
+        description="S3 bucket where workflow status snapshots are written.",
+    )
+    STATUS_S3_REGION: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_S3_REGION",
+        description="AWS region that hosts the status snapshot bucket.",
+    )
+    STATUS_S3_PREFIX: str = Field(
+        "rightmove/status",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_S3_PREFIX",
+        description="Key prefix within the S3 bucket for workflow snapshots.",
+    )
+    STATUS_S3_PUBLIC_BASE_URL: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_S3_PUBLIC_BASE_URL",
+        description="Optional base URL used to build public links to snapshot files.",
+    )
+    STATUS_S3_ENDPOINT_URL: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_S3_ENDPOINT_URL",
+        description="Optional custom endpoint URL for S3-compatible storage.",
+    )
+
+    # Optional AWS credentials (falls back to default provider chain if unset)
+    AWS_ACCESS_KEY_ID: Optional[str] = Field(
+        None, alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AWS_ACCESS_KEY_ID"
+    )
+    AWS_SECRET_ACCESS_KEY: Optional[str] = Field(
+        None, alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AWS_SECRET_ACCESS_KEY"
+    )
+    AWS_SESSION_TOKEN: Optional[str] = Field(
+        None, alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_AWS_SESSION_TOKEN"
+    )
+
     @field_validator("DATABASE_URL")
     def validate_database_url(cls, v: str, info: Any) -> str:
         # Add any database URL validation logic here if needed
         return v
+
+    @field_validator("STATUS_WEBHOOK_HEADERS")
+    def parse_webhook_headers(cls, v: Optional[str]) -> Optional[Dict[str, str]]:
+        if v in (None, "", {}):
+            return None
+        if isinstance(v, dict):
+            return {str(key): str(value) for key, value in v.items()}
+        try:
+            headers = json.loads(v)
+        except json.JSONDecodeError as exc:
+            raise ValueError(
+                f"DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_WEBHOOK_HEADERS must be valid JSON. {exc}"
+            ) from exc
+        if not isinstance(headers, dict):
+            raise ValueError(
+                "DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_WEBHOOK_HEADERS must decode to a JSON object."
+            )
+        return {str(key): str(value) for key, value in headers.items()}
+
+    def status_notifications_enabled(self) -> bool:
+        return bool(self.STATUS_S3_BUCKET_NAME)
 
     def is_production(self) -> bool:
         return self.ENVIRONMENT == Environment.PRODUCTION
