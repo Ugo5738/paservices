@@ -4,8 +4,8 @@ from supabase._async.client import AsyncClient as AsyncSupabaseClient
 from supabase._async.client import create_client as create_async_supabase_client
 from supabase.lib.client_options import ClientOptions
 
-from auth_service.config import settings
-from auth_service.utils.logging_config import logger
+from .config import settings
+from .utils.logging_config import logger
 
 # Global instances for both clients.
 _global_async_supabase_client: AsyncSupabaseClient | None = None

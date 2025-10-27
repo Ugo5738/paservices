@@ -7,18 +7,18 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_service.db import get_db
-from auth_service.dependencies.user_deps import require_admin_user
-from auth_service.models.permission import Permission
-from auth_service.models.role import Role
-from auth_service.models.role_permission import RolePermission
-from auth_service.schemas.common_schemas import MessageResponse
-from auth_service.schemas.role_permission_schemas import (
+from ..db import get_db
+from ..dependencies.user_deps import require_admin_user
+from ..models.permission import Permission
+from ..models.role import Role
+from ..models.role_permission import RolePermission
+from ..schemas.common_schemas import MessageResponse
+from ..schemas.role_permission_schemas import (
     RolePermissionAssign,
     RolePermissionListResponse,
     RolePermissionResponse,
 )
-from auth_service.schemas.user_schemas import SupabaseUser
+from ..schemas.user_schemas import SupabaseUser
 
 logger = logging.getLogger(__name__)
 

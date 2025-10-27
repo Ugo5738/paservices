@@ -7,17 +7,17 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_service.db import get_db
-from auth_service.dependencies.user_deps import require_admin_user
-from auth_service.models.role import Role
-from auth_service.schemas.common_schemas import MessageResponse
-from auth_service.schemas.role_schemas import (
+from ..db import get_db
+from ..dependencies.user_deps import require_admin_user
+from ..models.role import Role
+from ..schemas.common_schemas import MessageResponse
+from ..schemas.role_schemas import (
     RoleCreate,
     RoleListResponse,
     RoleResponse,
     RoleUpdate,
 )
-from auth_service.schemas.user_schemas import SupabaseUser
+from ..schemas.user_schemas import SupabaseUser
 
 logger = logging.getLogger(__name__)
 

@@ -1,6 +1,6 @@
 from sqlalchemy import Column, DateTime, ForeignKey, PrimaryKeyConstraint, func
 from sqlalchemy.dialects.postgresql import UUID
-from auth_service.db import Base
+from ..db import Base
 
 
 class RolePermission(Base):

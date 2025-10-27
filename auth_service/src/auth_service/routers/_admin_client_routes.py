@@ -7,24 +7,24 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError, NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from auth_service.db import get_db
-from auth_service.dependencies.user_deps import require_admin_user
-from auth_service.models.app_client import AppClient
-from auth_service.models.role import Role
+from ..db import get_db
+from ..dependencies.user_deps import require_admin_user
+from ..models.app_client import AppClient
+from ..models.role import Role
 
-# from auth_service.models.app_client_role_model import AppClientRole # Not directly used for creation here
-from auth_service.schemas.app_client_schemas import (
+# from ..models.app_client_role_model import AppClientRole # Not directly used for creation here
+from ..schemas.app_client_schemas import (
     AppClientCreatedResponse,
     AppClientCreateRequest,
     AppClientListResponse,
     AppClientResponse,
     AppClientUpdateRequest,
 )
-from auth_service.schemas.common_schemas import MessageResponse
-from auth_service.schemas.user_schemas import (
+from ..schemas.common_schemas import MessageResponse
+from ..schemas.user_schemas import (
     SupabaseUser,  # For type hinting require_admin_user
 )
-from auth_service.security import generate_client_secret, hash_secret
+from ..security import generate_client_secret, hash_secret
 
 logger = logging.getLogger(__name__)
 

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import Request
 
-from auth_service.utils.logging_config import RequestContext
+from .utils.logging_config import RequestContext
 
 # Get dedicated security audit logger
 logger = logging.getLogger("auth_service.security")

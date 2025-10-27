@@ -27,8 +27,8 @@ project_root = os.path.abspath(
 sys.path.append(project_root)
 
 # Now import from the proper location based on project structure
-from auth_service.config import settings
-from auth_service.db import AsyncSessionLocal, get_db
+from ..config import settings
+from ..db import AsyncSessionLocal, get_db
 
 # Check if pytest is available
 try:

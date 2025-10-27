@@ -20,8 +20,8 @@ from sqlalchemy.orm import declarative_base
 from sqlalchemy.pool import NullPool
 from sqlalchemy.sql import func, text
 
-from auth_service.config import settings
-from auth_service.utils.logging_config import logger
+from .config import settings
+from .utils.logging_config import logger
 
 # --- 1. Centralized Configuration Access ---
 DATABASE_URL = settings.DATABASE_URL

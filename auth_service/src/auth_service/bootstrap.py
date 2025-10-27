@@ -7,14 +7,14 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
-from auth_service.config import settings as app_settings
-from auth_service.crud import user_crud
-from auth_service.models.permission import Permission
-from auth_service.models.role import Role
-from auth_service.models.role_permission import RolePermission
-from auth_service.models.user_role import UserRole
-from auth_service.schemas.user_schemas import ProfileCreate, SupabaseUser
-from auth_service.supabase_client import get_supabase_admin_client
+from .config import settings as app_settings
+from .crud import user_crud
+from .models.permission import Permission
+from .models.role import Role
+from .models.role_permission import RolePermission
+from .models.user_role import UserRole
+from .schemas.user_schemas import ProfileCreate, SupabaseUser
+from .supabase_client import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 

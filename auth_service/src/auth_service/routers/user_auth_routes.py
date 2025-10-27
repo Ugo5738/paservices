@@ -9,20 +9,20 @@ from sqlalchemy.exc import SQLAlchemyError  # Added
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
-from auth_service.config import Environment
-from auth_service.config import Settings as AppSettingsType  # For type hinting settings
-from auth_service.crud import user_crud
-from auth_service.db import get_db
-from auth_service.dependencies import (
+from ..config import Environment
+from ..config import Settings as AppSettingsType  # For type hinting settings
+from ..crud import user_crud
+from ..db import get_db
+from ..dependencies import (
     get_app_settings,
     get_current_supabase_user,
     oauth2_scheme,
 )
-from auth_service.schemas.common_schemas import MessageResponse
-from auth_service.schemas.user_schemas import *
-from auth_service.security_audit import *
-from auth_service.supabase_client import get_supabase_client
-from auth_service.utils.rate_limiting import (
+from ..schemas.common_schemas import MessageResponse
+from ..schemas.user_schemas import *
+from ..security_audit import *
+from ..supabase_client import get_supabase_client
+from ..utils.rate_limiting import (
     LOGIN_LIMIT,
     PASSWORD_RESET_LIMIT,
     REGISTER_LIMIT,

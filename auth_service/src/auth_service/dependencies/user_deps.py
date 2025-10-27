@@ -5,8 +5,8 @@ from fastapi.security import OAuth2PasswordBearer
 from gotrue.errors import AuthApiError as SupabaseAPIError
 from supabase._async.client import AsyncClient as AsyncSupabaseClient
 
-from auth_service.schemas.user_schemas import SupabaseUser
-from auth_service.supabase_client import get_supabase_client
+from ..schemas.user_schemas import SupabaseUser
+from ..supabase_client import get_supabase_client
 
 logger = logging.getLogger(__name__)
 

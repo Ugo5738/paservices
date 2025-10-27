@@ -6,18 +6,18 @@ from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from auth_service.db import get_db
-from auth_service.dependencies.user_deps import require_admin_user
-from auth_service.models.app_client import AppClient
-from auth_service.models.app_client_role import AppClientRole
-from auth_service.models.role import Role
-from auth_service.schemas.app_client_role_schemas import (
+from ..db import get_db
+from ..dependencies.user_deps import require_admin_user
+from ..models.app_client import AppClient
+from ..models.app_client_role import AppClientRole
+from ..models.role import Role
+from ..schemas.app_client_role_schemas import (
     AppClientRoleAssign,
     AppClientRoleListResponse,
     AppClientRoleResponse,
 )
-from auth_service.schemas.common_schemas import MessageResponse
-from auth_service.schemas.user_schemas import SupabaseUser
+from ..schemas.common_schemas import MessageResponse
+from ..schemas.user_schemas import SupabaseUser
 
 router = APIRouter(tags=["admin", "client-roles"])
 logger = logging.getLogger(__name__)
