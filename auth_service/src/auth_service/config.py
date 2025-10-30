@@ -51,6 +51,24 @@ class Settings(BaseSettings):
     M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(
         30, alias="AUTH_SERVICE_M2M_JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
     )
+    M2M_JWT_PRIVATE_KEY: Optional[str] = Field(
+        None, alias="AUTH_SERVICE_M2M_JWT_PRIVATE_KEY"
+    )
+    M2M_JWT_PRIVATE_KEY_B64: Optional[str] = Field(
+        None, alias="AUTH_SERVICE_M2M_JWT_PRIVATE_KEY_B64"
+    )
+    M2M_JWT_PUBLIC_KEY: Optional[str] = Field(
+        None, alias="AUTH_SERVICE_M2M_JWT_PUBLIC_KEY"
+    )
+    M2M_JWT_PUBLIC_KEY_B64: Optional[str] = Field(
+        None, alias="AUTH_SERVICE_M2M_JWT_PUBLIC_KEY_B64"
+    )
+    M2M_JWT_PRIVATE_KEY_PATH: Optional[str] = Field(
+        None, alias="AUTH_SERVICE_M2M_JWT_PRIVATE_KEY_PATH"
+    )
+    M2M_JWT_PUBLIC_KEY_PATH: Optional[str] = Field(
+        None, alias="AUTH_SERVICE_M2M_JWT_PUBLIC_KEY_PATH"
+    )
 
     # Self-hosted Supabase configuration
     SUPABASE_SELF_HOSTED: bool = False

@@ -1,7 +1,9 @@
 # src/auth_service/security.py
+import base64
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from jose import jwt
@@ -18,6 +20,63 @@ _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Construct absolute paths for the key files.
 _PRIVATE_KEY_PATH = os.path.join(_BASE_DIR, "keys", "private.pem")
 _PUBLIC_KEY_PATH = os.path.join(_BASE_DIR, "keys", "public.pem")
+
+
+def _resolve_path(custom_path: Optional[str], default: str) -> str:
+    if custom_path:
+        return custom_path if os.path.isabs(custom_path) else os.path.join(_BASE_DIR, custom_path)
+    return default
+
+
+def _decode_if_base64(value: str) -> bytes:
+    try:
+        return base64.b64decode(value)
+    except Exception as exc:  # pragma: no cover - defensive
+        raise ValueError("Failed to decode base64 key content") from exc
+
+
+@lru_cache
+def _load_signing_key() -> bytes:
+    algorithm = settings.M2M_JWT_ALGORITHM.upper()
+    if algorithm.startswith("HS"):
+        return settings.M2M_JWT_SECRET_KEY.encode("utf-8")
+
+    if settings.M2M_JWT_PRIVATE_KEY:
+        return settings.M2M_JWT_PRIVATE_KEY.encode("utf-8")
+    if settings.M2M_JWT_PRIVATE_KEY_B64:
+        return _decode_if_base64(settings.M2M_JWT_PRIVATE_KEY_B64)
+
+    key_path = _resolve_path(settings.M2M_JWT_PRIVATE_KEY_PATH, _PRIVATE_KEY_PATH)
+    try:
+        with open(key_path, "rb") as f:
+            return f.read()
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Auth service private key not found at '{key_path}'. "
+            "Provide AUTH_SERVICE_M2M_JWT_PRIVATE_KEY(_B64) or a valid AUTH_SERVICE_M2M_JWT_PRIVATE_KEY_PATH."
+        ) from exc
+
+
+@lru_cache
+def _load_verification_key() -> bytes:
+    algorithm = settings.M2M_JWT_ALGORITHM.upper()
+    if algorithm.startswith("HS"):
+        return settings.M2M_JWT_SECRET_KEY.encode("utf-8")
+
+    if settings.M2M_JWT_PUBLIC_KEY:
+        return settings.M2M_JWT_PUBLIC_KEY.encode("utf-8")
+    if settings.M2M_JWT_PUBLIC_KEY_B64:
+        return _decode_if_base64(settings.M2M_JWT_PUBLIC_KEY_B64)
+
+    key_path = _resolve_path(settings.M2M_JWT_PUBLIC_KEY_PATH, _PUBLIC_KEY_PATH)
+    try:
+        with open(key_path, "rb") as f:
+            return f.read()
+    except FileNotFoundError as exc:
+        raise FileNotFoundError(
+            f"Auth service public key not found at '{key_path}'. "
+            "Provide AUTH_SERVICE_M2M_JWT_PUBLIC_KEY(_B64) or a valid AUTH_SERVICE_M2M_JWT_PUBLIC_KEY_PATH."
+        ) from exc
 
 
 def generate_client_secret(n_bytes: int = 32) -> str:
@@ -69,8 +128,7 @@ def create_m2m_access_token(
         "token_type": "m2m_access",  # Custom claim to identify token type
     }
 
-    with open(_PRIVATE_KEY_PATH, "rb") as f:
-        private_key = f.read()
+    private_key = _load_signing_key()
 
     headers = {
         "alg": settings.M2M_JWT_ALGORITHM,
@@ -93,8 +151,7 @@ def decode_m2m_access_token(token: str) -> Optional[Dict[str, Any]]:
     Returns the token payload if valid, None otherwise.
     """
     try:
-        with open(_PUBLIC_KEY_PATH, "rb") as f:
-            public_key = f.read()
+        public_key = _load_verification_key()
         payload = jwt.decode(
             token,
             public_key,
