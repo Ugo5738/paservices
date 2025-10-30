@@ -79,6 +79,13 @@ def _load_verification_key() -> bytes:
         ) from exc
 
 
+def get_m2m_public_key() -> bytes:
+    """
+    Return the verification key bytes used for M2M JWT validation / JWKS exposure.
+    """
+    return _load_verification_key()
+
+
 def generate_client_secret(n_bytes: int = 32) -> str:
     """
     Generates a cryptographically strong URL-safe text string for client secrets.

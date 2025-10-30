@@ -1,6 +1,3 @@
-import base64
-import os
-
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from jwcrypto import jwk
@@ -13,15 +10,12 @@ from ..schemas.app_client_schemas import AccessTokenResponse, AppClientTokenRequ
 from ..schemas.common_schemas import MessageResponse
 from ..utils.logging_config import logger
 from ..utils.rate_limiting import TOKEN_LIMIT, limiter
+from ..security import get_m2m_public_key
 
 router = APIRouter(
     prefix="/auth",
     tags=["Token Acquisition"],
 )
-
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_PUBLIC_KEY_PATH = os.path.join(_BASE_DIR, "..", "keys", "public.pem")
-
 
 def _redact_sensitive(data):
     SENSITIVE_KEYS = {
@@ -186,8 +180,7 @@ async def get_client_token(
 @router.get("/.well-known/jwks.json")
 async def jwks():
     # Load public key
-    with open(_PUBLIC_KEY_PATH, "rb") as f:
-        pub = jwk.JWK.from_pem(f.read())
+    pub = jwk.JWK.from_pem(get_m2m_public_key())
 
     # Dump as JWKS
     jwks = {"keys": [pub.export(as_dict=True)]}
