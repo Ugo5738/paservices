@@ -57,7 +57,7 @@ class ApiPropertyDetails(Base, SuperIdMixin):
     epc_graphs = Column(JSONB)
     key_features = Column(ARRAY(Text))
     nearest_airports = Column(ARRAY(Text))
-    rooms = Column(ARRAY(Text))
+    rooms = Column(JSONB)
     sizings = Column(JSONB)
     tags = Column(ARRAY(Text))
 

@@ -141,6 +141,15 @@ async def trigger_floorplan_analysis(
             "property_id": property_id,
             "floorplans": payload_floorplans,
         }
+        logger.info(
+            "Prepared analyzer payload",
+            extra={
+                "super_id": str(super_id),
+                "property_id": property_id,
+                "webhook_url": settings.FLOORPLAN_WEBHOOK_URL,
+                "callback_url": callback_url,
+            },
+        )
 
         await event_crud.log_floorplan_event(
             db,
