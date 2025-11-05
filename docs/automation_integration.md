@@ -197,7 +197,7 @@ Tip: map each floorplan array entry to a deterministic key (e.g., `"fp1"`, `"fp2
 
 ### 5.1 API Call
 
-- **Endpoint**: `POST https://image-condition-analysis.supersami.com/api/v1/image-condition/analyze`
+- **Endpoint**: `POST https://image-condition-analysis.supersami.com/api/image-condition-analysis/analyze/`
 - **Headers**: `Authorization: Bearer <token>`
 - **Body**:
 

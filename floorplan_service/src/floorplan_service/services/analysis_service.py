@@ -39,7 +39,7 @@ async def trigger_floorplan_analysis(
         callback_payload.get("headers") if callback_payload else None  # type: ignore[union-attr]
     )
     total_floorplans = len(floorplans_data)
-    status_context = "floorplan_analyze"
+    status_context = "floorplan_analysis"
     status_results: List[Dict[str, Any]] = []
     status_data: Dict[str, Any] = {
         "property_id": property_id,
@@ -227,7 +227,7 @@ async def process_webhook_data_task(payload_data: dict):
         property_id: Optional[str] = payload_data.get("property_id")
         super_id: Optional[uuid.UUID] = None
         total_floorplans: Optional[int] = None
-        status_context = "floorplan_analyze"
+        status_context = "floorplan_analysis"
         status_results: List[Dict[str, Any]] = []
         failure_summary: Optional[Dict[str, Any]] = None
 
