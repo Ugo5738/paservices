@@ -97,7 +97,7 @@ async def download_csv_content(url: str) -> str:
     async with httpx.AsyncClient() as client:
         response = await client.get(url)
         response.raise_for_status()
-        return await response.text
+        return response.text
 
 
 async def _process_room_csv(
