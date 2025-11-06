@@ -119,27 +119,27 @@ async def _process_room_csv(
             no_of_door=safe_float(row.get("No_of_door")),
             no_of_window=safe_float(row.get("No_of_window")),
             no_of_room_points=safe_float(row.get("No_of_room_points")),
-            min_x_pixels_csv=safe_float(row.get("Min X Pixels")),
-            min_y_pixels_csv=safe_float(row.get("Min Y Pixels")),
-            max_x_pixels_csv=safe_float(row.get("Max X Pixels")),
-            max_y_pixels_csv=safe_float(row.get("Max Y Pixels")),
-            max_area_metric_csv=safe_float(row.get("Max Area Metric")),
-            max_area_imperial_csv=safe_float(row.get("Max Area Imperial")),
-            max_area_pixels_csv=safe_float(row.get("Max Area Pixels")),
-            actual_area_pixels_csv=safe_float(row.get("Actual Area Pixels")),
-            pixel_ratio_csv=safe_float(row.get("Pixel ratio")),
-            scale_metric_csv=safe_float(row.get("Scale Metric")),
-            scale_imperial_csv=safe_float(row.get("Scale Imperial")),
-            calculated_sq_area_metric_csv=safe_float(
+            min_x_pixels=safe_float(row.get("Min X Pixels")),
+            min_y_pixels=safe_float(row.get("Min Y Pixels")),
+            max_x_pixels=safe_float(row.get("Max X Pixels")),
+            max_y_pixels=safe_float(row.get("Max Y Pixels")),
+            max_area_metric=safe_float(row.get("Max Area Metric")),
+            max_area_imperial=safe_float(row.get("Max Area Imperial")),
+            max_area_pixels=safe_float(row.get("Max Area Pixels")),
+            actual_area_pixels=safe_float(row.get("Actual Area Pixels")),
+            pixel_ratio=safe_float(row.get("Pixel ratio")),
+            scale_metric=safe_float(row.get("Scale Metric")),
+            scale_imperial=safe_float(row.get("Scale Imperial")),
+            calculated_sq_area_metric=safe_float(
                 row.get("Calculated Sq Area Metric")
             ),
-            calc_floor_total_metric_csv=safe_float(
+            calculated_floor_total_sq_area_metric=safe_float(
                 row.get("Calculated Floor Total Sq Area Metric")
             ),
-            calculated_area_imperial_csv=safe_float(
+            calculated_area_imperial=safe_float(
                 row.get("calculated_area_imperial")
             ),
-            calc_floor_total_imperial_csv=safe_float(
+            calculated_floor_total_sq_area_imperial=safe_float(
                 row.get("Calculated Floor Total Sq Area Imperial")
             ),
         )
