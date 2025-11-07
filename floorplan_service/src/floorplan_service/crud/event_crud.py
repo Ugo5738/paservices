@@ -3,7 +3,7 @@ from typing import Any, Dict, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models.floorplan_models import FloorplanEvent, FloorplanEventTypeEnum
+from ..models import FloorplanEvent, FloorplanEventTypeEnum
 from ..utils.logging_config import logger
 
 

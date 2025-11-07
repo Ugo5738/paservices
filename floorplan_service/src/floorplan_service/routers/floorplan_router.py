@@ -18,7 +18,7 @@ from sqlalchemy.future import select
 
 from ..config import settings
 from ..db import get_db
-from ..models.floorplan_models import FpPropertyData
+from ..models import FpPropertyData
 from ..schemas.floorplan_schemas import (
     FloorplanAnalysisRequest,
     MessageResponse,

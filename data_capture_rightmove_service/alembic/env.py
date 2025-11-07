@@ -34,16 +34,57 @@ config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
 
 # Set target_metadata to our SQLAlchemy Base.metadata for autogenerate support
 target_metadata = Base.metadata
+default_schema = target_metadata.schema
+schemas_to_include = {default_schema} if default_schema else None
 
 
-def include_object(object, name, type_, reflected, compare_to):
+def _object_schema(obj):
+    """Best-effort schema detection for SQLAlchemy schema items."""
+    if hasattr(obj, "schema") and obj.schema:
+        return obj.schema
+    metadata = getattr(obj, "metadata", None)
+    if metadata is not None and getattr(metadata, "schema", None):
+        return metadata.schema
+    table = getattr(obj, "table", None)
+    if table is not None and getattr(table, "schema", None):
+        return table.schema
+    parent = getattr(obj, "parent", None)
+    if parent is not None and getattr(parent, "schema", None):
+        return parent.schema
+    return None
+
+
+def include_object(object_, name, type_, reflected, compare_to):
     """
-    Tells Alembic to only pay attention to objects within our 'rightmove' schema.
-    This prevents it from trying to manage tables in other schemas (e.g., 'public').
+    Limit autogenerate to objects inside the managed schema.
     """
-    if type_ == "table" and object.schema != target_metadata.schema:
+    schema_allowed = True
+    if schemas_to_include:
+        if type_ == "schema":
+            return name in schemas_to_include
+        schema = _object_schema(object_)
+        if schema is None:
+            schema_allowed = not reflected
+        else:
+            schema_allowed = schema in schemas_to_include
+    if not schema_allowed:
+        return False
+    if type_ == "index" and reflected:
+        # Skip comparing indexes that already exist in the database to avoid noisy renames
         return False
     return True
+
+
+def include_name(name, type_, parent_names):
+    """Prevent Alembic from reflecting schemas we don't own."""
+    if not schemas_to_include:
+        return True
+    if type_ == "schema":
+        return name in schemas_to_include if name is not None else False
+    schema = parent_names.get("schema_name")
+    if schema is None:
+        return False
+    return schema in schemas_to_include
 
 
 def run_migrations_offline() -> None:
@@ -55,6 +96,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,  # Required for schema support
+        include_name=include_name,
         include_object=include_object,  # Use our schema filter
         compare_type=True,  # Compare column types
     )
@@ -69,6 +111,7 @@ def do_run_migrations(connection):
         connection=connection,
         target_metadata=target_metadata,
         include_schemas=True,  # Required for schema support
+        include_name=include_name,
         include_object=include_object,  # Use our schema filter
         compare_type=True,  # Compare column types
     )

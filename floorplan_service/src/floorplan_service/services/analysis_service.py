@@ -12,7 +12,7 @@ from sqlalchemy.future import select
 from ..config import settings
 from ..crud import event_crud, floorplan_crud
 from ..db import AsyncSessionLocal
-from ..models.floorplan_models import (
+from ..models import (
     FloorplanEventTypeEnum,
     FpAnalysisUrls,
     FpPropertyData,

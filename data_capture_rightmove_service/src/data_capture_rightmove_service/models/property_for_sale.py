@@ -8,7 +8,6 @@ list endpoint. This uses the hybrid flattened approach.
 from sqlalchemy import (
     ARRAY,
     DECIMAL,
-    JSON,
     TIMESTAMP,
     BigInteger,
     Boolean,
@@ -18,6 +17,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 
 from .base import Base, SuperIdMixin
@@ -61,7 +61,7 @@ class PropertyListing(Base, SuperIdMixin):
     hidden = Column(Boolean)
     is_recent = Column(Boolean)
     keyword_match_type = Column(String(100))
-    keywords_json = Column(JSON)
+    keywords_json = Column(JSONB)
     number_of_floorplans = Column(Integer)
     number_of_images = Column(Integer)
     number_of_virtual_tours = Column(Integer)
@@ -87,7 +87,7 @@ class PropertyListing(Base, SuperIdMixin):
     customer_brand_plus_logo_url = Column(Text)
     customer_brand_trading_name = Column(String(255))
     customer_build_to_rent = Column(Boolean)
-    customer_build_to_rent_benefits_json = Column(JSON)
+    customer_build_to_rent_benefits_json = Column(JSONB)
     customer_commercial = Column(Boolean)
     customer_contact_telephone = Column(String(50))
     customer_development = Column(Boolean)
@@ -105,7 +105,7 @@ class PropertyListing(Base, SuperIdMixin):
     location_longitude = Column(DECIMAL(11, 8))
 
     # Flattened 'lozengeModel' object fields
-    lozenge_model_matching_lozenges_json = Column(JSON)
+    lozenge_model_matching_lozenges_json = Column(JSONB)
 
     # Flattened 'price' object fields (1-to-1 data)
     price_amount = Column(DECIMAL(14, 2))

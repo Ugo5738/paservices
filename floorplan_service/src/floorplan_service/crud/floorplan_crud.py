@@ -7,7 +7,7 @@ import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from ..models.floorplan_models import (
+from ..models import (
     FpAnalysisUrls,
     FpPropertyData,
     FpRoomCsvData,

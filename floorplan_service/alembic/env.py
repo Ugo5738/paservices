@@ -43,6 +43,51 @@ config.set_main_option("sqlalchemy.url", str(settings.DATABASE_URL))
 
 # Set target_metadata to our SQLAlchemy Base.metadata for autogenerate support
 target_metadata = Base.metadata
+default_schema = target_metadata.schema
+schemas_to_include = {default_schema} if default_schema else None
+
+
+def _object_schema(obj):
+    """Return the schema for the given SQLAlchemy object."""
+    if hasattr(obj, "schema") and obj.schema:
+        return obj.schema
+    metadata = getattr(obj, "metadata", None)
+    if metadata is not None and getattr(metadata, "schema", None):
+        return metadata.schema
+    table = getattr(obj, "table", None)
+    if table is not None and getattr(table, "schema", None):
+        return table.schema
+    parent = getattr(obj, "parent", None)
+    if parent is not None and getattr(parent, "schema", None):
+        return parent.schema
+    return None
+
+
+def include_object(object_, name, type_, reflected, compare_to):
+    """Limit autogenerate to the schemas we manage (floorplan)."""
+    if type_ == "schema":
+        if not schemas_to_include:
+            return True
+        return name in schemas_to_include
+    schema = _object_schema(object_)
+    if not schemas_to_include:
+        return True
+    if schema is None:
+        # Exclude reflected public objects so we don't diff Supabase system tables
+        return not reflected
+    return schema in schemas_to_include
+
+
+def include_name(name, type_, parent_names):
+    """Prevent Alembic from even reflecting schemas we don't own."""
+    if not schemas_to_include:
+        return True
+    if type_ == "schema":
+        return name in schemas_to_include
+    schema = parent_names.get("schema_name")
+    if schema is None:
+        return False
+    return schema in schemas_to_include
 
 
 def run_migrations_offline() -> None:
@@ -62,6 +107,9 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
+        include_name=include_name,
+        include_object=include_object,
     )
 
     with context.begin_transaction():
@@ -77,7 +125,13 @@ async def run_migrations_online() -> None:
 
 
 def do_run_migrations(connection):
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        include_schemas=True,
+        include_name=include_name,
+        include_object=include_object,
+    )
     with context.begin_transaction():
         context.run_migrations()
 

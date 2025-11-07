@@ -14,6 +14,7 @@ from data_capture_rightmove_service.models.scrape_event import (
     ScrapeEvent,
     ScrapeEventTypeEnum,
 )
+from data_capture_rightmove_service.models.workflow_status import WorkflowStatus
 
 # Export all models to make them discoverable by Alembic's 'import *'
 __all__ = [
@@ -81,4 +82,6 @@ __all__ = [
     "PropertyListing",
     "PropertyDisplayPrice",
     "PropertyImage",
+    # Workflow status model
+    "WorkflowStatus",
 ]
