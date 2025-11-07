@@ -19,6 +19,9 @@ except ImportError:  # pragma: no cover - runtime guard
     boto3 = None  # type: ignore
 
 from floorplan_service.config import settings
+from floorplan_service.services.workflow_status_service import (
+    record_workflow_status,
+)
 from floorplan_service.utils.logging_config import logger
 
 
@@ -134,6 +137,10 @@ class StatusNotifier:
         metadata: Optional[Dict[str, Any]] = None,
         webhook_url: Optional[str] = None,
         webhook_headers: Optional[Dict[str, str]] = None,
+        property_id: Optional[str] = None,
+        stage: Optional[str] = None,
+        progress: Optional[float] = None,
+        last_error: Optional[str] = None,
     ) -> str:
         timestamp = datetime.now(timezone.utc).isoformat()
         snapshot = {
@@ -162,6 +169,24 @@ class StatusNotifier:
             webhook_url=webhook_url,
             webhook_headers=webhook_headers,
         )
+
+        try:
+            await record_workflow_status(
+                super_id=super_id,
+                context=context,
+                status=status,
+                property_id=property_id,
+                stage=stage,
+                progress=progress,
+                data_location=snapshot_url,
+                last_error=last_error,
+            )
+        except Exception as exc:  # pragma: no cover - defensive logging
+            logger.error(
+                "Failed to write workflow status snapshot",
+                exc_info=True,
+                extra={"super_id": str(super_id), "context": context, "error": str(exc)},
+            )
 
         return snapshot_url
 

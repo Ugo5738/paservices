@@ -13,6 +13,9 @@ from fastapi.responses import JSONResponse
 from floorplan_service.config import settings
 from floorplan_service.routers.floorplan_router import router as floorplan_router
 from floorplan_service.routers.health_router import router as health_router
+from floorplan_service.routers.workflow_status_router import (
+    router as workflow_status_router,
+)
 from floorplan_service.utils.logging_config import (
     LoggingMiddleware,
     logger,
@@ -61,6 +64,7 @@ setup_rate_limiting(app)
 # Include routers
 app.include_router(health_router, tags=["Health"])
 app.include_router(floorplan_router, prefix="/floorplans", tags=["Floorplans"])
+app.include_router(workflow_status_router, tags=["Workflow Status"])
 
 
 # Add exception handlers

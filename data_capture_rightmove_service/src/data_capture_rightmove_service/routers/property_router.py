@@ -278,6 +278,9 @@ async def process_combined_property_fetch(
             metadata=status_metadata,
             webhook_url=callback_url,
             webhook_headers=callback_headers,
+            property_id=property_id,
+            stage="initializing",
+            progress=0.0,
         )
 
     async with AsyncSessionLocal() as db:
@@ -456,6 +459,11 @@ async def process_combined_property_fetch(
                 status_summary["completed_endpoints"] = len(status_results)
 
                 if notifier:
+                    progress = (
+                        len(status_results) / max(len(endpoints), 1)
+                        if endpoints
+                        else None
+                    )
                     await notifier.notify(
                         super_id=super_id,
                         status="in_progress",
@@ -465,6 +473,9 @@ async def process_combined_property_fetch(
                         metadata=status_metadata,
                         webhook_url=callback_url,
                         webhook_headers=callback_headers,
+                        property_id=property_id,
+                        stage=f"endpoint:{endpoint}",
+                        progress=progress,
                     )
 
         except Exception as exc:
@@ -495,6 +506,12 @@ async def process_combined_property_fetch(
                         metadata=status_metadata,
                         webhook_url=callback_url,
                         webhook_headers=callback_headers,
+                        property_id=property_id,
+                        stage="completed"
+                        if notification_status == "completed"
+                        else "combined_fetch",
+                        progress=1.0 if notification_status == "completed" else None,
+                        last_error=summary_payload.get("error"),
                     )
                 except Exception as notify_error:
                     logger.error(
@@ -862,6 +879,8 @@ async def process_property_search(
             metadata=status_metadata,
             webhook_url=callback_url,
             webhook_headers=callback_headers,
+            stage="initializing",
+            progress=0.0,
         )
     notification_status = "completed"
     failure_summary: Optional[Dict[str, Any]] = None
@@ -943,6 +962,7 @@ async def process_property_search(
             status_metadata["total_results_available"] = total_results
             status_metadata["results_per_page"] = per_page
             if notifier:
+                progress = 1 / total_pages if total_pages else None
                 await notifier.notify(
                     super_id=super_id,
                     status="in_progress",
@@ -952,6 +972,8 @@ async def process_property_search(
                     metadata=status_metadata,
                     webhook_url=callback_url,
                     webhook_headers=callback_headers,
+                    stage="page:1",
+                    progress=progress,
                 )
 
             # Loop through subsequent pages
@@ -999,6 +1021,7 @@ async def process_property_search(
                 status_summary["current_page"] = page_num
                 status_summary["total_pages"] = total_pages
                 if notifier:
+                    progress = page_num / total_pages if total_pages else None
                     await notifier.notify(
                         super_id=super_id,
                         status="in_progress",
@@ -1008,6 +1031,8 @@ async def process_property_search(
                         metadata=status_metadata,
                         webhook_url=callback_url,
                         webhook_headers=callback_headers,
+                        stage=f"page:{page_num}",
+                        progress=progress,
                     )
 
                 await asyncio.sleep(0.5)  # Politeness delay
@@ -1071,6 +1096,9 @@ async def process_property_search(
                         metadata=status_metadata,
                         webhook_url=callback_url,
                         webhook_headers=callback_headers,
+                        stage="completed" if notification_status == "completed" else "search",
+                        progress=1.0 if notification_status == "completed" else None,
+                        last_error=summary_payload.get("error"),
                     )
                 except Exception as notify_error:
                     logger.error(

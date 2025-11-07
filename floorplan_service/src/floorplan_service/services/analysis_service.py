@@ -63,6 +63,9 @@ async def trigger_floorplan_analysis(
             metadata={"callback_url": callback_url},
             webhook_url=callback_url,
             webhook_headers=callback_headers,
+            property_id=property_id,
+            stage="initializing",
+            progress=0.0,
         )
 
     async with AsyncSessionLocal() as db:
@@ -132,6 +135,9 @@ async def trigger_floorplan_analysis(
                     },
                     webhook_url=callback_url,
                     webhook_headers=callback_headers,
+                    property_id=property_id,
+                    stage="validation",
+                    last_error="No valid floorplans to process.",
                 )
             return
 
@@ -184,6 +190,9 @@ async def trigger_floorplan_analysis(
                         metadata={"callback_url": callback_url},
                         webhook_url=callback_url,
                         webhook_headers=callback_headers,
+                        property_id=property_id,
+                        stage="analyzer_triggered",
+                        progress=0.2,
                     )
             except httpx.RequestError as e:
                 await event_crud.log_floorplan_event(
@@ -208,6 +217,9 @@ async def trigger_floorplan_analysis(
                         },
                         webhook_url=callback_url,
                         webhook_headers=callback_headers,
+                        property_id=property_id,
+                        stage="analyzer_call",
+                        last_error=str(e),
                     )
 
         await db.commit()
@@ -325,6 +337,10 @@ async def process_webhook_data_task(payload_data: dict):
                 },
                 webhook_url=callback_url,
                 webhook_headers=callback_headers,
+                property_id=property_id,
+                stage="completed" if status == "completed" else "webhook_processing",
+                progress=1.0 if status == "completed" else None,
+                last_error=failure_summary.get("error") if failure_summary else None,
             )
 
 
