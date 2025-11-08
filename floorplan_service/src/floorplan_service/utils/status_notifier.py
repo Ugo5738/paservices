@@ -19,9 +19,7 @@ except ImportError:  # pragma: no cover - runtime guard
     boto3 = None  # type: ignore
 
 from floorplan_service.config import settings
-from floorplan_service.services.workflow_status_service import (
-    record_workflow_status,
-)
+from floorplan_service.services.workflow_status_service import record_workflow_status
 from floorplan_service.utils.logging_config import logger
 
 
@@ -36,10 +34,14 @@ class StatusNotifier:
 
     def __init__(self):
         if not boto3:
-            raise RuntimeError("boto3 is required for S3 notifications but is not installed.")
+            raise RuntimeError(
+                "boto3 is required for S3 notifications but is not installed."
+            )
 
         if not settings.STATUS_S3_BUCKET_NAME:
-            raise RuntimeError("STATUS_S3_BUCKET_NAME must be configured to enable status notifications.")
+            raise RuntimeError(
+                "STATUS_S3_BUCKET_NAME must be configured to enable status notifications."
+            )
 
         self.bucket = settings.STATUS_S3_BUCKET_NAME
         self.prefix = settings.STATUS_S3_PREFIX.strip("/")
@@ -185,7 +187,11 @@ class StatusNotifier:
             logger.error(
                 "Failed to write workflow status snapshot",
                 exc_info=True,
-                extra={"super_id": str(super_id), "context": context, "error": str(exc)},
+                extra={
+                    "super_id": str(super_id),
+                    "context": context,
+                    "error": str(exc),
+                },
             )
 
         return snapshot_url

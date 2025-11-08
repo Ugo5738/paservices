@@ -243,6 +243,15 @@ async def process_webhook_data_task(payload_data: dict):
         status_results: List[Dict[str, Any]] = []
         failure_summary: Optional[Dict[str, Any]] = None
 
+        payload_super_id = payload_data.get("user_id")
+        if payload_super_id:
+            try:
+                super_id = uuid.UUID(str(payload_super_id))
+            except (ValueError, TypeError):
+                logger.warning(
+                    "Invalid user_id %s supplied in webhook payload", payload_super_id
+                )
+
         for item_data in output_items:
             floorplan_id = item_data.get("floorplan_id")
             fp_property: Optional[FpPropertyData] = None
@@ -251,6 +260,9 @@ async def process_webhook_data_task(payload_data: dict):
                     FpPropertyData.floorplan_id == floorplan_id,
                     FpPropertyData.property_id == item_data.get("property_id"),
                 )
+                if super_id is not None:
+                    stmt = stmt.where(FpPropertyData.super_id == super_id)
+                stmt = stmt.order_by(FpPropertyData.created_at.desc())
                 result = await db.execute(stmt)
                 fp_property = result.scalars().first()
 
