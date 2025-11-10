@@ -7,7 +7,7 @@ import os
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field, HttpUrl, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -205,6 +205,25 @@ class Settings(BaseSettings):
         None,
         alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_STATUS_S3_ENDPOINT_URL",
         description="Optional custom endpoint URL for S3-compatible storage.",
+    )
+
+    N8N_TEST_WEBHOOK_URL: Optional[HttpUrl] = Field(
+        "https://supersami.app.n8n.cloud/webhook/d36312c5-f379-4b22-9f6c-e4d44f50af4c",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_N8N_TEST_WEBHOOK_URL",
+        description="Webhook exposed by n8n for the workflow test helper.",
+    )
+    N8N_TEST_CALLBACK_BASE_URL: Optional[str] = Field(
+        None,
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_N8N_TEST_CALLBACK_BASE_URL",
+        description=(
+            "Public base URL that this service is reachable at so n8n can POST"
+            " aggregated results back to /workflow-test/callback/{workflow_id}."
+        ),
+    )
+    WORKFLOW_TEST_RESULTS_DIR: str = Field(
+        "/testing/workflow_results",
+        alias="DATA_CAPTURE_RIGHTMOVE_SERVICE_WORKFLOW_TEST_RESULTS_DIR",
+        description="Directory used to persist workflow test results for inspection.",
     )
 
     # Optional AWS credentials (falls back to default provider chain if unset)

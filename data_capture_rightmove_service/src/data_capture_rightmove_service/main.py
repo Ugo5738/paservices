@@ -14,6 +14,7 @@ from .config import settings
 from .routers.health_router import router as health_router
 from .routers.property_router import router as property_router
 from .routers.workflow_status_router import router as workflow_status_router
+from .routers.workflow_test_router import router as workflow_test_router
 from .supabase_client import init_supabase_clients
 from .utils.logging_config import LoggingMiddleware, logger, setup_logging
 from .utils.rate_limiting import setup_rate_limiting
@@ -89,6 +90,7 @@ setup_rate_limiting(app)
 app.include_router(health_router, tags=["Health"])
 app.include_router(property_router, tags=["Properties"])
 app.include_router(workflow_status_router, tags=["Workflow Status"])
+app.include_router(workflow_test_router, tags=["Workflow Test"])
 
 
 # Add exception handlers
