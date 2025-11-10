@@ -102,7 +102,7 @@ async def trigger_workflow(payload: TriggerRequest):
 
 
 @router.post("/callback/{workflow_id}")
-async def receive_callback(workflow_id: UUID, payload: Dict[str, Any]):
+async def receive_callback(workflow_id: str, payload: Dict[str, Any]):
     """Endpoint n8n should call once the aggregation workflow finishes."""
     key = str(workflow_id)
 
@@ -131,7 +131,7 @@ async def receive_callback(workflow_id: UUID, payload: Dict[str, Any]):
 
 
 @router.get("/results/{workflow_id}")
-async def fetch_results(workflow_id: UUID):
+async def fetch_results(workflow_id: str):
     """Return the stored results for the requested workflow."""
     key = str(workflow_id)
     if key not in _RESULTS:
