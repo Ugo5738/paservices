@@ -85,7 +85,7 @@ async def trigger_workflow(payload: TriggerRequest):
     # Fire the n8n webhook
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(settings.N8N_TEST_WEBHOOK_URL, json=body)
+            response = await client.post(str(settings.N8N_TEST_WEBHOOK_URL), json=body)
             response.raise_for_status()
     except httpx.HTTPError as exc:
         logger.exception(
