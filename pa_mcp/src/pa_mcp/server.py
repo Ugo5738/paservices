@@ -2,15 +2,19 @@ import contextlib
 import json
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .auth import AuthMiddleware
 from .config import settings
+from .crud import get_analysis_result, upsert_analysis_result
+from .db import get_db
 from .mcp_metadata import prompts as prompt_templates
 from .mcp_metadata import resources as resources_catalog
 from .mcp_tools import mcp as mcp_app
 from .rate_limiter import rate_limit_middleware
+from .schemas import AnalysisCallbackPayload
+from .utils.logging_config import logger
 
 
 # Create a combined lifespan to manage the MCP session manager
@@ -66,6 +70,30 @@ app.mount("/", mcp_server)
 # @app.get("/mcp/prompts")
 # async def get_mcp_prompts():
 #     return prompt_templates()
+
+
+@app.post("/api/analysis/callback")
+async def receive_analysis_callback(
+    payload: AnalysisCallbackPayload, db=Depends(get_db)
+):
+    """Endpoint for n8n to post final workflow results."""
+    stored = await upsert_analysis_result(
+        db, payload.super_id, payload.model_dump(exclude_none=True)
+    )
+    logger.info(
+        "Stored workflow callback",
+        extra={"super_id": payload.super_id, "status": stored.status},
+    )
+    return {"status": "accepted", "super_id": payload.super_id}
+
+
+@app.get("/api/analysis/results/{super_id}")
+async def read_analysis_result(super_id: str, db=Depends(get_db)):
+    """Fetch a stored workflow result."""
+    result = await get_analysis_result(db, super_id)
+    if result:
+        return result.to_dict()
+    return {"super_id": super_id, "status": "pending"}
 
 
 def main():

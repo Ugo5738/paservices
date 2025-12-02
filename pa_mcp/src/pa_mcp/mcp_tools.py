@@ -8,6 +8,10 @@ from mcp.server.fastmcp import FastMCP
 from .config import settings
 from .tools.data_capture_tools import list_properties, trigger_detailed_scrape
 from .tools.floorplan_tools import trigger_floorplan_analysis
+from .tools.n8n_tools import (
+    get_property_analysis_result,
+    start_property_analysis_via_n8n,
+)
 from .tools.super_id_service_tools import create_super_id
 from .utils.logging_config import logger
 
@@ -141,3 +145,26 @@ async def trigger_property_scrape(
             property_url=property_url,
             scrape_super_id=super_id,
         )
+
+
+@mcp.tool()
+async def start_property_analysis_via_n8n_tool(
+    property_url: str,
+    workflow_callback_url: Optional[str] = None,
+) -> dict:
+    """Trigger the full property analysis workflow via n8n."""
+    async with httpx.AsyncClient() as client:
+        return await start_property_analysis_via_n8n(
+            client=client,
+            property_url=property_url,
+            workflow_callback_url=workflow_callback_url,
+        )
+
+
+@mcp.tool()
+async def get_property_analysis_result_tool(super_id: str) -> dict:
+    """Fetch the stored property analysis result for a given super_id."""
+    result = await get_property_analysis_result(super_id)
+    if result:
+        return result
+    return {"super_id": super_id, "status": "pending"}

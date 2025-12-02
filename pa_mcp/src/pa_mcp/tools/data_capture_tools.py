@@ -1,8 +1,6 @@
-import argparse
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastmcp.server.dependencies import get_access_token
 
 from ..config import settings
 from ..utils.logging_config import logger
@@ -26,7 +24,7 @@ def print_color(text, color):
 
 
 async def list_properties(
-    token: str,
+    token: Optional[str] = None,
     on_date: Optional[str] = None,
     from_time: Optional[str] = None,
     to_time: Optional[str] = None,
@@ -57,7 +55,9 @@ async def list_properties(
 
     url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/listings"
 
-    headers = {"Authorization": f"Bearer {token}"}
+    headers: Dict[str, str] = {}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
     params = {
         "on_date": on_date,
         "from_time": from_time,

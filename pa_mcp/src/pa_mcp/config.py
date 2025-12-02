@@ -43,6 +43,30 @@ class Settings(BaseSettings):
         description="Logging level",
     )
 
+    # Database configuration (kept consistent with other services)
+    DATABASE_URL: str = Field(
+        "postgresql+psycopg://postgres:postgres@supabase_db_paservices:5432/pa_mcp",
+        alias="PA_MCP_DATABASE_URL",
+        description="PostgreSQL connection string",
+    )
+
+    # Supabase configuration
+    SUPABASE_URL: str = Field(
+        "http://supabase_kong_paservices:8000",
+        alias="PA_MCP_SUPABASE_URL",
+        description="Supabase project URL",
+    )
+    SUPABASE_ANON_KEY: str = Field(
+        "your_supabase_anon_key",
+        alias="PA_MCP_SUPABASE_ANON_KEY",
+        description="Supabase anon key",
+    )
+    SUPABASE_SERVICE_ROLE_KEY: str = Field(
+        "your_supabase_service_role_key",
+        alias="PA_MCP_SUPABASE_SERVICE_ROLE_KEY",
+        description="Supabase service role key",
+    )
+
     # CORS settings
     CORS_ALLOW_ORIGINS: List[str] = Field(
         default_factory=lambda: ["*"],
@@ -60,6 +84,16 @@ class Settings(BaseSettings):
         "http://localhost:8002/api/v1",
         validation_alias="PA_MCP_SUPER_ID_SERVICE_URL",
         description="Base URL for the Super ID Service",
+    )
+    N8N_SUPERSAMI_TRIGGER_URL: str = Field(
+        "http://n8n:5678/webhook/supersami-trigger",
+        validation_alias="PA_MCP_N8N_SUPERSAMI_TRIGGER_URL",
+        description="Webhook URL for kicking off the n8n SuperSami workflow",
+    )
+    WORKFLOW_CALLBACK_URL: str = Field(
+        "http://pa_mcp:8765/api/analysis/callback",
+        validation_alias="PA_MCP_WORKFLOW_CALLBACK_URL",
+        description="Callback endpoint n8n should POST final analysis results to",
     )
 
     HOST: str = Field(
