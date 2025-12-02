@@ -27,7 +27,7 @@ RUN poetry install --no-root
 COPY . .
 
 # Expose MCP port
-EXPOSE 8765
+EXPOSE 8000
 
 # Run MCP server with autoreload
-CMD ["uvicorn", "pa_mcp.server:app", "--host", "0.0.0.0", "--port", "8765", "--reload"]
+CMD ["uvicorn", "pa_mcp.server:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]

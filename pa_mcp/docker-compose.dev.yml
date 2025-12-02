@@ -4,9 +4,11 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "8765:8765"
+      - "8005:8000"
     volumes:
       - ./src:/app/src
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
     env_file:
       - ./.env.dev
     networks:

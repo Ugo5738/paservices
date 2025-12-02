@@ -127,6 +127,30 @@ services:
       - "traefik.http.services.floorplan-service.loadbalancer.server.port=8000"
 
   ################
+  # MCP SERVICE #
+  ################
+  pa_mcp:
+    image: ${DOCKER_USERNAME}/pa_mcp:latest
+    platform: linux/arm64
+    container_name: pa_mcp_prod
+    env_file: ./pa_mcp/.env.prod
+    restart: unless-stopped
+    networks:
+      - paservices-network
+    depends_on:
+      - auth_service
+      - super_id_service
+    environment:
+      - PYTHONPATH=/app/src
+      - PA_MCP_M2M_JWT_SECRET_KEY=${SHARED_M2M_JWT_SECRET_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.pa-mcp.rule=Host(`${PA_MCP_DOMAIN}`)"
+      - "traefik.http.routers.pa-mcp.entrypoints=websecure"
+      - "traefik.http.routers.pa-mcp.tls.certresolver=letsencrypt"
+      - "traefik.http.services.pa-mcp.loadbalancer.server.port=8000"
+
+  ################
   # REDIS SERVICE #
   ################
   # This internal Redis service can be used by all other services

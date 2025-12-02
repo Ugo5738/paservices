@@ -96,17 +96,6 @@ class Settings(BaseSettings):
         description="Callback endpoint n8n should POST final analysis results to",
     )
 
-    HOST: str = Field(
-        "0.0.0.0",
-        alias="PA_MCP_HOST",
-        description="Host to bind the service to",
-    )
-    PORT: int = Field(
-        8765,
-        alias="PA_MCP_PORT",
-        description="Port to run the service on",
-    )
-
     # ScaleKit Configuration
     SCALEKIT_ENVIRONMENT_URL: str = Field(
         ...,

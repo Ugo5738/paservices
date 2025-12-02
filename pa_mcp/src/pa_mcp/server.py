@@ -98,7 +98,7 @@ async def read_analysis_result(super_id: str, db=Depends(get_db)):
 
 def main():
     """Main entry point for the MCP server."""
-    uvicorn.run(app, host="localhost", port=settings.PORT, log_level="debug")
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="debug")
 
 
 if __name__ == "__main__":
