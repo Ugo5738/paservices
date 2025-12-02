@@ -14,6 +14,7 @@ env:
   SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
   DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
   FLOORPLAN_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/floorplan_service
+  PA_MCP_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/pa_mcp
 
 jobs:
   #########################################
@@ -26,6 +27,7 @@ jobs:
       super_id_service: ${{ steps.filter.outputs.super_id_service }}
       data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
       floorplan_service: ${{ steps.filter.outputs.floorplan_service }}
+      pa_mcp: ${{ steps.filter.outputs.pa_mcp }}
       workflow_changed: ${{ steps.filter.outputs.workflow_changed }}
     steps:
       - uses: actions/checkout@v3
@@ -41,6 +43,8 @@ jobs:
               - 'data_capture_rightmove_service/**'
             floorplan_service:
               - 'floorplan_service/**'
+            pa_mcp:
+              - 'pa_mcp/**'
             workflow_changed:
               - '.github/workflows/**'
               - 'docker-compose.prod.yml'
@@ -102,6 +106,19 @@ jobs:
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
 
+  build-pa-mcp:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.pa_mcp == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/workflows/actions/build-push
+        with:
+          service_name: pa_mcp
+          image_name: ${{ secrets.DOCKERHUB_USERNAME }}/pa_mcp
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
+
   ####################################
   # Job 5: Deploy to Staging Server #
   ####################################
@@ -113,8 +130,9 @@ jobs:
       - build-super-id-service
       - build-data-capture-service
       - build-floorplan-service
+      - build-pa-mcp
     # It will only proceed if a change was detected or if manually triggered.
-    if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.floorplan_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.floorplan_service == 'true' || needs.detect-changes.outputs.pa_mcp == 'true' ||needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Server
@@ -167,6 +185,12 @@ jobs:
               -o floorplan_service/.env.prod floorplan_service/.env.prod.gpg
             echo "✅ Decrypted environment for floorplan_service."
 
+            # Decrypt for pa_mcp (note the .env.prod filename)
+            gpg --quiet --batch --yes --decrypt \
+              --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              -o pa_mcp/.env.prod pa_mcp/.env.prod.gpg
+            echo "✅ Decrypted environment for pa_mcp."
+
             echo "Creating root .env file for Docker Compose..."
             cat > .env << EOF
             # Core variables needed by docker-compose.prod.yml
@@ -178,6 +202,7 @@ jobs:
             SUPER_ID_SERVICE_DOMAIN=${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
             DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN }}
             FLOORPLAN_SERVICE_DOMAIN=${{ secrets.FLOORPLAN_SERVICE_DOMAIN }}
+            PA_MCP_DOMAIN=${{ secrets.PA_MCP_DOMAIN }}
 
             # These variables are also needed by the services themselves, and Docker Compose
             # will make them available to the containers.
@@ -185,6 +210,7 @@ jobs:
             SUPER_ID_SERVICE_DATABASE_URL='${{ secrets.SUPER_ID_SERVICE_DATABASE_URL }}'
             DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL='${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DATABASE_URL }}'
             FLOORPLAN_SERVICE_DATABASE_URL='${{ secrets.FLOORPLAN_SERVICE_DATABASE_URL }}'
+            PA_MCP_DATABASE_URL='${{ secrets.PA_MCP_DATABASE_URL }}'
 
             SUPABASE_URL='${{ secrets.SUPABASE_URL }}'
             SUPABASE_ANON_KEY='${{ secrets.SUPABASE_ANON_KEY }}'
