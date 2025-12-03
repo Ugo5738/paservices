@@ -141,3 +141,10 @@ networks:
 # repo name = paservices
 # .env encrypt with paservices
 # gpg --symmetric --cipher-algo AES256 --output .env.gpg .env
+
+# gpg --symmetric --cipher-algo AES256 \
+#   --batch --yes \
+#   --pinentry-mode loopback \
+#   --passphrase "paservices" \
+#   --output pa_mcp/.env.prod.gpg \
+#   pa_mcp/.env.prod
