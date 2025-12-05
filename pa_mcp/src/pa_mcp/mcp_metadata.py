@@ -7,12 +7,12 @@ templates to help agents discover and use the MCP tools safely.
 from typing import Dict, List
 
 TOOLS = [
-    {
-        "name": "trigger_property_scrape",
-        "description": "Trigger the Data Capture service to scrape a property URL.",
-        "params": ["property_url", "super_id (optional)"],
-        "required_scope": "mcp:tools:data-capture",
-    },
+    # {
+    #     "name": "trigger_property_scrape",
+    #     "description": "Trigger the Data Capture service to scrape a property URL.",
+    #     "params": ["property_url", "super_id (optional)"],
+    #     "required_scope": "mcp:tools:data-capture",
+    # },
     {
         "name": "trigger_floorplan_analysis_tool",
         "description": "Start floorplan analysis for a single floorplan.",
@@ -64,18 +64,18 @@ TOOLS = [
 
 
 PROMPT_TEMPLATES: Dict[str, str] = {
-    "start_property_scrape": (
-        "Use the trigger_property_scrape tool to start scraping the property. "
-        "Provide property_url and optionally supply or omit super_id to auto-generate one."
-    ),
+    # "start_property_scrape": (
+    #     "Use the trigger_property_scrape tool to start scraping the property. "
+    #     "Provide property_url and optionally supply or omit super_id to auto-generate one."
+    # ),
     "start_floorplan_analysis": (
         "Use the trigger_floorplan_analysis_tool to initiate floorplan analysis. "
         "Provide floorplan_key, floorplan_url and property_id. If super_id is omitted, the system will create one."
     ),
-    "start_property_analysis": (
-        "Use start_property_analysis_via_n8n_tool with the property_url to kick off full property analysis workflow. "
-        "Poll get_property_analysis_result_tool(super_id) until status is complete."
-    ),
+    # "start_property_analysis": (
+    #     "Use start_property_analysis_via_n8n_tool with the property_url to kick off full property analysis workflow. "
+    #     "Poll get_property_analysis_result_tool(super_id) until status is complete."
+    # ),
 }
 
 

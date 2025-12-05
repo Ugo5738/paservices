@@ -1,12 +1,13 @@
 import argparse
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
 from fastmcp.server.dependencies import get_access_token
 from mcp.server.fastmcp import FastMCP
 
 from .config import settings
-from .tools.data_capture_tools import list_properties, trigger_detailed_scrape
+from .tools.data_capture_tools import list_properties  # , trigger_detailed_scrape
 from .tools.floorplan_tools import trigger_floorplan_analysis
 from .tools.n8n_tools import (
     get_property_analysis_result,
@@ -112,39 +113,39 @@ async def list_properties_tool(
     return await list_properties(args)
 
 
-@mcp.tool()
-async def trigger_property_scrape(
-    property_url: str,
-    super_id: Optional[str],
-) -> bool:
-    """Trigger the get details to analyze a single floorplan image."""
-    # """Trigger the Data Capture Rightmove Service to scrape a property URL."""
-    access_token = None
-    try:
-        access_token = get_access_token()
-    except Exception:
-        access_token = None
+# @mcp.tool()
+# async def trigger_property_scrape(
+#     property_url: str,
+#     super_id: Optional[str],
+# ) -> bool:
+#     """Trigger the get details to analyze a single floorplan image."""
+#     # """Trigger the Data Capture Rightmove Service to scrape a property URL."""
+#     access_token = None
+#     try:
+#         access_token = get_access_token()
+#     except Exception:
+#         access_token = None
 
-    raw_token: Optional[str] = None
-    if isinstance(access_token, str):
-        raw_token = access_token
-    elif access_token is not None:
-        # Try common attributes used by FastMCP access token wrappers
-        raw_token = getattr(access_token, "token", None) or getattr(
-            access_token, "encoded", None
-        )
+#     raw_token: Optional[str] = None
+#     if isinstance(access_token, str):
+#         raw_token = access_token
+#     elif access_token is not None:
+#         # Try common attributes used by FastMCP access token wrappers
+#         raw_token = getattr(access_token, "token", None) or getattr(
+#             access_token, "encoded", None
+#         )
 
-    # If no super_id provided, create one
-    if not super_id:
-        super_id = await create_super_id(prefix="fp_", token=raw_token)
+#     # If no super_id provided, create one
+#     if not super_id:
+#         super_id = await create_super_id(prefix="fp_", token=raw_token)
 
-    async with httpx.AsyncClient() as client:
-        return await trigger_detailed_scrape(
-            client=client,
-            token=raw_token,
-            property_url=property_url,
-            scrape_super_id=super_id,
-        )
+#     async with httpx.AsyncClient() as client:
+#         return await trigger_detailed_scrape(
+#             client=client,
+#             token=raw_token,
+#             property_url=property_url,
+#             scrape_super_id=super_id,
+#         )
 
 
 @mcp.tool()
