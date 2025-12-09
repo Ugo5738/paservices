@@ -1274,10 +1274,12 @@ httpx-sse = ">=0.4"
 jsonschema = ">=4.20.0"
 pydantic = ">=2.11.0,<3.0.0"
 pydantic-settings = ">=2.5.2"
+python-dotenv = {version = ">=1.0.0", optional = true, markers = "extra == \"cli\""}
 python-multipart = ">=0.0.9"
 pywin32 = {version = ">=310", markers = "sys_platform == \"win32\""}
 sse-starlette = ">=1.6.1"
 starlette = ">=0.27"
+typer = {version = ">=0.16.0", optional = true, markers = "extra == \"cli\""}
 uvicorn = {version = ">=0.31.1", markers = "sys_platform != \"emscripten\""}
 
 [package.extras]
@@ -2431,6 +2433,18 @@ test = ["build[virtualenv] (>=1.0.3)", "filelock (>=3.4.0)", "ini2toml[lite] (>=
 type = ["importlib_metadata (>=7.0.2) ; python_version < \"3.10\"", "jaraco.develop (>=7.21) ; sys_platform != \"cygwin\"", "mypy (==1.14.*)", "pytest-mypy"]
 
 [[package]]
+name = "shellingham"
+version = "1.5.4"
+description = "Tool to Detect Surrounding Shell"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "shellingham-1.5.4-py2.py3-none-any.whl", hash = "sha256:7ecfff8f2fd72616f7481040475a65b2bf8af90a56c89140852d1120324e8686"},
+    {file = "shellingham-1.5.4.tar.gz", hash = "sha256:8dbca0739d487e5bd35ab3ca4b36e11c4078f3a234bfce294b0a0291363404de"},
+]
+
+[[package]]
 name = "six"
 version = "1.17.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -2617,6 +2631,24 @@ files = [
 [package.extras]
 doc = ["reno", "sphinx"]
 test = ["pytest", "tornado (>=4.5)", "typeguard"]
+
+[[package]]
+name = "typer"
+version = "0.20.0"
+description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "typer-0.20.0-py3-none-any.whl", hash = "sha256:5b463df6793ec1dca6213a3cf4c0f03bc6e322ac5e16e13ddd622a889489784a"},
+    {file = "typer-0.20.0.tar.gz", hash = "sha256:1aaf6494031793e4876fb0bacfa6a912b551cf43c1e63c800df8b1a866720c37"},
+]
+
+[package.dependencies]
+click = ">=8.0.0"
+rich = ">=10.11.0"
+shellingham = ">=1.3.0"
+typing-extensions = ">=3.7.4.3"
 
 [[package]]
 name = "typing-extensions"
@@ -3086,4 +3118,4 @@ cffi = ["cffi (>=1.17,<2.0) ; platform_python_implementation != \"PyPy\" and pyt
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "2b32e5fff2ee476016262d93b30c850a4d6047d48ff35323b55412dd4e181fff"
+content-hash = "e31ff2d3f803fd9742aa44817d568277e776a475053899a5d4a4fc22c2d22b47"

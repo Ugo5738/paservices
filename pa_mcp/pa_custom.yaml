@@ -1,0 +1,51 @@
+version: 2
+name: pa_custom
+displayName: PA Service MCP Servers
+registry:
+  pa-mcp:
+    description: "Property Analysis MCP Server"
+    title: "PA MCP Services"
+    type: server
+    dateAdded: "2025-12-09T00:00:00Z"
+    image: pa-mcp-server:latest
+    ref: ""
+    readme: ""
+    toolsUrl: ""
+    source: ""
+    upstream: ""
+    icon: ""
+    tools:
+      - name: trigger_floorplan_analysis_tool
+      - name: create_super_id_tool
+      - name: list_properties_tool
+      - name: trigger_full_property_analysis_tool
+      - name: get_property_analysis_result_tool
+    secrets:
+      - name: pa_mcp_scalekit_client_id
+        env: PA_MCP_SCALEKIT_CLIENT_ID
+      - name: pa_mcp_scalekit_client_secret
+        env: PA_MCP_SCALEKIT_CLIENT_SECRET
+      - name: pa_mcp_scalekit_environment_url
+        env: PA_MCP_SCALEKIT_ENVIRONMENT_URL
+      - name: pa_mcp_scalekit_resource_metadata_url
+        env: PA_MCP_SCALEKIT_RESOURCE_METADATA_URL
+      - name: pa_mcp_scalekit_audience_name
+        env: PA_MCP_SCALEKIT_AUDIENCE_NAME
+      - name: pa_mcp_metadata_json_response
+        env: PA_MCP_METADATA_JSON_RESPONSE
+      - name: pa_mcp_database_url
+        env: PA_MCP_DATABASE_URL
+      - name: pa_mcp_supabase_url
+        env: PA_MCP_SUPABASE_URL
+      - name: pa_mcp_supabase_anon_key
+        env: PA_MCP_SUPABASE_ANON_KEY
+      - name: pa_mcp_supabase_service_role_key
+        env: PA_MCP_SUPABASE_SERVICE_ROLE_KEY
+    metadata:
+      category: integration
+      tags:
+        - property
+        - analysis
+        - real-estate
+      license: MIT
+      owner: local

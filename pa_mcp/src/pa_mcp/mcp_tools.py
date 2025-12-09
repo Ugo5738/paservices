@@ -1,13 +1,12 @@
 import argparse
-from typing import Optional
-from urllib.parse import urlparse
+import json
 
 import httpx
 from fastmcp.server.dependencies import get_access_token
 from mcp.server.fastmcp import FastMCP
 
 from .config import settings
-from .tools.data_capture_tools import list_properties  # , trigger_detailed_scrape
+from .tools.data_capture_tools import list_properties
 from .tools.floorplan_tools import trigger_floorplan_analysis
 from .tools.n8n_tools import (
     get_property_analysis_result,
@@ -22,23 +21,25 @@ mcp = FastMCP(name=settings.PROJECT_NAME)
 
 @mcp.tool()
 async def trigger_floorplan_analysis_tool(
-    floorplan_key: str, floorplan_url: str, super_id: Optional[str], property_id: str
-) -> bool:
-    """Trigger the Floorplan Service to analyze a single floorplan image.
+    floorplan_key: str = "",
+    floorplan_url: str = "",
+    super_id: str = "",
+    property_id: str = "",
+) -> str:
+    """Trigger the Floorplan Service to analyze a single floorplan image."""
+    if not floorplan_key:
+        return "❌ Error: floorplan_key is required"
 
-    Uses FastMCP context to get an access token if available and forwards it.
-    """
     access_token = None
     try:
         access_token = get_access_token()
     except Exception:
         access_token = None
 
-    raw_token: Optional[str] = None
+    raw_token = None
     if isinstance(access_token, str):
         raw_token = access_token
     elif access_token is not None:
-        # Try common attributes used by FastMCP access token wrappers
         raw_token = getattr(access_token, "token", None) or getattr(
             access_token, "encoded", None
         )
@@ -48,7 +49,7 @@ async def trigger_floorplan_analysis_tool(
         super_id = await create_super_id(prefix="fp_", token=raw_token)
 
     async with httpx.AsyncClient() as client:
-        return await trigger_floorplan_analysis(
+        result = await trigger_floorplan_analysis(
             client=client,
             token=raw_token,
             floorplan_key=floorplan_key,
@@ -56,61 +57,62 @@ async def trigger_floorplan_analysis_tool(
             super_id=super_id,
             property_id=property_id,
         )
+        return f"✅ Analysis triggered: {result}"
 
 
 @mcp.tool()
-async def create_super_id_tool(prefix: str = "id_") -> str:
-    """
-    Create a super_id via the Super ID Service.
-    This wrapper handles authentication and permission checks before calling the pure tool.
-    """
+async def create_super_id_tool(prefix: str = "") -> str:
+    """Create a super_id via the Super ID Service."""
+    if not prefix:
+        prefix = "id_"
+
     access_token = None
     try:
         access_token = get_access_token()
     except Exception:
-        # Continue without authentication for internal calls
         pass
 
-    raw_token: Optional[str] = None
+    raw_token = None
     if access_token:
         # Check for permissions if we have a token
         claims = getattr(access_token, "claims", {}) or {}
         perms = claims.get("permissions", []) or claims.get("scopes", [])
         if "super_id:generate" not in perms:
             logger.warning("Permission denied: Missing 'super_id:generate' permission.")
-            raise Exception("insufficient_permissions")
+            return "❌ Error: insufficient_permissions"
 
-        # Extract the raw token string to pass to the tool
         raw_token = getattr(access_token, "token", None) or getattr(
             access_token, "encoded", None
         )
 
-    # Call the pure, refactored tool with the token
-    return await create_super_id(token=raw_token, prefix=prefix)
+    result = await create_super_id(token=raw_token, prefix=prefix)
+    return f"✅ Super ID created: {result}"
 
 
 @mcp.tool()
 async def list_properties_tool(
-    on_date: Optional[str] = None,
-    from_time: Optional[str] = None,
-    to_time: Optional[str] = None,
-    min_bedrooms: Optional[int] = None,
-    max_bedrooms: Optional[int] = None,
-    min_bathrooms: Optional[int] = None,
-    max_bathrooms: Optional[int] = None,
-) -> list:
-    """List properties using the Data Capture service. Builds a small argparse.Namespace and calls the internal tool."""
+    on_date: str = "",
+    from_time: str = "",
+    to_time: str = "",
+    min_bedrooms: str = "",
+    max_bedrooms: str = "",
+    min_bathrooms: str = "",
+    max_bathrooms: str = "",
+) -> str:
+    """List properties using the Data Capture service."""
+    # Convert string args to appropriate types for Namespace
     args = argparse.Namespace(
-        date=on_date,
-        from_time=from_time,
-        to_time=to_time,
-        min_bedrooms=min_bedrooms,
-        max_bedrooms=max_bedrooms,
-        min_bathrooms=min_bathrooms,
-        max_bathrooms=max_bathrooms,
+        date=on_date if on_date else None,
+        from_time=from_time if from_time else None,
+        to_time=to_time if to_time else None,
+        min_bedrooms=int(min_bedrooms) if min_bedrooms.strip() else None,
+        max_bedrooms=int(max_bedrooms) if max_bedrooms.strip() else None,
+        min_bathrooms=int(min_bathrooms) if min_bathrooms.strip() else None,
+        max_bathrooms=int(max_bathrooms) if max_bathrooms.strip() else None,
     )
 
-    return await list_properties(args)
+    properties = await list_properties(args)
+    return f"✅ Properties found: {len(properties)}"  # Simplified summary return
 
 
 # @mcp.tool()
@@ -149,23 +151,32 @@ async def list_properties_tool(
 
 
 @mcp.tool()
-async def start_property_analysis_via_n8n_tool(
-    property_url: str,
-    workflow_callback_url: Optional[str] = None,
-) -> dict:
-    """Trigger the full property analysis workflow via n8n."""
+async def trigger_full_property_analysis_tool(
+    property_url: str = "",
+    workflow_callback_url: str = "",
+) -> str:
+    """Trigger the full property analysis workflow."""
+    if not property_url:
+        return "❌ Error: property_url is required"
+
     async with httpx.AsyncClient() as client:
-        return await start_property_analysis_via_n8n(
+        result = await start_property_analysis_via_n8n(
             client=client,
             property_url=property_url,
-            workflow_callback_url=workflow_callback_url,
+            workflow_callback_url=(
+                workflow_callback_url if workflow_callback_url else None
+            ),
         )
+        return f"✅ Analysis started: {json.dumps(result)}"
 
 
 @mcp.tool()
-async def get_property_analysis_result_tool(super_id: str) -> dict:
+async def get_property_analysis_result_tool(super_id: str = "") -> str:
     """Fetch the stored property analysis result for a given super_id."""
+    if not super_id:
+        return "❌ Error: super_id is required"
+
     result = await get_property_analysis_result(super_id)
     if result:
-        return result
-    return {"super_id": super_id, "status": "pending"}
+        return json.dumps(result)
+    return f'{{"super_id": "{super_id}", "status": "pending"}}'

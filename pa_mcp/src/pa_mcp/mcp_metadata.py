@@ -45,8 +45,8 @@ TOOLS = [
         "required_scope": "mcp:tools:data-capture:read",
     },
     {
-        "name": "start_property_analysis_via_n8n_tool",
-        "description": "Kick off the full property analysis workflow via n8n and return a super_id immediately.",
+        "name": "trigger_full_property_analysis_tool",
+        "description": "Kick off the full property analysis workflow and return a super_id immediately.",
         "params": [
             "property_url",
             "workflow_callback_url (optional)",
@@ -73,7 +73,7 @@ PROMPT_TEMPLATES: Dict[str, str] = {
         "Provide floorplan_key, floorplan_url and property_id. If super_id is omitted, the system will create one."
     ),
     # "start_property_analysis": (
-    #     "Use start_property_analysis_via_n8n_tool with the property_url to kick off full property analysis workflow. "
+    #     "Use trigger_full_property_analysis_tool with the property_url to kick off full property analysis workflow. "
     #     "Poll get_property_analysis_result_tool(super_id) until status is complete."
     # ),
 }

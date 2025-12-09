@@ -160,9 +160,5 @@ class Settings(BaseSettings):
         """Check if the application is running in test mode."""
         return self.ENVIRONMENT == Environment.TESTING
 
-    ALPHA_VANTAGE_API_KEY: str = Field(
-        ..., alias="PA_MCP_ALPHA_VANTAGE_API_KEY", description="Alpha Vantage API Key"
-    )
-
 
 settings = Settings()
