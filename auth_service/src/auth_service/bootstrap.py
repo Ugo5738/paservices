@@ -58,7 +58,7 @@ async def create_core_roles(db: AsyncSession) -> Dict[str, uuid.UUID]:
         existing_role = result.scalars().first()
 
         if existing_role:
-            logger.info(f"Role '{role_name}' already exists")
+            logger.info(f"Role '{role_name}' already exists.")
             role_ids[role_name] = existing_role.id
         else:
             # Create new role
