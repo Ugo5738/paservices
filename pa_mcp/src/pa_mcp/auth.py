@@ -27,7 +27,10 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if request.method == "OPTIONS":
             return await call_next(request)
 
+        # Allow public endpoints (discovery + n8n callback)
         if request.url.path.startswith("/.well-known/"):
+            return await call_next(request)
+        if request.url.path.startswith("/api/analysis/callback"):
             return await call_next(request)
 
         try:
