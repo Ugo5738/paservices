@@ -56,12 +56,6 @@ async def oauth_protected_resource_metadata():
     }
 
 
-# Create and mount the MCP server with authentication
-mcp_server = mcp_app.streamable_http_app()
-app.add_middleware(AuthMiddleware)
-app.mount("/", mcp_server)
-
-
 # @app.get("/mcp/resources")
 # async def get_mcp_resources():
 #     return resources_catalog()
@@ -94,6 +88,12 @@ async def read_analysis_result(super_id: str, db=Depends(get_db)):
     if result:
         return result.to_dict()
     return {"super_id": super_id, "status": "pending"}
+
+
+# Create and mount the MCP server with authentication
+mcp_server = mcp_app.streamable_http_app()
+app.add_middleware(AuthMiddleware)
+app.mount("/", mcp_server)
 
 
 def main():
