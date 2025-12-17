@@ -6,7 +6,7 @@ from fastmcp.server.dependencies import get_access_token
 from mcp.server.fastmcp import FastMCP
 
 from .config import settings
-from .tools.data_capture_tools import list_properties
+from .tools.data_capture_tools import list_properties, trigger_detailed_scrape
 from .tools.floorplan_tools import trigger_floorplan_analysis
 from .tools.n8n_tools import (
     get_property_analysis_result,
@@ -116,19 +116,18 @@ async def list_properties_tool(
 
 
 # @mcp.tool()
-# async def trigger_property_scrape(
+# async def trigger_property_scrape_tool(
 #     property_url: str,
-#     super_id: Optional[str],
-# ) -> bool:
-#     """Trigger the get details to analyze a single floorplan image."""
-#     # """Trigger the Data Capture Rightmove Service to scrape a property URL."""
+#     super_id: str = "",
+# ) -> str:
+#     """Trigger the Data Capture Rightmove Service to scrape a property URL."""
 #     access_token = None
 #     try:
 #         access_token = get_access_token()
 #     except Exception:
 #         access_token = None
 
-#     raw_token: Optional[str] = None
+#     raw_token = None
 #     if isinstance(access_token, str):
 #         raw_token = access_token
 #     elif access_token is not None:
