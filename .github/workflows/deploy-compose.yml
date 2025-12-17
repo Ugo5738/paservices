@@ -149,6 +149,10 @@ jobs:
             mkdir -p /home/ubuntu/paservices
             cd /home/ubuntu/paservices
 
+            echo "Configuring authenticated git remote..."
+            # Update remote to use the ephemeral GITHUB_TOKEN for this session
+            git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+
             echo "Fetching the latest code from origin..."
             git fetch origin
 
