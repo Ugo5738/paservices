@@ -1,0 +1,625 @@
+{
+  "snapshot_id": 12912,
+  "id": 154508327,
+  "affordable_buying_scheme": false,
+  "ai_location_info": null,
+  "bathrooms": 1,
+  "bedrooms": 1,
+  "business_for_sale": false,
+  "channel": "RES_LET",
+  "commercial": false,
+  "country_guide": null,
+  "enc_id": "EyKZDY913Cej82s4LGHcPHZrutHrgBYBVdg=",
+  "fees_apply": {
+    "feesApplyText": "<div>\n\tAs well as paying the rent, you may also be required to make the following permitted payments.\n\t<span>Permitted payments</span>\n\tFor properties in England, the Tenant Fees Act 2019 means that in addition to rent, lettings agents can only\n\tcharge tenants (or anyone acting on the tenant's behalf) the following permitted payments:\n\t<ul>\n\t\t<li>Holding deposits (a maximum of 1 week's rent);</li>\n\t\t<li>\n\t\t\tDeposits (a maximum deposit of 5 weeks' rent for annual rent below &pound;50,000, or 6 weeks' rent\n\t\t\tfor annual rental of &pound;50,000 and above);\n\t\t</li>\n\t\t<li>\n\t\t\tPayments to change a tenancy agreement eg. change of sharer (capped at &pound;50 or, if higher, any\n\t\t\treasonable costs);\n\t\t</li>\n\t\t<li>\n\t\t\tPayments associated with early termination of a tenancy (capped at the landlord's loss or the\n\t\t\tagent's reasonably incurred costs);\n\t\t</li>\n\t\t<li>\n\t\t\tWhere required, utilities (electricity, gas or other fuel, water, sewerage), communication services\n\t\t\t\"telephone, internet, cable/satellite television), TV licence;\n\t\t</li>\n\t\t<li>Council tax (payable to the billing authority);</li>\n\t\t<li>\n\t\t\tInterest payments for the late payment of rent (up to 3% above Bank of England's annual percentage\n\t\t\trate);\n\t\t</li>\n\t\t<li>Reasonable costs for replacement of lost keys or other security devices;</li>\n\t\t<li>Contractual damages in the event of the tenant's default of a tenancy agreement; and</li>\n\t\t<li>\n\t\t\tAny other permitted payments under the Tenant Fees Act 2019 and regulations applicable at the\n\t\t\trelevant time.\n\t\t</li>\n\t</ul>\n\tFor properties in Wales, the Renting Homes (Fees etc.) (Wales) Act 2019 means that in addition to rent,\n\tlettings agents can only charge tenants the following permitted payments\n\t<ul>\n\t\t<li>Holding deposits (a maximum of 1 week's rent);</li>\n\t\t<li>Security deposits;</li>\n\t\t<li>\n\t\t\tWhere required, utilities (electricity, gas or other fuel, water, sewerage), communication services\n\t\t\t\"telephone, internet, cable/satellite television), TV licence;\n\t\t</li>\n\t\t<li>Council tax (payable to the billing authority);</li>\n\t\t<li>Payments for the late payment of rent (where required under the tenancy agreement);</li>\n\t\t<li>A breach of a term of the contract (where required under the tenancy agreement); and</li>\n\t\t<li>\n\t\t\tAny other permitted payments under the Renting Homes (Fees etc.) (Wales) Act and regulations\n\t\t\tapplicable at the relevant time.\n\t\t</li>\n\t</ul>\n\t<span>Tenant protection</span>\n\tIn addition to publishing relevant fees, lettings agents are also required to publish details of:\n\t<ul>\n\t\t<li>the redress scheme they are a member of; and</li>\n\t\t<li>\n\t\t\tthe name of the approved or designated Client Money Protection scheme they are a member of (if any).\n\t\t</li>\n\t</ul>\n</div>",
+    "feesApplyTitle": "Permitted payments and tenant protection information",
+    "feesApplyDisclaimer": "<div>Please note that lettings agents are required by law to publish on their websites information for potential tenants about relevant fees, redress schemes and client money protection schemes (including the names of those schemes). Relevant fees must also be published on third party websites, such as Rightmove. For properties to rent in England and Wales, details of the agent's membership of any redress scheme and client money protection scheme must also be published with their fees on Rightmove. It is the agent's responsibility to ensure that all relevant information is provided to Rightmove and is up to date and accurate. If the relevant information does not appear here, the agent may have included it within the property description.</div>"
+  },
+  "lettings": {
+    "deposit": 1847,
+    "letType": "Long term",
+    "furnishType": "Part furnished",
+    "letAvailableDate": "Ask agent",
+    "minimumTermInMonths": null
+  },
+  "property_sub_type": "Flat",
+  "show_school_info": true,
+  "sold_property_type": "FLAT",
+  "terms_of_use": "This Application Programming Interface (API) is for the use of Rightmove Group Limited only. No other individual or business may link to, or make use of, this API without the express written permission of Rightmove's Legal Team. Any unauthorised use of this API will constitute a breach of Rightmove's Terms of Use, available at https://www.rightmove.co.uk/this-site/terms-of-use.html, and Rightmove will enforce its rights to the fullest extent permitted by law.",
+  "transaction_type": "RENT",
+  "brochures": [
+    {
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_DOC_00_0000.pdf",
+      "caption": "Brochure 24"
+    }
+  ],
+  "commercial_use_classes": [],
+  "epc_graphs": [
+    {
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_EPCGRAPH_00_0000.jpeg",
+      "caption": "EPC 1"
+    }
+  ],
+  "key_features": [
+    "One Bedroom",
+    "Open Plan",
+    "Period Conversion",
+    "Good Transport Links",
+    "Comprising 370sqft/34.4sqm",
+    "EPC Rating: C",
+    "Offered Part Furnished ",
+    "Available Now "
+  ],
+  "nearest_airports": [],
+  "rooms": [],
+  "sizings": [
+    {
+      "unit": "sqm",
+      "displayUnit": "sq. m.",
+      "maximumSize": 34,
+      "minimumSize": 34
+    },
+    {
+      "unit": "sqft",
+      "displayUnit": "sq. ft.",
+      "maximumSize": 370,
+      "minimumSize": 370
+    },
+    {
+      "unit": "ha",
+      "displayUnit": "ha.",
+      "maximumSize": 0,
+      "minimumSize": 0
+    },
+    {
+      "unit": "ac",
+      "displayUnit": "ac.",
+      "maximumSize": 0.01,
+      "minimumSize": 0.01
+    }
+  ],
+  "tags": [
+    "LET_AGREED"
+  ],
+  "created_at": "2025-12-17T17:55:30.909963Z",
+  "updated_at": "2025-12-17T17:55:30.909963Z",
+  "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+  "address": {
+    "id": 12912,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "country_code": "GB",
+    "delivery_point_id": 69293608,
+    "display_address": "Isledon Road, N7 7LP",
+    "incode": "7JP",
+    "outcode": "N7",
+    "uk_country": "England",
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  },
+  "broadband": {
+    "id": 12891,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "broadband_checker_url": "https://partnerships-broadband.comparethemarket.com/v1/broadband/rightmove/N77JP?apikey=REDACTED",
+    "disclaimer": "* This is the average speed from the provider with the fastest broadband package available on <a rel=\"sponsored\" href=\"https://www.comparethemarket.com\" target=\"_blank\">comparethemarket.com</a> at this postcode. The average speed displayed is based on the download speeds of at least 50% of customers at peak time (8pm to 10pm). Fibre/cable services at the postcode are subject to availability and may differ between properties within a postcode. Speeds can be affected by a range of technical and environmental factors. The speed at the property may be lower than that listed above. You can check the estimated speed and confirm availability to a property prior to purchasing on the broadband provider's website. Providers may increase charges. The information is provided and maintained by <a href=\"https://www.stickee.co.uk/\" target=\"_blank\">Stickee Technology Limited</a>.",
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  },
+  "price": null,
+  "customer": {
+    "id": 12668,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "banner_ad": "https://media.rightmove.co.uk/partner-branchprofile/9079283-BRANCH_PROFILE_PROPERTY_DETAILS_HEADER-1765296701.jpg",
+    "branch_display_name": "David Andrew, Archway",
+    "branch_id": 84953,
+    "branch_name": "Archway",
+    "build_to_rent": false,
+    "build_to_rent_benefits": [],
+    "commercial": false,
+    "company_name": "David Andrew Estates",
+    "company_trading_name": "David Andrew",
+    "customer_banner_ad_profile_url": "/estate-agents/agent/David-Andrew/Archway-84953.html#lam_about_us",
+    "customer_mpu_ad_profile_url": "/estate-agents/agent/David-Andrew/Archway-84953.html#lam_about_us",
+    "customer_profile_url": "/estate-agents/agent/David-Andrew/Archway-84953.html",
+    "customer_properties_url": "/property-to-rent/find/David-Andrew/Archway.html?locationIdentifier=BRANCH%5E84953&propertyStatus=all&includeLetAgreed=true&_includeLetAgreed=on",
+    "display_address": "671 Holloway Road,\r\nLondon,\r\nN19 5SE",
+    "is_new_home_developer": false,
+    "logo_path": "https://media.rightmove.co.uk/85k/84953/branch_logo_84953_0003.jpeg",
+    "mpu_ad": "https://media.rightmove.co.uk/partner-branchprofile/9079283-BRANCH_PROFILE_MPU-1764171310.gif",
+    "show_brochure_lead_modal": false,
+    "spotlight": null,
+    "valuation_form_url": "/estate-agents/contactBranch.html?branchId=84953",
+    "video_enabled": false,
+    "video_url": null,
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+    "description": {
+      "id": 12667,
+      "customer_id": 12668,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "is_truncated": true,
+      "truncated_description_html": null,
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+    }
+  },
+  "images": [
+    {
+      "id": 164446,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_00_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164422,
+        "image_id": 164446,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164447,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_01_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164423,
+        "image_id": 164447,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164448,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_02_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164424,
+        "image_id": 164448,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164449,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_03_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164425,
+        "image_id": 164449,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164450,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_04_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164426,
+        "image_id": 164450,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164451,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_05_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164427,
+        "image_id": 164451,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164452,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_06_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164428,
+        "image_id": 164452,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164453,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_07_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164429,
+        "image_id": 164453,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164454,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_08_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164430,
+        "image_id": 164454,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164455,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_09_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164431,
+        "image_id": 164455,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    },
+    {
+      "id": 164456,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": null,
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_IMG_10_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_image_urls": {
+        "id": 164432,
+        "image_id": 164456,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_135x100": null,
+        "size_476x317": null,
+        "size_656x437": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    }
+  ],
+  "floorplans": [
+    {
+      "id": 13112,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "caption": "Floorplan 1",
+      "type": "IMAGE",
+      "url": "https://media.rightmove.co.uk/85k/84953/154508327/84953_101291013823_FLP_00_0000.jpeg",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "resized_floorplan_urls": {
+        "id": 12379,
+        "floorplan_id": 13112,
+        "api_property_snapshot_id": 12912,
+        "api_property_id": 154508327,
+        "size_296x197": null,
+        "created_at": "2025-12-17T17:55:30.909963Z",
+        "updated_at": "2025-12-17T17:55:30.909963Z",
+        "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+      }
+    }
+  ],
+  "nearest_stations": [
+    {
+      "id": 37923,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "distance": "0.2245295160732180",
+      "name": "Arsenal Station",
+      "unit": "miles",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "types": [
+        {
+          "id": 41388,
+          "station_id": 37923,
+          "api_property_snapshot_id": 12912,
+          "api_property_id": 154508327,
+          "type": "LONDON_UNDERGROUND",
+          "created_at": "2025-12-17T17:55:30.909963Z",
+          "updated_at": "2025-12-17T17:55:30.909963Z",
+          "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+        }
+      ]
+    },
+    {
+      "id": 37924,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "distance": "0.2515773408627280",
+      "name": "Finsbury Park Station",
+      "unit": "miles",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "types": [
+        {
+          "id": 41389,
+          "station_id": 37924,
+          "api_property_snapshot_id": 12912,
+          "api_property_id": 154508327,
+          "type": "NATIONAL_TRAIN",
+          "created_at": "2025-12-17T17:55:30.909963Z",
+          "updated_at": "2025-12-17T17:55:30.909963Z",
+          "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+        },
+        {
+          "id": 41390,
+          "station_id": 37924,
+          "api_property_snapshot_id": 12912,
+          "api_property_id": 154508327,
+          "type": "LONDON_UNDERGROUND",
+          "created_at": "2025-12-17T17:55:30.909963Z",
+          "updated_at": "2025-12-17T17:55:30.909963Z",
+          "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+        }
+      ]
+    },
+    {
+      "id": 37925,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "distance": "0.6022126696775060",
+      "name": "Drayton Park Station",
+      "unit": "miles",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145",
+      "types": [
+        {
+          "id": 41391,
+          "station_id": 37925,
+          "api_property_snapshot_id": 12912,
+          "api_property_id": 154508327,
+          "type": "NATIONAL_TRAIN",
+          "created_at": "2025-12-17T17:55:30.909963Z",
+          "updated_at": "2025-12-17T17:55:30.909963Z",
+          "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+        }
+      ]
+    }
+  ],
+  "info_reel_items": [
+    {
+      "id": 50037,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "primary_text": "Flat",
+      "secondary_text": "",
+      "title": "PROPERTY TYPE",
+      "tooltip_text": "",
+      "type": "PROPERTY_TYPE",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+    },
+    {
+      "id": 50038,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "primary_text": "1",
+      "secondary_text": "",
+      "title": "BEDROOMS",
+      "tooltip_text": "",
+      "type": "BEDROOMS",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+    },
+    {
+      "id": 50039,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "primary_text": "1",
+      "secondary_text": "",
+      "title": "BATHROOMS",
+      "tooltip_text": "",
+      "type": "BATHROOMS",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+    },
+    {
+      "id": 50040,
+      "api_property_snapshot_id": 12912,
+      "api_property_id": 154508327,
+      "primary_text": "370 sq ft",
+      "secondary_text": "34 sq m",
+      "title": "SIZE",
+      "tooltip_text": "",
+      "type": "SIZE",
+      "created_at": "2025-12-17T17:55:30.909963Z",
+      "updated_at": "2025-12-17T17:55:30.909963Z",
+      "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+    }
+  ],
+  "listing_history": {
+    "id": 12666,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "listing_update_reason": "Reduced on 07/12/2024",
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  },
+  "living_costs": {
+    "id": 12666,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "annual_ground_rent": null,
+    "annual_service_charge": "0",
+    "council_tax_band": "C",
+    "council_tax_exempt": false,
+    "council_tax_included": false,
+    "domestic_rates": null,
+    "ground_rent_percentage_increase": null,
+    "ground_rent_review_period_in_years": null,
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  },
+  "location": {
+    "id": 12666,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "circle_radius_on_map": 0,
+    "latitude": "51.56123000",
+    "longitude": "-0.10855000",
+    "pin_type": "APPROXIMATE_POINT",
+    "show_map": true,
+    "zoom_level": 15,
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  },
+  "tenure": {
+    "id": 12665,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "message": null,
+    "tenure_type": null,
+    "years_remaining_on_lease": null,
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  },
+  "text": {
+    "id": 12665,
+    "api_property_snapshot_id": 12912,
+    "api_property_id": 154508327,
+    "auction_fees_disclaimer": null,
+    "description": "A charming one-bedroom property set on the first floor of this period conversion, located moments from Finsbury Park station for easy access to and from central London. <br /><br />This property features a spacious open plan living/kitchen area, modern kitchen, a modern three-piece bathroom, wooden floor throughout, ample storage, high ceilings and gas central heating. With large windows facing both west and east for plenty of natural light throughout the day. <br /><br />Isledon Road is well-located for access to Finsbury Park (Piccadilly and Victoria lines and National rail lines), with a wealth of shops, gyms, cinemas, parks, cafes, bars, restaurants, and other amenities all within easy walking distance. Offered Part Furnished, Available Now.",
+    "disclaimer": "<b>Disclaimer</b> - Property reference 101291013823. The information displayed about this property comprises a property advertisement. Rightmove.co.uk makes no warranty as to the accuracy or completeness of the advertisement or any linked or associated information, and Rightmove has no control over the content. This property advertisement does not constitute property particulars. The information is provided and maintained by <b>David Andrew, Archway</b>.&nbsp;Please contact the selling agent or developer directly to obtain any information which may be available under the terms of The Energy Performance of Buildings (Certificates and Inspections) (England and Wales) Regulations 2007 or the Home Report if in relation to a residential property in Scotland.",
+    "guide_price_disclaimer": null,
+    "new_homes_brochure_disclaimer": "Please note that Rightmove will send the above details to David Andrew only. By submitting this form, you confirm that you agree to our website <a href=\"/this-site/terms-of-use.html\">terms of use</a>, our <a href=\"/this-site/privacy-policy.html\">privacy policy</a> and understand how we store <a href=\"/this-site/cookies.html\">cookies</a> on your device.",
+    "page_title": "1 bedroom flat for rent in Isledon Road, N7 7LP, N7",
+    "property_phrase": "1 bedroom flat",
+    "reserve_price_disclaimer": null,
+    "share_description": "1 bedroom flat for rent in Isledon Road, N7 7LP, N7 for \u00a31,600 pcm. Marketed by David Andrew, Archway",
+    "share_text": "Check out this 1 bedroom flat for rent on Rightmove",
+    "short_description": "1 bedroom flat for rent",
+    "static_map_disclaimer_text": "Map data \u00a9<a href=\"http://www.openstreetmap.org/copyright\" rel=\"nofollow\" target=\"_blank\" title=\"Open Street Map\">OpenStreetMap</a> contributors.",
+    "created_at": "2025-12-17T17:55:30.909963Z",
+    "updated_at": "2025-12-17T17:55:30.909963Z",
+    "super_id": "8fb72012-6333-4aa6-a966-7c27e0eb0145"
+  }
+}

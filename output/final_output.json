@@ -1,0 +1,2000 @@
+[
+  {
+    "final_result": {
+      "data_captured": {
+        "super_id": "1d9c1977-3907-4fa1-8286-a263f62c48d8",
+        "context": "fetch_combined",
+        "status": "completed",
+        "timestamp": "2025-12-17T17:54:46.433756+00:00",
+        "summary": {
+          "total_endpoints": 2,
+          "completed_endpoints": 2
+        },
+        "metadata": {
+          "property_id": 161422457,
+          "property_url": "https://www.rightmove.co.uk/properties/161422457",
+          "client_id": "REDACTED",
+          "callback_url": "https://n8n-automation.supersami.com/webhook/7c239632-5c3b-4e1e-b58f-51948d780413"
+        },
+        "data": {
+          "property_id": 161422457,
+          "property_url": "https://www.rightmove.co.uk/properties/161422457",
+          "super_id": "1d9c1977-3907-4fa1-8286-a263f62c48d8",
+          "results": [
+            {
+              "api_endpoint": "properties/details",
+              "property_id": 161422457,
+              "super_id": "1d9c1977-3907-4fa1-8286-a263f62c48d8",
+              "stored": true,
+              "message": "Successfully stored property 161422457 details.",
+              "raw_data": {
+                "data": {
+                  "identifier": 161422457,
+                  "transactionType": "BUY",
+                  "channel": "RES_BUY",
+                  "bedrooms": 4,
+                  "bathrooms": 2,
+                  "address": "Upwood Road, Lee, London, SE12",
+                  "contactMethod": "EMAIL",
+                  "propertyDisclaimer": "<b>Disclaimer</b> - Property reference KBN240284. The information displayed about this property comprises a property advertisement. Rightmove.co.uk makes no warranty as to the accuracy or completeness of the advertisement or any linked or associated information, and Rightmove has no control over the content. This property advertisement does not constitute property particulars. The information is provided and maintained by <b>Kinleigh Folkard & Hayward - Sales, Lee</b>.&nbsp;Please contact the selling agent or developer directly to obtain any information which may be available under the terms of The Energy Performance of Buildings (Certificates and Inspections) (England and Wales) Regulations 2007 or the Home Report if in relation to a residential property in Scotland.",
+                  "keyFeatures": [
+                    "Four bedrooms",
+                    "Two receptions",
+                    "Detached family home",
+                    "Separate W/C",
+                    "Separate garage",
+                    "Off street parking",
+                    "1,891 sqft / 175.7 sqm",
+                    "EPC - TBC"
+                  ],
+                  "propertyPhrase": "4 bedroom detached house",
+                  "fullDescription": "This spacious and airy 1930's detached family house situated on a prime road in Lee offering a wealth of internal space, natural light and charming features throughout.<br /><br />\rWell located to Colfe's independent school, offering an impressive 1,891 sq ft and boasting a mature 78 ft garden.<br /><br />",
+                  "listingUpdateReason": "Reduced on 05/03/2025",
+                  "propertyUrl": "https://www.rightmove.co.uk/properties/161422457",
+                  "schoolCheckerUrl": "https://www.rightmove.co.uk/properties/apps/161422457/schools",
+                  "misInfo": {
+                    "propertyId": 161422457,
+                    "branchId": 55504,
+                    "offerAdvertStampTypeId": null,
+                    "brandPlus": true,
+                    "featuredProperty": false,
+                    "channel": "BUY",
+                    "premiumDisplay": false,
+                    "premiumDisplayStampId": null,
+                    "countryCode": "GB"
+                  },
+                  "status": {
+                    "available": true,
+                    "label": null
+                  },
+                  "stampDutyCalculator": {
+                    "country": "ENGLAND",
+                    "price": 1450000,
+                    "buyerType": null,
+                    "result": null
+                  },
+                  "tags": [],
+                  "features": {
+                    "electricity": [
+                      {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    ],
+                    "broadband": [
+                      {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    ],
+                    "water": [
+                      {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    ],
+                    "sewerage": [
+                      {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    ],
+                    "heating": [
+                      {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    ],
+                    "accessibility": [
+                      {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    ],
+                    "parking": [
+                      {
+                        "alias": "parking",
+                        "displayText": "Yes"
+                      }
+                    ],
+                    "garden": [
+                      {
+                        "alias": "garden",
+                        "displayText": "Yes"
+                      }
+                    ],
+                    "risks": {
+                      "floodHistory": {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      },
+                      "floodDefences": {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      },
+                      "floodRisk": [
+                        {
+                          "alias": "ask",
+                          "displayText": "Ask agent"
+                        }
+                      ]
+                    },
+                    "obligations": {
+                      "listed": {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      },
+                      "restrictions": {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      },
+                      "privateAccess": {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      },
+                      "publicAccess": {
+                        "alias": "ask",
+                        "displayText": "Ask agent"
+                      }
+                    }
+                  },
+                  "branch": {
+                    "identifier": 55504,
+                    "name": "Lee",
+                    "brandName": "Kinleigh Folkard & Hayward - Sales",
+                    "displayName": "Kinleigh Folkard & Hayward - Sales, Lee",
+                    "address": "1 Burnt Ash Hill,\r\nLondon,\r\nSE12 0AA",
+                    "logo": "https://media.rightmove.co.uk/company/clogo_21877_0006.png",
+                    "developer": false
+                  },
+                  "virtualTours": [],
+                  "brochure": {
+                    "title": "Lee",
+                    "showBrochureLead": false,
+                    "brochures": []
+                  },
+                  "price": {
+                    "primary": "£1,450,000",
+                    "secondary": null
+                  },
+                  "localPropertyTax": {
+                    "type": "COUNCIL_TAX",
+                    "status": null,
+                    "value": "TBC"
+                  },
+                  "location": {
+                    "pinType": "ACCURATE_POINT",
+                    "latitude": 51.45108,
+                    "longitude": 0.016746,
+                    "mapPreviewUrl": "https://media.rightmove.co.uk/map/_generate?width=768&height=347&zoomLevel=15&latitude=51.451082&longitude=0.016746&signature=ZKA8CUhpt5U4rzRMIw-o7k-kfYc=",
+                    "streetView": {
+                      "latitude": 51.45108,
+                      "longitude": 0.016746,
+                      "heading": null,
+                      "pitch": null,
+                      "zoom": null,
+                      "url": "https://www.rightmove.co.uk/properties/apps/161422457/street-view"
+                    }
+                  },
+                  "postcode": "SE12 8AD",
+                  "showBroadband": true,
+                  "lettingsInfo": null,
+                  "salesInfo": {
+                    "tenureType": "FREEHOLD",
+                    "tenureDisplayType": "Freehold",
+                    "groundRent": null,
+                    "annualServiceCharge": null,
+                    "estateCharge": null,
+                    "lengthOfLease": null,
+                    "sharedOwnershipPercentage": null,
+                    "sharedOwnershipRent": null
+                  },
+                  "size": {
+                    "primary": "Ask agent",
+                    "secondary": null
+                  },
+                  "propertyDisplayType": "Detached",
+                  "mortgageCalculator": {
+                    "price": 1450000,
+                    "propertyTypeAlias": "houses"
+                  },
+                  "mortgageInPrinciple": {
+                    "url": "https://www.rightmove.co.uk/mortgages/mortgage-in-principle?propertyId=161422457&referrer=android-widget-name"
+                  },
+                  "stations": [
+                    {
+                      "station": "Lee Station",
+                      "distance": 0.2,
+                      "type": "1"
+                    },
+                    {
+                      "station": "Hither Green Station",
+                      "distance": 0.8,
+                      "type": "1"
+                    },
+                    {
+                      "station": "Kidbrooke Station",
+                      "distance": 0.9,
+                      "type": "1"
+                    }
+                  ],
+                  "photos": [
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_05_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_05_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_05_0000.jpeg",
+                      "caption": "Picture 1"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_00_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_00_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_00_0000.jpeg",
+                      "caption": "Picture 2"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_01_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_01_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_01_0000.jpeg",
+                      "caption": "Picture 3"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_02_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_02_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_02_0000.jpeg",
+                      "caption": "Picture 4"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_03_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_03_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_03_0000.jpeg",
+                      "caption": "Picture 5"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_04_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_04_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_04_0000.jpeg",
+                      "caption": "Picture 6"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_06_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_06_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_06_0000.jpeg",
+                      "caption": "Picture 7"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_07_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_07_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_07_0000.jpeg",
+                      "caption": "Picture 8"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_08_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_08_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_08_0000.jpeg",
+                      "caption": "Picture 9"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_09_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_09_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_09_0000.jpeg",
+                      "caption": "Picture 10"
+                    },
+                    {
+                      "url": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_10_0000_max_656x437.jpeg",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_10_0000_max_135x100.jpeg",
+                      "maxSizeUrl": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_10_0000.jpeg",
+                      "caption": "Picture 11"
+                    }
+                  ],
+                  "epcs": [],
+                  "floorplans": [
+                    {
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_FLP_00_0000.gif",
+                      "thumbnailUrl": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_FLP_00_0000_max_296x197.gif",
+                      "caption": "Picture 12"
+                    }
+                  ],
+                  "telephoneNumber": "020 3870 6385",
+                  "saved": false,
+                  "soldPricesUrl": "https://www.rightmove.co.uk/house-prices/se12-8ad.html",
+                  "marketInfoUrl": "https://www.rightmove.co.uk/house-prices/se12-8ad.html",
+                  "note": null,
+                  "linkToGlossary": "https://www.rightmove.co.uk/guides/property-details-glossary/",
+                  "enquiredTimestamp": null,
+                  "analyticsInfo": {
+                    "branchId": "55504",
+                    "propertyId": "161422457",
+                    "onlineViewing": "F",
+                    "imageCount": "11",
+                    "floorplanCount": "1",
+                    "beds": "4",
+                    "postcode": "SE12 8AD",
+                    "propertyType": "Houses",
+                    "propertySubType": "Detached",
+                    "added": "20250502",
+                    "price": "1450000",
+                    "tenure": "Freehold",
+                    "bathrooms": "2",
+                    "sharedOwnership": "F",
+                    "videoProvider": "none",
+                    "electricity": "ask",
+                    "broadband": "ask",
+                    "water": "ask",
+                    "sewerage": "ask",
+                    "heating": "ask",
+                    "accessibility": "ask",
+                    "parking": "parking",
+                    "garden": "garden",
+                    "floodHistory": "ask",
+                    "floodDefences": "ask",
+                    "floodRisk": "ask",
+                    "listed": "ask",
+                    "restrictions": "ask",
+                    "privateAccess": "ask",
+                    "publicAccess": "ask"
+                  },
+                  "askLocationInformation": null,
+                  "nearestSchools": [
+                    {
+                      "urn": "100200",
+                      "name": "Riverston School",
+                      "externalLink": null,
+                      "type": "INDEPENDENT",
+                      "subType": "Other independent school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 185,
+                      "minimumAge": 1,
+                      "maximumAge": 21,
+                      "ratingBody": "ISI",
+                      "ratingLabel": "No Rating Available",
+                      "ratingValue": "",
+                      "inspectionReportUrl": null,
+                      "distance": 0.30337333960258234,
+                      "unit": "miles",
+                      "latitude": 51.4550195,
+                      "longitude": 0.0198435
+                    },
+                    {
+                      "urn": "100202",
+                      "name": "Colfe's School",
+                      "externalLink": null,
+                      "type": "INDEPENDENT",
+                      "subType": "Other independent school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 1316,
+                      "minimumAge": 3,
+                      "maximumAge": 19,
+                      "ratingBody": "ISI",
+                      "ratingLabel": "No Rating Available",
+                      "ratingValue": "",
+                      "inspectionReportUrl": null,
+                      "distance": 0.2320429691341897,
+                      "unit": "miles",
+                      "latitude": 51.4498991,
+                      "longitude": 0.0217721
+                    },
+                    {
+                      "urn": "130856",
+                      "name": "Abbey Manor College",
+                      "externalLink": null,
+                      "type": "NOT_APPLICABLE",
+                      "subType": "Pupil referral unit",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 99,
+                      "minimumAge": 11,
+                      "maximumAge": 19,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/130856",
+                      "distance": 0.35750239906206194,
+                      "unit": "miles",
+                      "latitude": 51.4547704,
+                      "longitude": 0.0109471
+                    },
+                    {
+                      "urn": "100673",
+                      "name": "Baring Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 221,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100673",
+                      "distance": 0.48186129602641975,
+                      "unit": "miles",
+                      "latitude": 51.4442911,
+                      "longitude": 0.0142429
+                    },
+                    {
+                      "urn": "142456",
+                      "name": "St Winifred's RC Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Voluntary aided school",
+                      "religion": "Roman Catholic",
+                      "gender": "MIXED",
+                      "pupilCount": 386,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/142456",
+                      "distance": 0.3742732425905496,
+                      "unit": "miles",
+                      "latitude": 51.4479118,
+                      "longitude": 0.0097246
+                    },
+                    {
+                      "urn": "100717",
+                      "name": "Brindishe Lee School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 227,
+                      "minimumAge": 4,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100717",
+                      "distance": 0.38762310955819057,
+                      "unit": "miles",
+                      "latitude": 51.4537186,
+                      "longitude": 0.0088281
+                    },
+                    {
+                      "urn": "100749",
+                      "name": "Trinity Church of England School, Lewisham",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Voluntary aided school",
+                      "religion": "Church of England",
+                      "gender": "MIXED",
+                      "pupilCount": 1031,
+                      "minimumAge": 4,
+                      "maximumAge": 16,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100749",
+                      "distance": 0.49144830644849635,
+                      "unit": "miles",
+                      "latitude": 51.4552074,
+                      "longitude": 0.0074828
+                    },
+                    {
+                      "urn": "143598",
+                      "name": "Horn Park Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Academy converter",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 347,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/143598",
+                      "distance": 0.5876605659257434,
+                      "unit": "miles",
+                      "latitude": 51.4443007,
+                      "longitude": 0.0249443
+                    },
+                    {
+                      "urn": "148615",
+                      "name": "Wingfield Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Academy converter",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 620,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Outstanding",
+                      "ratingValue": "1",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/148615",
+                      "distance": 0.7410710396175278,
+                      "unit": "miles",
+                      "latitude": 51.4611897,
+                      "longitude": 0.0224495
+                    },
+                    {
+                      "urn": "100693",
+                      "name": "Brindishe Manor School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 440,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Outstanding",
+                      "ratingValue": "1",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100693",
+                      "distance": 0.5502201625100811,
+                      "unit": "miles",
+                      "latitude": 51.4521444,
+                      "longitude": 0.0041244
+                    },
+                    {
+                      "urn": "143210",
+                      "name": "Brooklands Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Academy converter",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 199,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/143210",
+                      "distance": 0.892290240039353,
+                      "unit": "miles",
+                      "latitude": 51.4639529,
+                      "longitude": 0.0182314
+                    },
+                    {
+                      "urn": "100724",
+                      "name": "St Margaret's Lee CofE Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Voluntary aided school",
+                      "religion": "Church of England",
+                      "gender": "MIXED",
+                      "pupilCount": 202,
+                      "minimumAge": 4,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Outstanding",
+                      "ratingValue": "1",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100724",
+                      "distance": 0.7746881436941525,
+                      "unit": "miles",
+                      "latitude": 51.4596008,
+                      "longitude": 0.0050988
+                    },
+                    {
+                      "urn": "100676",
+                      "name": "Cooper's Lane Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 666,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100676",
+                      "distance": 0.9821444235446231,
+                      "unit": "miles",
+                      "latitude": 51.4370629,
+                      "longitude": 0.0203997
+                    },
+                    {
+                      "urn": "100190",
+                      "name": "Thomas Tallis School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 2080,
+                      "minimumAge": 11,
+                      "maximumAge": 19,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100190",
+                      "distance": 1.0651084711450627,
+                      "unit": "miles",
+                      "latitude": 51.4656486,
+                      "longitude": 0.0247633
+                    },
+                    {
+                      "urn": "100203",
+                      "name": "Heath House Preparatory School",
+                      "externalLink": null,
+                      "type": "INDEPENDENT",
+                      "subType": "Other independent school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 129,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "ISI",
+                      "ratingLabel": "No Rating Available",
+                      "ratingValue": "",
+                      "inspectionReportUrl": null,
+                      "distance": 1.150740257978163,
+                      "unit": "miles",
+                      "latitude": 51.4670892,
+                      "longitude": 0.0094584
+                    },
+                    {
+                      "urn": "151204",
+                      "name": "The Anchor SENDfriendly Centre",
+                      "externalLink": null,
+                      "type": "INDEPENDENT",
+                      "subType": "Other independent special school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": null,
+                      "minimumAge": 5,
+                      "maximumAge": 19,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "No Rating Available",
+                      "ratingValue": "",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/151204",
+                      "distance": 0.7866894047098234,
+                      "unit": "miles",
+                      "latitude": 51.44811,
+                      "longitude": -0.00083
+                    },
+                    {
+                      "urn": "147363",
+                      "name": "Haberdashers' Knights Primary",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Academy converter",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 177,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/147363",
+                      "distance": 1.2791905956321679,
+                      "unit": "miles",
+                      "latitude": 51.4325886,
+                      "longitude": 0.0159726
+                    },
+                    {
+                      "urn": "100703",
+                      "name": "Sandhurst Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 619,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100703",
+                      "distance": 0.9223932631049027,
+                      "unit": "miles",
+                      "latitude": 51.4431113,
+                      "longitude": -0.000372
+                    },
+                    {
+                      "urn": "136423",
+                      "name": "Drumbeat School and ASD Service",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community special school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 274,
+                      "minimumAge": 4,
+                      "maximumAge": 19,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/136423",
+                      "distance": 1.2869049225926983,
+                      "unit": "miles",
+                      "latitude": 51.4326895,
+                      "longitude": 0.0121931
+                    },
+                    {
+                      "urn": "100709",
+                      "name": "John Ball Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 631,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Outstanding",
+                      "ratingValue": "1",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100709",
+                      "distance": 1.1615359350068724,
+                      "unit": "miles",
+                      "latitude": 51.4662537,
+                      "longitude": 0.0052032
+                    },
+                    {
+                      "urn": "100120",
+                      "name": "Ealdham Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 404,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100120",
+                      "distance": 0.9077520010041404,
+                      "unit": "miles",
+                      "latitude": 51.4571969,
+                      "longitude": 0.0353397
+                    },
+                    {
+                      "urn": "146277",
+                      "name": "The Young Women's Hub",
+                      "externalLink": null,
+                      "type": "INDEPENDENT",
+                      "subType": "Other independent special school",
+                      "religion": "Does not apply",
+                      "gender": "GIRLS",
+                      "pupilCount": 12,
+                      "minimumAge": 11,
+                      "maximumAge": 16,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/146277",
+                      "distance": 0.933217520496289,
+                      "unit": "miles",
+                      "latitude": 51.4448822,
+                      "longitude": -0.0024391
+                    },
+                    {
+                      "urn": "100687",
+                      "name": "Brindishe Green School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 611,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100687",
+                      "distance": 0.9188624423207397,
+                      "unit": "miles",
+                      "latitude": 51.4513115,
+                      "longitude": -0.004519
+                    },
+                    {
+                      "urn": "100199",
+                      "name": "Blackheath Prep",
+                      "externalLink": null,
+                      "type": "INDEPENDENT",
+                      "subType": "Other independent school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 386,
+                      "minimumAge": 3,
+                      "maximumAge": 11,
+                      "ratingBody": "ISI",
+                      "ratingLabel": "No Rating Available",
+                      "ratingValue": "",
+                      "inspectionReportUrl": null,
+                      "distance": 1.4766623556049263,
+                      "unit": "miles",
+                      "latitude": 51.472427,
+                      "longitude": 0.0156747
+                    },
+                    {
+                      "urn": "100683",
+                      "name": "Forster Park Primary School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 324,
+                      "minimumAge": 4,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100683",
+                      "distance": 1.307770156887733,
+                      "unit": "miles",
+                      "latitude": 51.4339937,
+                      "longitude": 0.0037764
+                    },
+                    {
+                      "urn": "135264",
+                      "name": "St Matthew Academy",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Academy sponsor led",
+                      "religion": "Roman Catholic",
+                      "gender": "MIXED",
+                      "pupilCount": 1066,
+                      "minimumAge": 4,
+                      "maximumAge": 16,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/135264",
+                      "distance": 1.1724219156610447,
+                      "unit": "miles",
+                      "latitude": 51.4642183,
+                      "longitude": -0.0004144
+                    },
+                    {
+                      "urn": "100765",
+                      "name": "Greenvale School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community special school",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 214,
+                      "minimumAge": 11,
+                      "maximumAge": 19,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Outstanding",
+                      "ratingValue": "1",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100765",
+                      "distance": 1.3494048524522744,
+                      "unit": "miles",
+                      "latitude": 51.4333664,
+                      "longitude": 0.0036482
+                    },
+                    {
+                      "urn": "138449",
+                      "name": "Harris Academy Greenwich",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Academy sponsor led",
+                      "religion": "Does not apply",
+                      "gender": "MIXED",
+                      "pupilCount": 1167,
+                      "minimumAge": 11,
+                      "maximumAge": 18,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Outstanding",
+                      "ratingValue": "1",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/138449",
+                      "distance": 0.9574294356506886,
+                      "unit": "miles",
+                      "latitude": 51.4507145,
+                      "longitude": 0.0388989
+                    },
+                    {
+                      "urn": "100204",
+                      "name": "King's Oak School",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Community special school",
+                      "religion": "Does not apply",
+                      "gender": "BOYS",
+                      "pupilCount": 39,
+                      "minimumAge": 11,
+                      "maximumAge": 16,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100204",
+                      "distance": 0.9685288567589465,
+                      "unit": "miles",
+                      "latitude": 51.4490893,
+                      "longitude": 0.0389352
+                    },
+                    {
+                      "urn": "100719",
+                      "name": "All Saints' Church of England Primary School Blackheath",
+                      "externalLink": null,
+                      "type": "STATE",
+                      "subType": "Voluntary aided school",
+                      "religion": "Church of England",
+                      "gender": "MIXED",
+                      "pupilCount": 190,
+                      "minimumAge": 4,
+                      "maximumAge": 11,
+                      "ratingBody": "OFSTED",
+                      "ratingLabel": "Good",
+                      "ratingValue": "2",
+                      "inspectionReportUrl": "https://reports.ofsted.gov.uk/inspection-reports/find-inspection-report/provider/ELS/100719",
+                      "distance": 1.3969610404138433,
+                      "unit": "miles",
+                      "latitude": 51.4695621,
+                      "longitude": 0.003678
+                    }
+                  ]
+                },
+                "status": true,
+                "message": "Successful"
+              }
+            },
+            {
+              "api_endpoint": "buy/property-for-sale/detail",
+              "property_id": 161422457,
+              "super_id": "1d9c1977-3907-4fa1-8286-a263f62c48d8",
+              "stored": true,
+              "message": "Successfully stored property-for-sale 161422457 details.",
+              "raw_data": {
+                "data": {
+                  "address": {
+                    "countryCode": "GB",
+                    "deliveryPointId": 85140319,
+                    "displayAddress": "Upwood Road, Lee, London, SE12",
+                    "incode": "8AD",
+                    "outcode": "SE12",
+                    "ukCountry": "England"
+                  },
+                  "addressId": "f78a8d3e20dd48d84db6beaabd1b4037",
+                  "affordableBuyingScheme": false,
+                  "bathrooms": 2,
+                  "bedrooms": 4,
+                  "broadband": {
+                    "broadbandCheckerUrl": "https://partnerships-broadband.comparethemarket.com/v1/broadband/rightmove/SE128AD?apikey=REDACTED",
+                    "disclaimer": "* This is the average speed from the provider with the fastest broadband package available on <a rel=\"sponsored\" href=\"https://www.comparethemarket.com\" target=\"_blank\">comparethemarket.com</a> at this postcode. The average speed displayed is based on the download speeds of at least 50% of customers at peak time (8pm to 10pm). Fibre/cable services at the postcode are subject to availability and may differ between properties within a postcode. Speeds can be affected by a range of technical and environmental factors. The speed at the property may be lower than that listed above. You can check the estimated speed and confirm availability to a property prior to purchasing on the broadband provider's website. Providers may increase charges. The information is provided and maintained by <a href=\"https://www.stickee.co.uk/\" target=\"_blank\">Stickee Technology Limited</a>."
+                  },
+                  "brochures": [],
+                  "businessForSale": false,
+                  "channel": "RES_BUY",
+                  "commercial": false,
+                  "commercialUseClasses": [],
+                  "contactInfo": {
+                    "contactMethod": "EMAIL",
+                    "telephoneNumbers": {
+                      "disclaimerDescription": null,
+                      "disclaimerText": null,
+                      "disclaimerTitle": null,
+                      "internationalNumber": null,
+                      "localNumber": "020 3870 6385"
+                    }
+                  },
+                  "countryGuide": null,
+                  "customer": {
+                    "bannerAd": null,
+                    "branchDisplayName": "Kinleigh Folkard & Hayward - Sales, Lee",
+                    "branchId": 55504,
+                    "branchName": "Lee",
+                    "buildToRent": false,
+                    "buildToRentBenefits": [],
+                    "commercial": false,
+                    "companyName": "Kinleigh Folkard & Hayward",
+                    "companyTradingName": "Kinleigh Folkard & Hayward",
+                    "customerBannerAdProfileUrl": "/estate-agents/agent/Kinleigh-Folkard-and-Hayward---Sales/Lee-55504.html#ram_about_us",
+                    "customerDescription": {
+                      "descriptionHTML": "<p>Opening Hours</p><p>Mon - Thurs 9am - 6.30pm</p><p>Fri 9am - 6pm</p><p>Sat 9:30am - 4pm</p>",
+                      "isTruncated": false,
+                      "truncatedDescriptionHTML": "<p>Opening Hours</p><p>Mon - Thurs 9am - 6.30pm</p><p>Fri 9am - 6pm</p><p>Sat 9:30am - 4pm</p>"
+                    },
+                    "customerMpuAdProfileUrl": "/estate-agents/agent/Kinleigh-Folkard-and-Hayward---Sales/Lee-55504.html#ram_about_us",
+                    "customerProfileUrl": "/estate-agents/agent/Kinleigh-Folkard-and-Hayward---Sales/Lee-55504.html",
+                    "customerPropertiesUrl": "/property-for-sale/find/Kinleigh-Folkard-and-Hayward---Sales/Lee.html?locationIdentifier=BRANCH%5E55504&includeSSTC=true&_includeSSTC=on",
+                    "developmentInfo": {
+                      "micrositeFeatures": [],
+                      "sitePlanUri": null
+                    },
+                    "displayAddress": "1 Burnt Ash Hill,\r\nLondon,\r\nSE12 0AA",
+                    "isNewHomeDeveloper": false,
+                    "logoPath": "https://media.rightmove.co.uk/company/clogo_21877_0006.png",
+                    "mpuAd": null,
+                    "products": {
+                      "hasMicrosite": false
+                    },
+                    "showBrochureLeadModal": false,
+                    "spotlight": null,
+                    "valuationFormUrl": "/estate-agents/contactBranch.html?branchId=55504",
+                    "videoEnabled": false,
+                    "videoUrl": null
+                  },
+                  "dfpAdInfo": {
+                    "channel": "RES_BUY",
+                    "targeting": [
+                      {
+                        "key": "SO",
+                        "value": ["FALSE"]
+                      },
+                      {
+                        "key": "R",
+                        "value": ["FALSE"]
+                      },
+                      {
+                        "key": "AUCP",
+                        "value": ["FALSE"]
+                      },
+                      {
+                        "key": "CCY",
+                        "value": ["GBP"]
+                      },
+                      {
+                        "key": "UTo_A",
+                        "value": ["SE"]
+                      },
+                      {
+                        "key": "UTo_C",
+                        "value": ["GB"]
+                      },
+                      {
+                        "key": "CT",
+                        "value": ["property-for-sale"]
+                      },
+                      {
+                        "key": "TT",
+                        "value": ["buy"]
+                      },
+                      {
+                        "key": "BD",
+                        "value": ["4"]
+                      },
+                      {
+                        "key": "PT",
+                        "value": ["houses"]
+                      },
+                      {
+                        "key": "PST",
+                        "value": ["detached"]
+                      },
+                      {
+                        "key": "RESALEPRICE",
+                        "value": ["1450000"]
+                      },
+                      {
+                        "key": "B",
+                        "value": ["Band10"]
+                      },
+                      {
+                        "key": "B_ID",
+                        "value": ["55504"]
+                      },
+                      {
+                        "key": "C_ID",
+                        "value": ["Kinleigh Folkard & Hayward - Sales"]
+                      },
+                      {
+                        "key": "FP",
+                        "value": ["Y"]
+                      },
+                      {
+                        "key": "EPC",
+                        "value": ["N"]
+                      },
+                      {
+                        "key": "P_ID",
+                        "value": ["161422457"]
+                      },
+                      {
+                        "key": "OV",
+                        "value": ["N"]
+                      },
+                      {
+                        "key": "UTo_D",
+                        "value": ["SE12"]
+                      },
+                      {
+                        "key": "UTo_Inc",
+                        "value": ["8AD"]
+                      },
+                      {
+                        "key": "F",
+                        "value": ["parking", "garden"]
+                      },
+                      {
+                        "key": "UTo_UKZ",
+                        "value": ["England"]
+                      }
+                    ]
+                  },
+                  "encId": "8YDeAWC4pRQ0AYHNwP2Wmv0ZaN8JKXKbwkCk-Q==",
+                  "entranceFloor": null,
+                  "epcGraphs": [],
+                  "features": {
+                    "accessibility": [],
+                    "broadband": [],
+                    "electricity": [],
+                    "garden": [
+                      {
+                        "alias": "garden",
+                        "displayText": "Yes"
+                      }
+                    ],
+                    "heating": [],
+                    "obligations": {
+                      "listed": null,
+                      "requiredAccess": null,
+                      "restrictions": null,
+                      "rightsOfWay": null
+                    },
+                    "parking": [
+                      {
+                        "alias": "parking",
+                        "displayText": "Yes"
+                      }
+                    ],
+                    "risks": {
+                      "floodDefences": null,
+                      "floodSources": [],
+                      "floodedInLastFiveYears": null
+                    },
+                    "sewerage": [],
+                    "water": []
+                  },
+                  "feesApply": null,
+                  "floorplans": [
+                    {
+                      "caption": "Picture 12",
+                      "resizedFloorplanUrls": {
+                        "size296x197": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_FLP_00_0000_max_296x197.gif"
+                      },
+                      "type": "IMAGE",
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_FLP_00_0000.gif"
+                    }
+                  ],
+                  "id": "161422457",
+                  "images": [
+                    {
+                      "caption": "Picture 1",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_05_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_05_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_05_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_05_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 2",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_00_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_00_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_00_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_00_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 3",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_01_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_01_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_01_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_01_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 4",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_02_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_02_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_02_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_02_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 5",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_03_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_03_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_03_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_03_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 6",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_04_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_04_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_04_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_04_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 7",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_06_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_06_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_06_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_06_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 8",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_07_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_07_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_07_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_07_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 9",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_08_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_08_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_08_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_08_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 10",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_09_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_09_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_09_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_09_0000.jpeg"
+                    },
+                    {
+                      "caption": "Picture 11",
+                      "resizedImageUrls": {
+                        "size135x100": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_10_0000_max_135x100.jpeg",
+                        "size476x317": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_10_0000_max_476x317.jpeg",
+                        "size656x437": "https://media.rightmove.co.uk/dir/56k/55504/161422457/55504_KBN240284_IMG_10_0000_max_656x437.jpeg"
+                      },
+                      "url": "https://media.rightmove.co.uk/56k/55504/161422457/55504_KBN240284_IMG_10_0000.jpeg"
+                    }
+                  ],
+                  "industryAffiliations": [
+                    {
+                      "imagePath": "https://media.rightmove.co.uk/dir/customer/industry-affiliation/ombudsman-for-combined-estate-agent_max_135x100.png",
+                      "name": "Ombudsman for Estate Agents and Lettings Estate Agents"
+                    }
+                  ],
+                  "infoReelItems": [
+                    {
+                      "primaryText": "Detached",
+                      "secondaryText": "",
+                      "title": "PROPERTY TYPE",
+                      "tooltipText": "",
+                      "type": "PROPERTY_TYPE"
+                    },
+                    {
+                      "primaryText": "4",
+                      "secondaryText": "",
+                      "title": "BEDROOMS",
+                      "tooltipText": "",
+                      "type": "BEDROOMS"
+                    },
+                    {
+                      "primaryText": "2",
+                      "secondaryText": "",
+                      "title": "BATHROOMS",
+                      "tooltipText": "",
+                      "type": "BATHROOMS"
+                    },
+                    {
+                      "primaryText": "Ask agent",
+                      "secondaryText": "",
+                      "title": "SIZE",
+                      "tooltipText": "",
+                      "type": "SIZE"
+                    }
+                  ],
+                  "keyFeatures": [
+                    "Four bedrooms",
+                    "Two receptions",
+                    "Detached family home",
+                    "Separate W/C",
+                    "Separate garage",
+                    "Off street parking",
+                    "1,891 sqft / 175.7 sqm",
+                    "EPC - TBC"
+                  ],
+                  "lettings": null,
+                  "listingHistory": {
+                    "listingUpdateReason": "Reduced on 05/03/2025"
+                  },
+                  "livingCosts": {
+                    "annualGroundRent": null,
+                    "annualServiceCharge": null,
+                    "councilTaxBand": "TBC",
+                    "councilTaxExempt": false,
+                    "councilTaxIncluded": false,
+                    "domesticRates": null,
+                    "groundRentPercentageIncrease": null,
+                    "groundRentReviewPeriodInYears": null
+                  },
+                  "location": {
+                    "circleRadiusOnMap": 0,
+                    "latitude": 51.451082,
+                    "longitude": 0.016746,
+                    "pinType": "ACCURATE_POINT",
+                    "showMap": true,
+                    "zoomLevel": 15
+                  },
+                  "misInfo": {
+                    "branchId": 55504,
+                    "brandPlus": true,
+                    "featuredProperty": false,
+                    "offerAdvertStampTypeId": null,
+                    "premiumDisplay": false,
+                    "premiumDisplayStampId": null
+                  },
+                  "mortgageCalculator": {
+                    "price": 1450000,
+                    "propertyTypeAlias": "houses"
+                  },
+                  "nearestAirports": [],
+                  "nearestStations": [
+                    {
+                      "distance": 0.1681428962102631,
+                      "name": "Lee Station",
+                      "types": ["NATIONAL_TRAIN"],
+                      "unit": "miles"
+                    },
+                    {
+                      "distance": 0.7605332675199507,
+                      "name": "Hither Green Station",
+                      "types": ["NATIONAL_TRAIN"],
+                      "unit": "miles"
+                    },
+                    {
+                      "distance": 0.8826684652219537,
+                      "name": "Kidbrooke Station",
+                      "types": ["NATIONAL_TRAIN"],
+                      "unit": "miles"
+                    }
+                  ],
+                  "prices": {
+                    "displayPriceQualifier": "",
+                    "exchangeRate": null,
+                    "message": null,
+                    "pricePerSqFt": null,
+                    "primaryPrice": "£1,450,000",
+                    "secondaryPrice": null
+                  },
+                  "propertySubType": "Detached",
+                  "propertyUrls": {
+                    "nearbySoldPropertiesUrl": "/house-prices/se12-8ad.html",
+                    "similarPropertiesUrl": "/property-for-sale/SE12-8AD.html?radius=0.5&minPrice=1250000&maxPrice=1750000&minBedrooms=4"
+                  },
+                  "reviews": null,
+                  "rooms": [],
+                  "sharedOwnership": {
+                    "ownershipPercentage": 0,
+                    "rentFrequency": "(for payment frequency, ask the agent)",
+                    "rentPrice": 0,
+                    "sharedOwnershipFlag": false
+                  },
+                  "showSchoolInfo": true,
+                  "sizings": [],
+                  "soldPropertyType": "DETACHED",
+                  "staticMapImgUrls": {
+                    "staticMapImgUrlDesktopLarge": "https://media.rightmove.co.uk/map/_generate?width=761&height=347&zoomLevel=15&latitude=51.451082&longitude=0.016746&signature=LJylTBBDlg5IvhAIn_mnVmVWG_Q=",
+                    "staticMapImgUrlDesktopSmall": "https://media.rightmove.co.uk/map/_generate?width=580&height=347&zoomLevel=15&latitude=51.451082&longitude=0.016746&signature=s4Ddwu1WOhFqsJp-XjqeThZBP-o=",
+                    "staticMapImgUrlMobile": "https://media.rightmove.co.uk/map/_generate?width=375&height=375&zoomLevel=15&latitude=51.451082&longitude=0.016746&signature=QAaPTz00s8tPDFexxSGNAjubDr8=",
+                    "staticMapImgUrlTablet": "https://media.rightmove.co.uk/map/_generate?width=768&height=347&zoomLevel=15&latitude=51.451082&longitude=0.016746&signature=ZKA8CUhpt5U4rzRMIw-o7k-kfYc="
+                  },
+                  "status": {
+                    "archived": false,
+                    "published": true
+                  },
+                  "streetView": {
+                    "heading": null,
+                    "latitude": 51.451082,
+                    "longitude": 0.016746,
+                    "pitch": null,
+                    "zoom": null
+                  },
+                  "tags": [],
+                  "tenure": {
+                    "message": null,
+                    "tenureType": "FREEHOLD",
+                    "yearsRemainingOnLease": 0
+                  },
+                  "termsOfUse": "This Application Programming Interface (API) is for the use of Rightmove Group Limited only. No other individual or business may link to, or make use of, this API without the express written permission of Rightmove's Legal Team. Any unauthorised use of this API will constitute a breach of Rightmove's Terms of Use, available at https://www.rightmove.co.uk/this-site/terms-of-use.html, and Rightmove will enforce its rights to the fullest extent permitted by law.",
+                  "text": {
+                    "auctionFeesDisclaimer": null,
+                    "description": "This spacious and airy 1930's detached family house situated on a prime road in Lee offering a wealth of internal space, natural light and charming features throughout.<br /><br />\rWell located to Colfe's independent school, offering an impressive 1,891 sq ft and boasting a mature 78 ft garden.<br /><br />",
+                    "disclaimer": "<b>Disclaimer</b> - Property reference KBN240284. The information displayed about this property comprises a property advertisement. Rightmove.co.uk makes no warranty as to the accuracy or completeness of the advertisement or any linked or associated information, and Rightmove has no control over the content. This property advertisement does not constitute property particulars. The information is provided and maintained by <b>Kinleigh Folkard & Hayward - Sales, Lee</b>.&nbsp;Please contact the selling agent or developer directly to obtain any information which may be available under the terms of The Energy Performance of Buildings (Certificates and Inspections) (England and Wales) Regulations 2007 or the Home Report if in relation to a residential property in Scotland.",
+                    "guidePriceDisclaimer": null,
+                    "newHomesBrochureDisclaimer": "Please note that Rightmove will send the above details to Kinleigh Folkard & Hayward - Sales only. By submitting this form, you confirm that you agree to our website <a href=\"/this-site/terms-of-use.html\">terms of use</a>, our <a href=\"/this-site/privacy-policy.html\">privacy policy</a> and understand how we store <a href=\"/this-site/cookies.html\">cookies</a> on your device.",
+                    "pageTitle": "4 bedroom detached house for sale in Upwood Road, Lee, London, SE12",
+                    "propertyPhrase": "4 bedroom detached house",
+                    "reservePriceDisclaimer": null,
+                    "shareDescription": "4 bedroom detached house for sale in Upwood Road, Lee, London, SE12 for £1,450,000. Marketed by Kinleigh Folkard and Hayward - Sales, Lee",
+                    "shareText": "Check out this 4 bedroom detached house for sale on Rightmove",
+                    "shortDescription": "4 bedroom detached house for sale",
+                    "staticMapDisclaimerText": "Map data ©<a href=\"http://www.openstreetmap.org/copyright\" rel=\"nofollow\" target=\"_blank\" title=\"Open Street Map\">OpenStreetMap</a> contributors."
+                  },
+                  "transactionType": "BUY",
+                  "virtualTours": []
+                },
+                "message": "Successful",
+                "status": true
+              }
+            }
+          ]
+        }
+      },
+      "floorplan_data": {
+        "fp_inline_csv": "Floor_Name,Room_Name,is_segment,Room_id,No_of_door,No_of_window,No_of_room_points,Min X Pixels,Min Y Pixels,Max X Pixels,Max Y Pixels,dimensions_imperial,dimensions_metric,Max Area Metric,Max Area Imperial,Max Area Pixels,Actual Area Pixels,Pixel ratio,Scale Metric,Scale Imperial,Calculated Sq Area Metric,Calculated Floor Total Sq Area Metric,calculated_area_imperial,Calculated Floor Total Sq Area Imperial,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23\nground_floor,Store,segment,1.0,0.0,0.0,5.0,227.0,320.0,250.0,386.0,Unknown,Unknown,,,1518.0,1402.5,0.9239130434782608,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Kitchen/Breakfast Room,segment,2.0,1.0,0.0,4.0,262.0,351.0,401.0,535.0,\"15'6\"\" x 11'8\"\"\",4.72m x 3.56m,16.8032,180.8333333333333,25576.0,24281.5,0.9493861432593056,0.0006569909289959,0.0070704306120321,15.95,76.14,171.68,819.3199999999999,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Reception Room,segment,3.0,2.0,2.0,17.0,40.0,396.0,168.0,787.0,Unknown,Unknown,,,50048.0,42221.5,0.8436201246803069,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Reception Room,not segment,4.0,,,0.0,,,,,\"17'6\"\" x 11'9\"\"\",5.33m x 3.58m,,,,,,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Dining Room,segment,5.0,0.0,1.0,6.0,164.0,398.0,251.0,533.0,\"11'2\"\" x 7'5\"\"\",3.40m x 2.26m,7.683999999999999,82.81944444444444,11745.0,11409.0,0.9713920817369092,0.0006542358450404,0.0070514639799441,7.46,75.82000000000001,80.45,817.12,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Entrance Hall,segment,6.0,3.0,1.0,9.0,163.0,540.0,291.0,734.0,\"16'4\"\" x 9'3\"\"\",4.98m x 2.82m,14.0436,151.08333333333331,24832.0,18063.0,0.7274081829896907,0.0005655444587628,0.0060842192869415,10.22,65.53,109.9,705.02,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Garage,segment,7.0,1.0,1.0,5.0,303.0,545.0,401.0,737.0,\"16'5\"\" x 8'8\"\"\",5.00m x 2.64m,13.2,142.27777777777777,18816.0,17558.5,0.9331685799319728,0.0007015306122448,0.0075615315570672,12.32,81.28,132.77,876.24,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,Error Processing Room (AI),segment,8.0,1.0,0.0,4.0,221.0,539.0,251.0,572.0,Unknown,Unknown,,,990.0,944.0,0.9535353535353536,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nground_floor,stairs,object,,1.0,,4.0,217.0,572.0,252.0,646.0,unknown,unknown,,,2590.0,2499.5,0.965057915057915,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\n,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Bedroom,segment,1.0,2.0,0.0,7.0,36.0,83.0,164.0,259.0,Unknown,Unknown,,,22528.0,22292.0,0.9895241477272728,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Bedroom,segment,2.0,2.0,2.0,6.0,258.0,157.0,396.0,280.0,Unknown,Unknown,,,16974.0,16781.5,0.988659125721692,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Bedroom,segment,3.0,4.0,2.0,16.0,25.0,264.0,164.0,469.0,Unknown,Unknown,,,28495.0,22611.0,0.7935076329180558,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Bedroom,segment,4.0,1.0,0.0,4.0,170.0,304.0,246.0,417.0,\"9'4\"\" x 6'7\"\"\",2.84m x 2.01m,5.708399999999999,61.44444444444444,8588.0,8231.5,0.9584885887284584,0.0006646949231485,0.0071546861253428,5.47,77.35,58.89,832.5500000000001,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Error Processing Room (AI),segment,5.0,1.0,1.0,5.0,257.0,36.0,395.0,151.0,Unknown,Unknown,,,15870.0,15580.5,0.981758034026465,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Error Processing Room (AI),segment,6.0,1.0,0.0,4.0,170.0,84.0,245.0,190.0,Unknown,Unknown,,,7950.0,7685.0,0.9666666666666668,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Error Processing Room (AI),segment,7.0,4.0,0.0,6.0,170.0,197.0,245.0,298.0,Unknown,Unknown,,,7575.0,5242.0,0.692013201320132,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,Error Processing Room (AI),segment,8.0,0.0,2.0,5.0,258.0,286.0,396.0,417.0,Unknown,Unknown,,,18078.0,17943.5,0.9925600177010732,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\nfirst_floor,stairs,object,,,,4.0,212.0,229.0,248.0,299.0,unknown,unknown,,,2520.0,2433.0,0.9654761904761904,0.0,0.0,0.0,0.0,0.0,0.0,,,,,,,,,,,,,,,,,,,,,,,,\n,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,\n",
+        "fp_json_csv_url": "https://floorsbucket.s3.eu-north-1.amazonaws.com/processed_images_folder/user_1d9c1977-3907-4fa1-8286-a263f62c48d8_property_%22161422457%22/floorid_fp1/all_floors.csv",
+        "fp_json_file_url": "https://floorsbucket.s3.eu-north-1.amazonaws.com/processed_images_folder/user_1d9c1977-3907-4fa1-8286-a263f62c48d8_property_%22161422457%22/floorid_fp1/all_floors_json.json",
+        "total_area_csv_url": "https://floorsbucket.s3.eu-north-1.amazonaws.com/processed_images_folder/user_1d9c1977-3907-4fa1-8286-a263f62c48d8_property_%22161422457%22/floorid_fp1/total_area.csv",
+        "image_labelme_side_by_side_url": "https://floorsbucket.s3.eu-north-1.amazonaws.com/processed_images_folder/user_1d9c1977-3907-4fa1-8286-a263f62c48d8_property_%22161422457%22/floorid_fp1/side_by_side_labelme.png"
+      },
+      "image_condition_data": {
+        "ica_overall_analysis": {
+          "property_url": "1d9c1977-3907-4fa1-8286-a263f62c48d8",
+          "stages": {
+            "initial_categorization": [
+              {
+                "category": "external",
+                "details": {
+                  "exterior_type": "front yard"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "living room"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "dining room"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "kitchen"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "kitchen"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "living room"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "bedroom"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "hallway"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "bedroom"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "bathroom"
+                }
+              },
+              {
+                "category": "external",
+                "details": {
+                  "exterior_type": "back garden"
+                }
+              },
+              {
+                "category": "external",
+                "details": {
+                  "exterior_type": "driveway"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "living room"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "living room"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "kitchen"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "kitchen"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "sitting room"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "guest bedroom"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "stairway"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "bedroom"
+                }
+              },
+              {
+                "category": "internal",
+                "details": {
+                  "room_type": "bathroom"
+                }
+              },
+              {
+                "category": "external",
+                "details": {
+                  "exterior_type": "backyard"
+                }
+              }
+            ],
+            "grouped_images": {
+              "external": {
+                "front_garden_space": [2035, 2046],
+                "back_garden_space": [2045, 2056]
+              },
+              "internal": {
+                "living_space": [
+                  2036, 2037, 2040, 2042, 2047, 2048, 2051, 2053
+                ],
+                "kitchen_space": [2038, 2039, 2049, 2050],
+                "bedroom_space": [2041, 2043, 2052, 2054],
+                "bathroom_space": [2044, 2055]
+              }
+            },
+            "merged_images": {
+              "external_front_garden_space": [
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_717_STC0YsE.jpg"
+              ],
+              "internal_living_space": [
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_718_gMlA9go.jpg",
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_719_ow2HZTj.jpg"
+              ],
+              "internal_kitchen_space": [
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_720_AyZCLU1.jpg"
+              ],
+              "internal_bedroom_space": [
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_721_Qol0nW7.jpg"
+              ],
+              "internal_bathroom_space": [
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_722_g435W56.jpg"
+              ],
+              "external_back_garden_space": [
+                "https://propertyanalysisstorage.s3.amazonaws.com/media/merged_property_images/merged_image_723_rmVywDb.jpg"
+              ]
+            },
+            "detailed_analysis": {
+              "external_front_garden_space": [
+                {
+                  "image_number": 1,
+                  "condition_label": "Below Average",
+                  "condition_score": 35,
+                  "reasoning": "The exterior shows signs of wear with an older appearance. The surrounding vegetation is overgrown, and there is no cohesive landscaping. Visible aging of the exterior without exceptional maintenance or updates.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_0.jpg",
+                  "image_id": 2035,
+                  "similarities": {
+                    "below_average": 0.8406421836689631,
+                    "excellent": 0.7818747771645028,
+                    "poor": 0.8658349555098297,
+                    "above_average": 0.8143443749341541
+                  },
+                  "room_type": "front yard"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Below Average",
+                  "condition_score": 35,
+                  "reasoning": "Similar to image 1, the building structure appears aged with overgrown vegetation. The entrance lacks visual appeal, and the overall maintenance seems minimal.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_11.jpg",
+                  "image_id": 2046,
+                  "similarities": {
+                    "below_average": 0.8529806854010847,
+                    "excellent": 0.7895182488062651,
+                    "poor": 0.8753619084019078,
+                    "above_average": 0.8257010460424945
+                  },
+                  "room_type": "driveway"
+                }
+              ],
+              "internal_living_space": [
+                {
+                  "image_number": 1,
+                  "condition_label": "Above Average",
+                  "condition_score": 70,
+                  "reasoning": "The room is well-lit and features attractive, well-maintained furniture. The design is cohesive with a pleasant color scheme, and the space appears clean and well-presented.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_1.jpg",
+                  "image_id": 2036,
+                  "similarities": {
+                    "above_average": 0.8478898241358536,
+                    "below_average": 0.8885844863670723,
+                    "excellent": 0.8399047233932482,
+                    "poor": 0.8585261426113786
+                  },
+                  "room_type": "living room"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Above Average",
+                  "condition_score": 67,
+                  "reasoning": "The space is clean with good lighting and a neat arrangement. The furniture and decor are maintained well, and the room has a cohesive design, although not reaching excellent standards.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_2.jpg",
+                  "image_id": 2037,
+                  "similarities": {
+                    "above_average": 0.8467989773748369,
+                    "below_average": 0.8788751126396561,
+                    "excellent": 0.8563189146063066,
+                    "poor": 0.8530685144141343
+                  },
+                  "room_type": "dining room"
+                },
+                {
+                  "image_number": 3,
+                  "condition_label": "Above Average",
+                  "condition_score": 68,
+                  "reasoning": "This room is tidy and well-presented with good quality finishes. The decor is clean and neat, with the space showing minimal signs of wear.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_5.jpg",
+                  "image_id": 2040,
+                  "similarities": {
+                    "above_average": 0.8674070507470824,
+                    "below_average": 0.8969264887921514,
+                    "excellent": 0.8864795862886002,
+                    "poor": 0.8453902877599413
+                  },
+                  "room_type": "living room"
+                },
+                {
+                  "image_number": 4,
+                  "condition_label": "Above Average",
+                  "condition_score": 65,
+                  "reasoning": "The hallway is clean and maintains a pleasant appearance with minimal signs of wear. The space is organized and well-kept, which supports its categorization above average.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_7.jpg",
+                  "image_id": 2042,
+                  "similarities": {
+                    "above_average": 0.8031395414713511,
+                    "below_average": 0.8610809785242541,
+                    "excellent": 0.8152946555235131,
+                    "poor": 0.8481047362940403
+                  },
+                  "room_type": "hallway"
+                },
+                {
+                  "image_number": 1,
+                  "condition_label": "Above Average",
+                  "condition_score": 70,
+                  "reasoning": "The room features good quality finishes and a cohesive design, with a pleasant layout and attractive furniture. It is well-maintained, though not quite reaching the high-end level of 'Excellent'.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_12.jpg",
+                  "image_id": 2047,
+                  "similarities": {
+                    "above_average": 0.8525569612539339,
+                    "below_average": 0.8848526427340131,
+                    "excellent": 0.8488247666263703,
+                    "poor": 0.8526128827124406
+                  },
+                  "room_type": "living room"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Above Average",
+                  "condition_score": 65,
+                  "reasoning": "The space is well-lit and has a cohesive design with good quality fixtures. The furniture is attractive and well-maintained, aligning with 'Above Average' standards.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_13.jpg",
+                  "image_id": 2048,
+                  "similarities": {
+                    "above_average": 0.8463580661116884,
+                    "below_average": 0.8744251416623748,
+                    "excellent": 0.8568668036211942,
+                    "poor": 0.8491295378655737
+                  },
+                  "room_type": "living room"
+                },
+                {
+                  "image_number": 3,
+                  "condition_label": "Above Average",
+                  "condition_score": 68,
+                  "reasoning": "This room has a neat appearance with a well-defined layout and cohesive color scheme, featuring good quality furnishings, which fits well within the 'Above Average' category.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_16.jpg",
+                  "image_id": 2051,
+                  "similarities": {
+                    "above_average": 0.8558151805527087,
+                    "below_average": 0.8878695164815914,
+                    "excellent": 0.8736948191221796,
+                    "poor": 0.836987529531712
+                  },
+                  "room_type": "sitting room"
+                },
+                {
+                  "image_number": 4,
+                  "condition_label": "Above Average",
+                  "condition_score": 60,
+                  "reasoning": "The hallway is well-maintained and clean, with a cohesive design and quality finishes that meet the 'Above Average' criteria. However, it lacks the high-end appeal of 'Excellent'.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_18.jpg",
+                  "image_id": 2053,
+                  "similarities": {
+                    "above_average": 0.8089220893380852,
+                    "below_average": 0.8657945180902125,
+                    "excellent": 0.8249516941370655,
+                    "poor": 0.8501716245458508
+                  },
+                  "room_type": "stairway"
+                }
+              ],
+              "internal_kitchen_space": [
+                {
+                  "image_number": 1,
+                  "condition_label": "Above Average",
+                  "condition_score": 65,
+                  "reasoning": "The kitchen has good quality finishes with a consistent color scheme. There is evidence of maintenance, and it’s clean and well-organized. The wooden cabinetry is in good condition, although it lacks the modern touch seen in 'Excellent' examples.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_3.jpg",
+                  "image_id": 2038,
+                  "similarities": {
+                    "above_average": 0.842960501264581,
+                    "below_average": 0.850532473364676,
+                    "excellent": 0.8640902946293698,
+                    "poor": 0.8121717002356141
+                  },
+                  "room_type": "kitchen"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Above Average",
+                  "condition_score": 68,
+                  "reasoning": "The dining area features cohesive design elements and well-maintained, attractive shelving. The space is well-lit and the presentation is tidy, suggesting regular upkeep, though it does not quite reach 'Excellent' standards.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_4.jpg",
+                  "image_id": 2039,
+                  "similarities": {
+                    "above_average": 0.8079365444961293,
+                    "below_average": 0.827840703906099,
+                    "excellent": 0.8043440273117162,
+                    "poor": 0.8001890249102759
+                  },
+                  "room_type": "kitchen"
+                },
+                {
+                  "image_number": 3,
+                  "condition_label": "Above Average",
+                  "condition_score": 68,
+                  "reasoning": "Consistent with image 1, the space shows good quality finishes and cleanliness. The wooden cabinetry and open shelves appear to be well-maintained, providing an inviting atmosphere that ranks above average.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_14.jpg",
+                  "image_id": 2049,
+                  "similarities": {
+                    "above_average": 0.8406857463759327,
+                    "below_average": 0.8453767647238233,
+                    "excellent": 0.8671043459796568,
+                    "poor": 0.8063456230954054
+                  },
+                  "room_type": "kitchen"
+                },
+                {
+                  "image_number": 4,
+                  "condition_label": "Above Average",
+                  "condition_score": 68,
+                  "reasoning": "Mirroring image 2, the room has a neat and organized appearance, with quality materials and well-kept decor. The overall ambiance is pleasant, with attention to detail but not quite reaching 'Excellent'.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_15.jpg",
+                  "image_id": 2050,
+                  "similarities": {
+                    "above_average": 0.8096192958977368,
+                    "below_average": 0.8303148624651582,
+                    "excellent": 0.8184508692817432,
+                    "poor": 0.7978481291080395
+                  },
+                  "room_type": "kitchen"
+                }
+              ],
+              "internal_bedroom_space": [
+                {
+                  "image_number": 1,
+                  "condition_label": "Excellent",
+                  "condition_score": 85,
+                  "reasoning": "The room has modern finishes, large mirrored wardrobes, abundant natural light, and well-maintained structural elements. The design is cohesive and stylish.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_6.jpg",
+                  "image_id": 2041,
+                  "similarities": {
+                    "poor": 0.7795108539091623,
+                    "above_average": 0.8131407204207195,
+                    "below_average": 0.82028027304561,
+                    "excellent": 0.8290097492946529
+                  },
+                  "room_type": "bedroom"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Excellent",
+                  "condition_score": 87,
+                  "reasoning": "This space features elegant wardrobes, a well-coordinated design, ample lighting, and pristine walls. It presents a high-end modern aesthetic.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_8.jpg",
+                  "image_id": 2043,
+                  "similarities": {
+                    "poor": 0.819709530534993,
+                    "above_average": 0.8126542155735282,
+                    "below_average": 0.8268048620433418,
+                    "excellent": 0.8035729888127073
+                  },
+                  "room_type": "bedroom"
+                },
+                {
+                  "image_number": 3,
+                  "condition_label": "Excellent",
+                  "condition_score": 84,
+                  "reasoning": "Similar to image 1, this room has high-quality materials, clean lines, abundant natural light, and an appealing color scheme, fitting the excellent criteria.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_17.jpg",
+                  "image_id": 2052,
+                  "similarities": {
+                    "poor": 0.7814888107131758,
+                    "above_average": 0.8290502140272604,
+                    "below_average": 0.8332619797568355,
+                    "excellent": 0.8437093465390424
+                  },
+                  "room_type": "guest bedroom"
+                },
+                {
+                  "image_number": 4,
+                  "condition_label": "Excellent",
+                  "condition_score": 86,
+                  "reasoning": "The room matches the excellent standard with modern decor, high attention to detail, cohesive design, and excellent maintenance of all elements.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_19.jpg",
+                  "image_id": 2054,
+                  "similarities": {
+                    "poor": 0.8197719607372294,
+                    "above_average": 0.8115666768084964,
+                    "below_average": 0.8267141111980431,
+                    "excellent": 0.8072546552490107
+                  },
+                  "room_type": "bedroom"
+                }
+              ],
+              "internal_bathroom_space": [
+                {
+                  "image_number": 1,
+                  "condition_label": "Above Average",
+                  "condition_score": 65,
+                  "reasoning": "The room has a cohesive design with well-maintained furniture and attractive decor. There are good quality finishes and fixtures, and the room is presented in a clean and orderly manner. The structural elements such as the walls, floors, and windows appear well-maintained with minimal wear.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_9.jpg",
+                  "image_id": 2044,
+                  "similarities": {
+                    "excellent": 0.8134445111371429,
+                    "poor": 0.8248389436088237,
+                    "above_average": 0.8049003427004173,
+                    "below_average": 0.8241302277757514
+                  },
+                  "room_type": "bathroom"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Above Average",
+                  "condition_score": 65,
+                  "reasoning": "Similar to the first image, this room displays good quality finishes and an appealing design. The furniture and fixtures are well-kept and contribute to a pleasant interior. Structural elements are in good condition, and the room is free from visible signs of wear or neglect.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_20.jpg",
+                  "image_id": 2055,
+                  "similarities": {
+                    "excellent": 0.8323825942334827,
+                    "poor": 0.8493095426642427,
+                    "above_average": 0.8240089400277034,
+                    "below_average": 0.8376671946238006
+                  },
+                  "room_type": "bathroom"
+                }
+              ],
+              "external_back_garden_space": [
+                {
+                  "image_number": 1,
+                  "condition_label": "Poor",
+                  "condition_score": 20,
+                  "reasoning": "The image shows overgrown vegetation and a lack of discernible landscaping plan. The lawn looks neglected, and there is a general sense of disrepair, lacking any visible landscaping design.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_10.jpg",
+                  "image_id": 2045,
+                  "similarities": {
+                    "above_average": 0.7301578772011101,
+                    "below_average": 0.7637321366453808,
+                    "excellent": 0.7414482164017616,
+                    "poor": 0.7553174242478504
+                  },
+                  "room_type": "back garden"
+                },
+                {
+                  "image_number": 2,
+                  "condition_label": "Poor",
+                  "condition_score": 20,
+                  "reasoning": "Similar to the first image, this shows overgrown and unkempt vegetation. The space lacks maintenance and appears neglected, fitting the description of a poor condition exterior.",
+                  "image_url": "https://propertyanalysisstorage.s3.amazonaws.com/media/property_images/property_108_image_21.jpg",
+                  "image_id": 2056,
+                  "similarities": {
+                    "above_average": 0.7359837545134365,
+                    "below_average": 0.7676309304398958,
+                    "excellent": 0.7412471820704548,
+                    "poor": 0.7575023152854886
+                  },
+                  "room_type": "backyard"
+                }
+              ]
+            },
+            "overall_condition": {
+              "overall_condition_label": "Above Average",
+              "average_score": 62.91,
+              "label_distribution": {
+                "Below Average": 0.09090909090909091,
+                "Above Average": 0.6363636363636364,
+                "Excellent": 0.18181818181818182,
+                "Poor": 0.09090909090909091
+              },
+              "total_assessments": 22,
+              "areas_of_concern": 4,
+              "confidence": "High",
+              "explanation": "\nDetailed calculation of overall property condition:\n\n1. Total number of valid assessments: 22\n\n2. Average score: 62.91\n\n3. Distribution of condition labels:\n   - Below Average: 9.09%\n   - Above Average: 63.64%\n   - Excellent: 18.18%\n   - Poor: 9.09%\n\n4. Areas of concern (scores below 40%): 4\n\n5. Overall rating determination:\n   - Excellent: 75.01% and above\n   - Above Average: 50.01% to 75%\n   - Below Average: 25.01% to 50%\n   - Poor: Below 25%\n\n   Based on the average score of 62.91, the overall rating is: Above Average\n\n6. Confidence level based on number of bedrooms (Unknown bedrooms):\n   - High: N/A or more assessments\n   - Medium: N/A to N/A assessments\n   - Low: Fewer than N/A assessments\n\n   Based on 22 assessments, the confidence level is: High\n"
+            }
+          }
+        }
+      }
+    }
+  }
+]
