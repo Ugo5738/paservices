@@ -243,21 +243,25 @@ async def get_property_details_by_id(
         Optional[Dict[str, Any]]: Property details or None if not found
     """
     try:
-        # Query the main property details
+        # Query the main property details - Get the latest snapshot
         result = await db.execute(
-            select(ApiPropertiesDetailsV2).where(
-                ApiPropertiesDetailsV2.id == property_id
-            )
+            select(ApiPropertiesDetailsV2)
+            .where(ApiPropertiesDetailsV2.id == property_id)
+            .order_by(ApiPropertiesDetailsV2.snapshot_id.desc())
+            .limit(1)
         )
         property_details = result.scalar_one_or_none()
 
         if not property_details:
             return None
+        
+        # Use the specific snapshot_id for all child queries to ensure consistency
+        snapshot_id = property_details.snapshot_id
 
         # Get branch information
         branch_result = await db.execute(
             select(ApiPropertiesDetailsV2Branch).where(
-                ApiPropertiesDetailsV2Branch.api_property_id == property_id
+                ApiPropertiesDetailsV2Branch.api_property_snapshot_id == snapshot_id
             )
         )
         branch = branch_result.scalar_one_or_none()
@@ -265,7 +269,7 @@ async def get_property_details_by_id(
         # Get price information
         price_result = await db.execute(
             select(ApiPropertiesDetailsV2Price).where(
-                ApiPropertiesDetailsV2Price.api_property_id == property_id
+                ApiPropertiesDetailsV2Price.api_property_snapshot_id == snapshot_id
             )
         )
         price = price_result.scalar_one_or_none()
@@ -273,7 +277,7 @@ async def get_property_details_by_id(
         # Get location information
         location_result = await db.execute(
             select(ApiPropertiesDetailsV2Location).where(
-                ApiPropertiesDetailsV2Location.api_property_id == property_id
+                ApiPropertiesDetailsV2Location.api_property_snapshot_id == snapshot_id
             )
         )
         location = location_result.scalar_one_or_none()
@@ -281,7 +285,7 @@ async def get_property_details_by_id(
         # Get images
         images_result = await db.execute(
             select(ApiPropertiesDetailsV2Photo).where(
-                ApiPropertiesDetailsV2Photo.api_property_id == property_id
+                ApiPropertiesDetailsV2Photo.api_property_snapshot_id == snapshot_id
             )
         )
         images = images_result.scalars().all()
@@ -289,7 +293,7 @@ async def get_property_details_by_id(
         # Get floorplans
         floorplans_result = await db.execute(
             select(ApiPropertiesDetailsV2Floorplan).where(
-                ApiPropertiesDetailsV2Floorplan.api_property_id == property_id
+                ApiPropertiesDetailsV2Floorplan.api_property_snapshot_id == snapshot_id
             )
         )
         floorplans = floorplans_result.scalars().all()
@@ -297,7 +301,7 @@ async def get_property_details_by_id(
         # Get nearest stations
         stations_result = await db.execute(
             select(ApiPropertiesDetailsV2Station).where(
-                ApiPropertiesDetailsV2Station.api_property_id == property_id
+                ApiPropertiesDetailsV2Station.api_property_snapshot_id == snapshot_id
             )
         )
         stations = stations_result.scalars().all()
