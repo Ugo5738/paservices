@@ -25,6 +25,7 @@ class FpPropertyData(Base, SuperIdMixin):
     floorplan_id = Column(String(64), index=True)
     original_url = Column(String(1024))
     callback_url = Column(String(1024), nullable=True)
+    callback_urls = Column(JSONB, nullable=True)
     callback_headers = Column(JSONB, nullable=True)
     total_floorplans = Column(Integer, nullable=True)
     analysis_urls = relationship(

@@ -51,6 +51,7 @@ TOOLS = [
             "property_url",
             "workflow_callback_url (optional)",
             "super_id (optional)",
+            "external_callback_url (optional)",
         ],
         "required_scope": "mcp:tools:property-analysis",
     },

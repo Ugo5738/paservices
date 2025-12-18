@@ -111,6 +111,18 @@ def _extract_actor_from_request(request: Request):
     except Exception:
         return {"sub": None, "service": None}
 
+def _extract_callback_urls(callback_urls_payload: Optional[dict]) -> List[str]:
+    if not isinstance(callback_urls_payload, dict):
+        return []
+    urls: List[str] = []
+    workflow_url = callback_urls_payload.get("workflow_callback_url")
+    external_url = callback_urls_payload.get("external_callback_url")
+    if workflow_url:
+        urls.append(str(workflow_url))
+    if external_url:
+        urls.append(str(external_url))
+    return list(dict.fromkeys(urls))
+
 
 
 @router.post(
@@ -207,6 +219,10 @@ async def process_combined_property_fetch(
     )
     callback_url = callback.url if callback else None
     callback_headers = callback.headers if callback else None
+    callback_urls_payload = request_payload.get("callback_urls")
+    callback_urls = _extract_callback_urls(callback_urls_payload)
+    if callback_url:
+        callback_urls = list(dict.fromkeys([str(callback_url), *callback_urls]))
 
     try:
         extracted_id = (
@@ -259,6 +275,7 @@ async def process_combined_property_fetch(
         "property_url": request.property_url,
         "client_id": token_data.get("sub"),
         "callback_url": callback_url,
+        "callback_urls": callback_urls_payload,
     }
     status_summary: Dict[str, Any] = {
         "total_endpoints": len(endpoints),
@@ -277,6 +294,7 @@ async def process_combined_property_fetch(
             summary=dict(status_summary),
             metadata=status_metadata,
             webhook_url=callback_url,
+            webhook_urls=callback_urls,
             webhook_headers=callback_headers,
             property_id=property_id,
             stage="initializing",
@@ -472,6 +490,7 @@ async def process_combined_property_fetch(
                         summary=dict(status_summary),
                         metadata=status_metadata,
                         webhook_url=callback_url,
+                        webhook_urls=callback_urls,
                         webhook_headers=callback_headers,
                         property_id=property_id,
                         stage=f"endpoint:{endpoint}",
@@ -505,6 +524,7 @@ async def process_combined_property_fetch(
                         summary=summary_payload,
                         metadata=status_metadata,
                         webhook_url=callback_url,
+                        webhook_urls=callback_urls,
                         webhook_headers=callback_headers,
                         property_id=property_id,
                         stage="completed"
@@ -847,6 +867,10 @@ async def process_property_search(
     callback = search_request.callback
     callback_url = callback.url if callback else None
     callback_headers = callback.headers if callback else None
+    callback_urls_payload = search_request.model_dump(mode="json").get("callback_urls")
+    callback_urls = _extract_callback_urls(callback_urls_payload)
+    if callback_url:
+        callback_urls = list(dict.fromkeys([str(callback_url), *callback_urls]))
 
     notifier = get_status_notifier()
     status_context = "search"
@@ -867,6 +891,7 @@ async def process_property_search(
         "num_properties_requested": search_request.num_properties,
         "update_existing": update_existing,
         "callback_url": callback_url,
+        "callback_urls": callback_urls_payload,
     }
 
     if notifier:
@@ -878,6 +903,7 @@ async def process_property_search(
             summary=dict(status_summary),
             metadata=status_metadata,
             webhook_url=callback_url,
+            webhook_urls=callback_urls,
             webhook_headers=callback_headers,
             stage="initializing",
             progress=0.0,
@@ -971,6 +997,7 @@ async def process_property_search(
                     summary=dict(status_summary),
                     metadata=status_metadata,
                     webhook_url=callback_url,
+                    webhook_urls=callback_urls,
                     webhook_headers=callback_headers,
                     stage="page:1",
                     progress=progress,
@@ -1030,6 +1057,7 @@ async def process_property_search(
                         summary=dict(status_summary),
                         metadata=status_metadata,
                         webhook_url=callback_url,
+                        webhook_urls=callback_urls,
                         webhook_headers=callback_headers,
                         stage=f"page:{page_num}",
                         progress=progress,
@@ -1095,6 +1123,7 @@ async def process_property_search(
                         summary=summary_payload,
                         metadata=status_metadata,
                         webhook_url=callback_url,
+                        webhook_urls=callback_urls,
                         webhook_headers=callback_headers,
                         stage="completed" if notification_status == "completed" else "search",
                         progress=1.0 if notification_status == "completed" else None,

@@ -116,6 +116,7 @@ async def analyze_floorplans(
         super_id=request_data.super_id,
         property_id=request_data.property_id,
         floorplans_data=request_data.model_dump()["floorplans"],
+        callback_urls_payload=request_data.model_dump(mode="json").get("callback_urls"),
         callback_payload=(
             request_data.callback.model_dump(mode="json")
             if request_data.callback

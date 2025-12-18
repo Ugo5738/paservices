@@ -24,10 +24,24 @@ from ..utils.logging_config import logger
 from ..utils.status_notifier import get_status_notifier
 
 
+def _extract_callback_urls(callback_urls_payload: Optional[dict]) -> List[str]:
+    if not isinstance(callback_urls_payload, dict):
+        return []
+    urls: List[str] = []
+    workflow_url = callback_urls_payload.get("workflow_callback_url")
+    external_url = callback_urls_payload.get("external_callback_url")
+    if workflow_url:
+        urls.append(str(workflow_url))
+    if external_url:
+        urls.append(str(external_url))
+    return list(dict.fromkeys(urls))
+
+
 async def trigger_floorplan_analysis(
     super_id: uuid.UUID,
     property_id: str,
     floorplans_data: dict,
+    callback_urls_payload: Optional[dict] = None,
     callback_payload: Optional[dict] = None,
 ):
     """Orchestrates the initiation of the floorplan analysis."""
@@ -38,6 +52,9 @@ async def trigger_floorplan_analysis(
     callback_headers = (
         callback_payload.get("headers") if callback_payload else None  # type: ignore[union-attr]
     )
+    callback_urls = _extract_callback_urls(callback_urls_payload)
+    if callback_url:
+        callback_urls = list(dict.fromkeys([str(callback_url), *callback_urls]))
     total_floorplans = len(floorplans_data)
     status_context = "floorplan_analysis"
     status_results: List[Dict[str, Any]] = []
@@ -60,8 +77,9 @@ async def trigger_floorplan_analysis(
             context=status_context,
             data=status_data,
             summary=dict(status_summary),
-            metadata={"callback_url": callback_url},
+            metadata={"callback_url": callback_url, "callback_urls": callback_urls_payload},
             webhook_url=callback_url,
+            webhook_urls=callback_urls,
             webhook_headers=callback_headers,
             property_id=property_id,
             stage="initializing",
@@ -95,6 +113,7 @@ async def trigger_floorplan_analysis(
                     client_key,
                     original_url,
                     callback_url=callback_url,
+                    callback_urls=callback_urls_payload,
                     callback_headers=callback_headers,
                     total_floorplans=total_floorplans,
                 )
@@ -187,8 +206,9 @@ async def trigger_floorplan_analysis(
                         context=status_context,
                         data=status_data,
                         summary=dict(status_summary),
-                        metadata={"callback_url": callback_url},
+                        metadata={"callback_url": callback_url, "callback_urls": callback_urls_payload},
                         webhook_url=callback_url,
+                        webhook_urls=callback_urls,
                         webhook_headers=callback_headers,
                         property_id=property_id,
                         stage="analyzer_triggered",
@@ -213,9 +233,11 @@ async def trigger_floorplan_analysis(
                         summary=dict(status_summary),
                         metadata={
                             "callback_url": callback_url,
+                            "callback_urls": callback_urls_payload,
                             "error": str(e),
                         },
                         webhook_url=callback_url,
+                        webhook_urls=callback_urls,
                         webhook_headers=callback_headers,
                         property_id=property_id,
                         stage="analyzer_call",
@@ -235,6 +257,7 @@ async def process_webhook_data_task(payload_data: dict):
 
     async with AsyncSessionLocal() as db:
         callback_url: Optional[str] = None
+        callback_urls_payload: Optional[dict] = None
         callback_headers: Optional[Dict[str, str]] = None
         property_id: Optional[str] = payload_data.get("property_id")
         super_id: Optional[uuid.UUID] = None
@@ -278,6 +301,8 @@ async def process_webhook_data_task(payload_data: dict):
                     property_id = fp_property.property_id
                 if callback_url is None:
                     callback_url = fp_property.callback_url
+                if callback_urls_payload is None and fp_property.callback_urls:
+                    callback_urls_payload = fp_property.callback_urls
                 if callback_headers is None and fp_property.callback_headers:
                     callback_headers = fp_property.callback_headers
                 if total_floorplans is None and fp_property.total_floorplans:
@@ -323,6 +348,10 @@ async def process_webhook_data_task(payload_data: dict):
                 await db.rollback()
 
         if notifier and super_id:
+            callback_urls = _extract_callback_urls(callback_urls_payload)
+            if callback_url:
+                callback_urls = list(dict.fromkeys([str(callback_url), *callback_urls]))
+
             summary_payload: Dict[str, Any] = {
                 "processed_floorplans": len(status_results),
                 "total_floorplans": total_floorplans or len(output_items),
@@ -345,9 +374,11 @@ async def process_webhook_data_task(payload_data: dict):
                 summary=summary_payload,
                 metadata={
                     "callback_url": callback_url,
+                    "callback_urls": callback_urls_payload,
                     "property_id": property_id,
                 },
                 webhook_url=callback_url,
+                webhook_urls=callback_urls,
                 webhook_headers=callback_headers,
                 property_id=property_id,
                 stage="completed" if status == "completed" else "webhook_processing",

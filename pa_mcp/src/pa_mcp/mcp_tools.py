@@ -153,6 +153,8 @@ async def list_properties_tool(
 async def trigger_full_property_analysis_tool(
     property_url: str = "",
     workflow_callback_url: str = "",
+    super_id: str = "",
+    external_callback_url: str = "",
 ) -> str:
     """Trigger the full property analysis workflow."""
     if not property_url:
@@ -164,6 +166,10 @@ async def trigger_full_property_analysis_tool(
             property_url=property_url,
             workflow_callback_url=(
                 workflow_callback_url if workflow_callback_url else None
+            ),
+            super_id=(super_id if super_id else None),
+            external_callback_url=(
+                external_callback_url if external_callback_url else None
             ),
         )
         return f"✅ Analysis started: {json.dumps(result)}"

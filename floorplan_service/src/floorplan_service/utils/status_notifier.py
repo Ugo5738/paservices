@@ -8,7 +8,7 @@ import asyncio
 import json
 from datetime import datetime, timezone
 from functools import lru_cache
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 import httpx
@@ -102,30 +102,37 @@ class StatusNotifier:
         body: Dict[str, Any],
         *,
         webhook_url: Optional[str] = None,
+        webhook_urls: Optional[List[str]] = None,
         webhook_headers: Optional[Dict[str, str]] = None,
     ) -> None:
-        url = webhook_url or self.webhook_url
-        if not url:
+        urls: List[str] = []
+        if webhook_urls:
+            urls.extend([str(u) for u in webhook_urls if u])
+        if webhook_url:
+            urls.append(str(webhook_url))
+        if not urls and self.webhook_url:
+            urls.append(str(self.webhook_url))
+        # de-dupe while preserving order
+        urls = list(dict.fromkeys(urls))
+        if not urls:
             return
-        if not isinstance(url, str):
-            url = str(url)
         headers = webhook_headers or self.webhook_headers
         safe_body = json.loads(json.dumps(body, default=_serialize_default))
 
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(
-                    url,
-                    json=safe_body,
-                    headers=headers,
-                )
-                response.raise_for_status()
+                for url in urls:
+                    response = await client.post(
+                        url,
+                        json=safe_body,
+                        headers=headers,
+                    )
+                    response.raise_for_status()
         except Exception as exc:  # pragma: no cover - logging only
             logger.error(
-                "Failed to send status webhook to %s: %s",
-                url,
+                "Failed to send status webhook: %s",
                 exc,
-                extra={"webhook_url": url, "error": str(exc)},
+                extra={"webhook_urls": urls, "error": str(exc)},
             )
 
     async def notify(
@@ -138,6 +145,7 @@ class StatusNotifier:
         summary: Optional[Dict[str, Any]] = None,
         metadata: Optional[Dict[str, Any]] = None,
         webhook_url: Optional[str] = None,
+        webhook_urls: Optional[List[str]] = None,
         webhook_headers: Optional[Dict[str, str]] = None,
         property_id: Optional[str] = None,
         stage: Optional[str] = None,
@@ -169,6 +177,7 @@ class StatusNotifier:
                 "metadata": metadata or {},
             },
             webhook_url=webhook_url,
+            webhook_urls=webhook_urls,
             webhook_headers=webhook_headers,
         )
 

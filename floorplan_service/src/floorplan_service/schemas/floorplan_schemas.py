@@ -32,6 +32,13 @@ class FloorplanAnalysisRequest(BaseModel):
     super_id: uuid.UUID
     property_id: str
     floorplans: Dict[str, FloorplanInput]
+    callback_urls: Optional[Dict[str, HttpUrl]] = Field(
+        default=None,
+        description=(
+            "Optional dict of callback URLs (e.g. workflow_callback_url, external_callback_url). "
+            "If provided, status updates will be POSTed to each URL."
+        ),
+    )
     callback: Optional[WorkflowCallback] = Field(
         default=None,
         description="Optional callback configuration for status updates.",

@@ -13,6 +13,8 @@ async def start_property_analysis_via_n8n(
     client: httpx.AsyncClient,
     property_url: str,
     workflow_callback_url: Optional[str] = None,
+    super_id: Optional[str] = None,
+    external_callback_url: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Kick off the long-running property analysis via n8n."""
     if not property_url:
@@ -24,6 +26,12 @@ async def start_property_analysis_via_n8n(
         "property_url": property_url,
         "workflow_callback_url": callback_url,
     }
+    callback_urls: Dict[str, str] = {"workflow_callback_url": callback_url}
+    if external_callback_url:
+        callback_urls["external_callback_url"] = external_callback_url
+    payload["callback_urls"] = callback_urls
+    if super_id:
+        payload["super_id"] = super_id
 
     logger.info("Triggering n8n workflow", extra={"payload": payload})
 
@@ -43,20 +51,27 @@ async def start_property_analysis_via_n8n(
         raise
 
     # --- Extract super_id from the n8n response ---
-    super_id: Optional[str] = None
+    response_super_id: Optional[str] = None
     remote_status: str = "started"
 
     if isinstance(n8n_response, dict):
-        super_id = n8n_response.get("super_id")
+        response_super_id = n8n_response.get("super_id")
         remote_status = n8n_response.get("status", remote_status)
     elif isinstance(n8n_response, list) and n8n_response:
         # just in case you ever switch to array responses
         item = n8n_response[0]
         if isinstance(item, dict):
-            super_id = item.get("super_id")
+            response_super_id = item.get("super_id")
             remote_status = item.get("status", remote_status)
 
-    if not super_id:
+    if response_super_id and super_id and response_super_id != super_id:
+        logger.warning(
+            "n8n returned a different super_id than requested",
+            extra={"requested_super_id": super_id, "response_super_id": response_super_id},
+        )
+
+    final_super_id = response_super_id or super_id
+    if not final_super_id:
         # At this point something is wrong with the workflow config,
         # better to fail loudly than silently.
         logger.error("n8n trigger did not return a super_id: %r", n8n_response)
@@ -67,7 +82,7 @@ async def start_property_analysis_via_n8n(
         try:
             await upsert_analysis_result(
                 session,
-                super_id,
+                final_super_id,
                 {
                     "status": "pending",  # our internal status
                     "remote_status": remote_status,  # what n8n said ("started")
@@ -83,9 +98,11 @@ async def start_property_analysis_via_n8n(
             raise
 
     return {
-        "super_id": super_id,
+        "super_id": final_super_id,
         "status": "started",
         "workflow_callback_url": callback_url,
+        "requested_super_id": super_id,
+        "external_callback_url": external_callback_url,
         "n8n_response": n8n_response,
     }
 

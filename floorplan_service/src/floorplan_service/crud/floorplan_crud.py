@@ -26,6 +26,7 @@ async def create_initial_property_record(
     original_url: str,
     *,
     callback_url: Optional[str] = None,
+    callback_urls: Optional[dict] = None,
     callback_headers: Optional[dict] = None,
     total_floorplans: Optional[int] = None,
 ) -> FpPropertyData:
@@ -37,6 +38,7 @@ async def create_initial_property_record(
         original_url=original_url,
         message="Analysis initiated",
         callback_url=callback_url,
+        callback_urls=callback_urls,
         callback_headers=callback_headers,
         total_floorplans=total_floorplans,
     )

@@ -1,0 +1,2624 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": true,
+  "description": "This schema is inferred from example payloads and may not include fields that did not appear in the sample set.",
+  "properties": {
+    "data_captured": {
+      "additionalProperties": true,
+      "properties": {
+        "context": {
+          "type": "string"
+        },
+        "data": {
+          "additionalProperties": true,
+          "properties": {
+            "property_id": {
+              "type": "integer"
+            },
+            "property_url": {
+              "type": "string"
+            },
+            "results": {
+              "items": {
+                "additionalProperties": true,
+                "properties": {
+                  "api_endpoint": {
+                    "type": "string"
+                  },
+                  "message": {
+                    "type": "string"
+                  },
+                  "property_id": {
+                    "type": "integer"
+                  },
+                  "raw_data": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "data": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "address": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "countryCode": {
+                                "type": "string"
+                              },
+                              "deliveryPointId": {
+                                "type": "integer"
+                              },
+                              "displayAddress": {
+                                "type": "string"
+                              },
+                              "incode": {
+                                "type": "string"
+                              },
+                              "outcode": {
+                                "type": "string"
+                              },
+                              "ukCountry": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "countryCode",
+                              "deliveryPointId",
+                              "displayAddress",
+                              "incode",
+                              "outcode",
+                              "ukCountry"
+                            ],
+                            "type": [
+                              "object",
+                              "string"
+                            ]
+                          },
+                          "addressId": {
+                            "type": "string"
+                          },
+                          "affordableBuyingScheme": {
+                            "type": "boolean"
+                          },
+                          "analyticsInfo": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "accessibility": {
+                                "type": "string"
+                              },
+                              "added": {
+                                "type": "string"
+                              },
+                              "bathrooms": {
+                                "type": "string"
+                              },
+                              "beds": {
+                                "type": "string"
+                              },
+                              "branchId": {
+                                "type": "string"
+                              },
+                              "broadband": {
+                                "type": "string"
+                              },
+                              "electricity": {
+                                "type": "string"
+                              },
+                              "floodDefences": {
+                                "type": "string"
+                              },
+                              "floodHistory": {
+                                "type": "string"
+                              },
+                              "floodRisk": {
+                                "type": "string"
+                              },
+                              "floorplanCount": {
+                                "type": "string"
+                              },
+                              "garden": {
+                                "type": "string"
+                              },
+                              "heating": {
+                                "type": "string"
+                              },
+                              "imageCount": {
+                                "type": "string"
+                              },
+                              "listed": {
+                                "type": "string"
+                              },
+                              "onlineViewing": {
+                                "type": "string"
+                              },
+                              "parking": {
+                                "type": "string"
+                              },
+                              "postcode": {
+                                "type": "string"
+                              },
+                              "price": {
+                                "type": "string"
+                              },
+                              "privateAccess": {
+                                "type": "string"
+                              },
+                              "propertyId": {
+                                "type": "string"
+                              },
+                              "propertySubType": {
+                                "type": "string"
+                              },
+                              "propertyType": {
+                                "type": "string"
+                              },
+                              "publicAccess": {
+                                "type": "string"
+                              },
+                              "restrictions": {
+                                "type": "string"
+                              },
+                              "sewerage": {
+                                "type": "string"
+                              },
+                              "sharedOwnership": {
+                                "type": "string"
+                              },
+                              "tenure": {
+                                "type": "string"
+                              },
+                              "videoProvider": {
+                                "type": "string"
+                              },
+                              "water": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "accessibility",
+                              "added",
+                              "bathrooms",
+                              "beds",
+                              "branchId",
+                              "broadband",
+                              "electricity",
+                              "floodDefences",
+                              "floodHistory",
+                              "floodRisk",
+                              "floorplanCount",
+                              "garden",
+                              "heating",
+                              "imageCount",
+                              "listed",
+                              "onlineViewing",
+                              "parking",
+                              "postcode",
+                              "price",
+                              "privateAccess",
+                              "propertyId",
+                              "propertySubType",
+                              "propertyType",
+                              "publicAccess",
+                              "restrictions",
+                              "sewerage",
+                              "sharedOwnership",
+                              "tenure",
+                              "videoProvider",
+                              "water"
+                            ],
+                            "type": "object"
+                          },
+                          "askLocationInformation": {
+                            "type": "null"
+                          },
+                          "bathrooms": {
+                            "type": "integer"
+                          },
+                          "bedrooms": {
+                            "type": "integer"
+                          },
+                          "branch": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "address": {
+                                "type": "string"
+                              },
+                              "brandName": {
+                                "type": "string"
+                              },
+                              "developer": {
+                                "type": "boolean"
+                              },
+                              "displayName": {
+                                "type": "string"
+                              },
+                              "identifier": {
+                                "type": "integer"
+                              },
+                              "logo": {
+                                "type": "string"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "address",
+                              "brandName",
+                              "developer",
+                              "displayName",
+                              "identifier",
+                              "logo",
+                              "name"
+                            ],
+                            "type": "object"
+                          },
+                          "broadband": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "broadbandCheckerUrl": {
+                                "type": "string"
+                              },
+                              "disclaimer": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "broadbandCheckerUrl",
+                              "disclaimer"
+                            ],
+                            "type": "object"
+                          },
+                          "brochure": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "brochures": {
+                                "items": {
+                                  "type": "null"
+                                },
+                                "type": "array"
+                              },
+                              "showBrochureLead": {
+                                "type": "boolean"
+                              },
+                              "title": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "brochures",
+                              "showBrochureLead",
+                              "title"
+                            ],
+                            "type": "object"
+                          },
+                          "brochures": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "businessForSale": {
+                            "type": "boolean"
+                          },
+                          "channel": {
+                            "type": "string"
+                          },
+                          "commercial": {
+                            "type": "boolean"
+                          },
+                          "commercialUseClasses": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "contactInfo": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "contactMethod": {
+                                "type": "string"
+                              },
+                              "telephoneNumbers": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "disclaimerDescription": {
+                                    "type": "null"
+                                  },
+                                  "disclaimerText": {
+                                    "type": "null"
+                                  },
+                                  "disclaimerTitle": {
+                                    "type": "null"
+                                  },
+                                  "internationalNumber": {
+                                    "type": "null"
+                                  },
+                                  "localNumber": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "disclaimerDescription",
+                                  "disclaimerText",
+                                  "disclaimerTitle",
+                                  "internationalNumber",
+                                  "localNumber"
+                                ],
+                                "type": "object"
+                              }
+                            },
+                            "required": [
+                              "contactMethod",
+                              "telephoneNumbers"
+                            ],
+                            "type": "object"
+                          },
+                          "contactMethod": {
+                            "type": "string"
+                          },
+                          "countryGuide": {
+                            "type": "null"
+                          },
+                          "customer": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "bannerAd": {
+                                "type": "null"
+                              },
+                              "branchDisplayName": {
+                                "type": "string"
+                              },
+                              "branchId": {
+                                "type": "integer"
+                              },
+                              "branchName": {
+                                "type": "string"
+                              },
+                              "buildToRent": {
+                                "type": "boolean"
+                              },
+                              "buildToRentBenefits": {
+                                "items": {
+                                  "type": "null"
+                                },
+                                "type": "array"
+                              },
+                              "commercial": {
+                                "type": "boolean"
+                              },
+                              "companyName": {
+                                "type": "string"
+                              },
+                              "companyTradingName": {
+                                "type": "string"
+                              },
+                              "customerBannerAdProfileUrl": {
+                                "type": "string"
+                              },
+                              "customerDescription": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "descriptionHTML": {
+                                    "type": "string"
+                                  },
+                                  "isTruncated": {
+                                    "type": "boolean"
+                                  },
+                                  "truncatedDescriptionHTML": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "descriptionHTML",
+                                  "isTruncated",
+                                  "truncatedDescriptionHTML"
+                                ],
+                                "type": "object"
+                              },
+                              "customerMpuAdProfileUrl": {
+                                "type": "string"
+                              },
+                              "customerProfileUrl": {
+                                "type": "string"
+                              },
+                              "customerPropertiesUrl": {
+                                "type": "string"
+                              },
+                              "developmentInfo": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "micrositeFeatures": {
+                                    "items": {
+                                      "type": "null"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "sitePlanUri": {
+                                    "type": "null"
+                                  }
+                                },
+                                "required": [
+                                  "micrositeFeatures",
+                                  "sitePlanUri"
+                                ],
+                                "type": "object"
+                              },
+                              "displayAddress": {
+                                "type": "string"
+                              },
+                              "isNewHomeDeveloper": {
+                                "type": "boolean"
+                              },
+                              "logoPath": {
+                                "type": "string"
+                              },
+                              "mpuAd": {
+                                "type": "null"
+                              },
+                              "products": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "hasMicrosite": {
+                                    "type": "boolean"
+                                  }
+                                },
+                                "required": [
+                                  "hasMicrosite"
+                                ],
+                                "type": "object"
+                              },
+                              "showBrochureLeadModal": {
+                                "type": "boolean"
+                              },
+                              "spotlight": {
+                                "type": "null"
+                              },
+                              "valuationFormUrl": {
+                                "type": "string"
+                              },
+                              "videoEnabled": {
+                                "type": "boolean"
+                              },
+                              "videoUrl": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "bannerAd",
+                              "branchDisplayName",
+                              "branchId",
+                              "branchName",
+                              "buildToRent",
+                              "buildToRentBenefits",
+                              "commercial",
+                              "companyName",
+                              "companyTradingName",
+                              "customerBannerAdProfileUrl",
+                              "customerDescription",
+                              "customerMpuAdProfileUrl",
+                              "customerProfileUrl",
+                              "customerPropertiesUrl",
+                              "developmentInfo",
+                              "displayAddress",
+                              "isNewHomeDeveloper",
+                              "logoPath",
+                              "mpuAd",
+                              "products",
+                              "showBrochureLeadModal",
+                              "spotlight",
+                              "valuationFormUrl",
+                              "videoEnabled",
+                              "videoUrl"
+                            ],
+                            "type": "object"
+                          },
+                          "dfpAdInfo": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "channel": {
+                                "type": "string"
+                              },
+                              "targeting": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "key": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "items": {
+                                        "type": "string"
+                                      },
+                                      "type": "array"
+                                    }
+                                  },
+                                  "required": [
+                                    "key",
+                                    "value"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "channel",
+                              "targeting"
+                            ],
+                            "type": "object"
+                          },
+                          "encId": {
+                            "type": "string"
+                          },
+                          "enquiredTimestamp": {
+                            "type": "null"
+                          },
+                          "entranceFloor": {
+                            "type": "null"
+                          },
+                          "epcGraphs": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "epcs": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "features": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "accessibility": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "broadband": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "electricity": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "garden": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "heating": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "obligations": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "listed": {
+                                    "additionalProperties": true,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "displayText": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "displayText"
+                                    ],
+                                    "type": [
+                                      "null",
+                                      "object"
+                                    ]
+                                  },
+                                  "privateAccess": {
+                                    "additionalProperties": true,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "displayText": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "displayText"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "publicAccess": {
+                                    "additionalProperties": true,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "displayText": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "displayText"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "requiredAccess": {
+                                    "type": "null"
+                                  },
+                                  "restrictions": {
+                                    "additionalProperties": true,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "displayText": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "displayText"
+                                    ],
+                                    "type": [
+                                      "null",
+                                      "object"
+                                    ]
+                                  },
+                                  "rightsOfWay": {
+                                    "type": "null"
+                                  }
+                                },
+                                "required": [
+                                  "listed",
+                                  "restrictions"
+                                ],
+                                "type": "object"
+                              },
+                              "parking": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "risks": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "floodDefences": {
+                                    "additionalProperties": true,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "displayText": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "displayText"
+                                    ],
+                                    "type": [
+                                      "null",
+                                      "object"
+                                    ]
+                                  },
+                                  "floodHistory": {
+                                    "additionalProperties": true,
+                                    "properties": {
+                                      "alias": {
+                                        "type": "string"
+                                      },
+                                      "displayText": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "alias",
+                                      "displayText"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "floodRisk": {
+                                    "items": {
+                                      "additionalProperties": true,
+                                      "properties": {
+                                        "alias": {
+                                          "type": "string"
+                                        },
+                                        "displayText": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "alias",
+                                        "displayText"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "floodSources": {
+                                    "items": {
+                                      "type": "null"
+                                    },
+                                    "type": "array"
+                                  },
+                                  "floodedInLastFiveYears": {
+                                    "type": "null"
+                                  }
+                                },
+                                "required": [
+                                  "floodDefences"
+                                ],
+                                "type": "object"
+                              },
+                              "sewerage": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
+                              "water": {
+                                "items": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "alias": {
+                                      "type": "string"
+                                    },
+                                    "displayText": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "alias",
+                                    "displayText"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "accessibility",
+                              "broadband",
+                              "electricity",
+                              "garden",
+                              "heating",
+                              "obligations",
+                              "parking",
+                              "risks",
+                              "sewerage",
+                              "water"
+                            ],
+                            "type": "object"
+                          },
+                          "feesApply": {
+                            "type": "null"
+                          },
+                          "floorplans": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "caption": {
+                                  "type": "string"
+                                },
+                                "resizedFloorplanUrls": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "size296x197": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "size296x197"
+                                  ],
+                                  "type": "object"
+                                },
+                                "thumbnailUrl": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "caption",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "fullDescription": {
+                            "type": "string"
+                          },
+                          "id": {
+                            "type": "string"
+                          },
+                          "identifier": {
+                            "type": "integer"
+                          },
+                          "images": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "caption": {
+                                  "type": "string"
+                                },
+                                "resizedImageUrls": {
+                                  "additionalProperties": true,
+                                  "properties": {
+                                    "size135x100": {
+                                      "type": "string"
+                                    },
+                                    "size476x317": {
+                                      "type": "string"
+                                    },
+                                    "size656x437": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "size135x100",
+                                    "size476x317",
+                                    "size656x437"
+                                  ],
+                                  "type": "object"
+                                },
+                                "url": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "caption",
+                                "resizedImageUrls",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "industryAffiliations": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "imagePath": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "imagePath",
+                                "name"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "infoReelItems": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "primaryText": {
+                                  "type": "string"
+                                },
+                                "secondaryText": {
+                                  "type": "string"
+                                },
+                                "title": {
+                                  "type": "string"
+                                },
+                                "tooltipText": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "primaryText",
+                                "secondaryText",
+                                "title",
+                                "tooltipText",
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "keyFeatures": {
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "lettings": {
+                            "type": "null"
+                          },
+                          "lettingsInfo": {
+                            "type": "null"
+                          },
+                          "linkToGlossary": {
+                            "type": "string"
+                          },
+                          "listingHistory": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "listingUpdateReason": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "listingUpdateReason"
+                            ],
+                            "type": "object"
+                          },
+                          "listingUpdateReason": {
+                            "type": "string"
+                          },
+                          "livingCosts": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "annualGroundRent": {
+                                "type": "null"
+                              },
+                              "annualServiceCharge": {
+                                "type": "null"
+                              },
+                              "councilTaxBand": {
+                                "type": "string"
+                              },
+                              "councilTaxExempt": {
+                                "type": "boolean"
+                              },
+                              "councilTaxIncluded": {
+                                "type": "boolean"
+                              },
+                              "domesticRates": {
+                                "type": "null"
+                              },
+                              "groundRentPercentageIncrease": {
+                                "type": "null"
+                              },
+                              "groundRentReviewPeriodInYears": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "annualGroundRent",
+                              "annualServiceCharge",
+                              "councilTaxBand",
+                              "councilTaxExempt",
+                              "councilTaxIncluded",
+                              "domesticRates",
+                              "groundRentPercentageIncrease",
+                              "groundRentReviewPeriodInYears"
+                            ],
+                            "type": "object"
+                          },
+                          "localPropertyTax": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "status": {
+                                "type": "null"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "status",
+                              "type",
+                              "value"
+                            ],
+                            "type": "object"
+                          },
+                          "location": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "circleRadiusOnMap": {
+                                "type": "integer"
+                              },
+                              "latitude": {
+                                "type": "number"
+                              },
+                              "longitude": {
+                                "type": "number"
+                              },
+                              "mapPreviewUrl": {
+                                "type": "string"
+                              },
+                              "pinType": {
+                                "type": "string"
+                              },
+                              "showMap": {
+                                "type": "boolean"
+                              },
+                              "streetView": {
+                                "additionalProperties": true,
+                                "properties": {
+                                  "heading": {
+                                    "type": "null"
+                                  },
+                                  "latitude": {
+                                    "type": "number"
+                                  },
+                                  "longitude": {
+                                    "type": "number"
+                                  },
+                                  "pitch": {
+                                    "type": "null"
+                                  },
+                                  "url": {
+                                    "type": "string"
+                                  },
+                                  "zoom": {
+                                    "type": "null"
+                                  }
+                                },
+                                "required": [
+                                  "heading",
+                                  "latitude",
+                                  "longitude",
+                                  "pitch",
+                                  "url",
+                                  "zoom"
+                                ],
+                                "type": "object"
+                              },
+                              "zoomLevel": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "latitude",
+                              "longitude",
+                              "pinType"
+                            ],
+                            "type": "object"
+                          },
+                          "marketInfoUrl": {
+                            "type": "string"
+                          },
+                          "misInfo": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "branchId": {
+                                "type": "integer"
+                              },
+                              "brandPlus": {
+                                "type": "boolean"
+                              },
+                              "channel": {
+                                "type": "string"
+                              },
+                              "countryCode": {
+                                "type": "string"
+                              },
+                              "featuredProperty": {
+                                "type": "boolean"
+                              },
+                              "offerAdvertStampTypeId": {
+                                "type": "null"
+                              },
+                              "premiumDisplay": {
+                                "type": "boolean"
+                              },
+                              "premiumDisplayStampId": {
+                                "type": "null"
+                              },
+                              "propertyId": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "branchId",
+                              "brandPlus",
+                              "featuredProperty",
+                              "offerAdvertStampTypeId",
+                              "premiumDisplay",
+                              "premiumDisplayStampId"
+                            ],
+                            "type": "object"
+                          },
+                          "mortgageCalculator": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "price": {
+                                "type": "integer"
+                              },
+                              "propertyTypeAlias": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "price",
+                              "propertyTypeAlias"
+                            ],
+                            "type": "object"
+                          },
+                          "mortgageInPrinciple": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "url": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "url"
+                            ],
+                            "type": "object"
+                          },
+                          "nearestAirports": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "nearestSchools": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "distance": {
+                                  "type": "number"
+                                },
+                                "externalLink": {
+                                  "type": "null"
+                                },
+                                "gender": {
+                                  "type": "string"
+                                },
+                                "inspectionReportUrl": {
+                                  "type": [
+                                    "null",
+                                    "string"
+                                  ]
+                                },
+                                "latitude": {
+                                  "type": "number"
+                                },
+                                "longitude": {
+                                  "type": "number"
+                                },
+                                "maximumAge": {
+                                  "type": "integer"
+                                },
+                                "minimumAge": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "pupilCount": {
+                                  "type": [
+                                    "integer",
+                                    "null"
+                                  ]
+                                },
+                                "ratingBody": {
+                                  "type": "string"
+                                },
+                                "ratingLabel": {
+                                  "type": "string"
+                                },
+                                "ratingValue": {
+                                  "type": "string"
+                                },
+                                "religion": {
+                                  "type": "string"
+                                },
+                                "subType": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                },
+                                "unit": {
+                                  "type": "string"
+                                },
+                                "urn": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "distance",
+                                "externalLink",
+                                "gender",
+                                "inspectionReportUrl",
+                                "latitude",
+                                "longitude",
+                                "maximumAge",
+                                "minimumAge",
+                                "name",
+                                "pupilCount",
+                                "ratingBody",
+                                "ratingLabel",
+                                "ratingValue",
+                                "religion",
+                                "subType",
+                                "type",
+                                "unit",
+                                "urn"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "nearestStations": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "distance": {
+                                  "type": "number"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "types": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "unit": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "distance",
+                                "name",
+                                "types",
+                                "unit"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "note": {
+                            "type": "null"
+                          },
+                          "photos": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "caption": {
+                                  "type": "string"
+                                },
+                                "maxSizeUrl": {
+                                  "type": "string"
+                                },
+                                "thumbnailUrl": {
+                                  "type": "string"
+                                },
+                                "url": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "caption",
+                                "maxSizeUrl",
+                                "thumbnailUrl",
+                                "url"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "postcode": {
+                            "type": "string"
+                          },
+                          "price": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "primary": {
+                                "type": "string"
+                              },
+                              "secondary": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "primary",
+                              "secondary"
+                            ],
+                            "type": "object"
+                          },
+                          "prices": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "displayPriceQualifier": {
+                                "type": "string"
+                              },
+                              "exchangeRate": {
+                                "type": "null"
+                              },
+                              "message": {
+                                "type": "null"
+                              },
+                              "pricePerSqFt": {
+                                "type": "null"
+                              },
+                              "primaryPrice": {
+                                "type": "string"
+                              },
+                              "secondaryPrice": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "displayPriceQualifier",
+                              "exchangeRate",
+                              "message",
+                              "pricePerSqFt",
+                              "primaryPrice",
+                              "secondaryPrice"
+                            ],
+                            "type": "object"
+                          },
+                          "propertyDisclaimer": {
+                            "type": "string"
+                          },
+                          "propertyDisplayType": {
+                            "type": "string"
+                          },
+                          "propertyPhrase": {
+                            "type": "string"
+                          },
+                          "propertySubType": {
+                            "type": "string"
+                          },
+                          "propertyUrl": {
+                            "type": "string"
+                          },
+                          "propertyUrls": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "nearbySoldPropertiesUrl": {
+                                "type": "string"
+                              },
+                              "similarPropertiesUrl": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "nearbySoldPropertiesUrl",
+                              "similarPropertiesUrl"
+                            ],
+                            "type": "object"
+                          },
+                          "reviews": {
+                            "type": "null"
+                          },
+                          "rooms": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "salesInfo": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "annualServiceCharge": {
+                                "type": "null"
+                              },
+                              "estateCharge": {
+                                "type": "null"
+                              },
+                              "groundRent": {
+                                "type": "null"
+                              },
+                              "lengthOfLease": {
+                                "type": "null"
+                              },
+                              "sharedOwnershipPercentage": {
+                                "type": "null"
+                              },
+                              "sharedOwnershipRent": {
+                                "type": "null"
+                              },
+                              "tenureDisplayType": {
+                                "type": "string"
+                              },
+                              "tenureType": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "annualServiceCharge",
+                              "estateCharge",
+                              "groundRent",
+                              "lengthOfLease",
+                              "sharedOwnershipPercentage",
+                              "sharedOwnershipRent",
+                              "tenureDisplayType",
+                              "tenureType"
+                            ],
+                            "type": "object"
+                          },
+                          "saved": {
+                            "type": "boolean"
+                          },
+                          "schoolCheckerUrl": {
+                            "type": "string"
+                          },
+                          "sharedOwnership": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "ownershipPercentage": {
+                                "type": "integer"
+                              },
+                              "rentFrequency": {
+                                "type": "string"
+                              },
+                              "rentPrice": {
+                                "type": "integer"
+                              },
+                              "sharedOwnershipFlag": {
+                                "type": "boolean"
+                              }
+                            },
+                            "required": [
+                              "ownershipPercentage",
+                              "rentFrequency",
+                              "rentPrice",
+                              "sharedOwnershipFlag"
+                            ],
+                            "type": "object"
+                          },
+                          "showBroadband": {
+                            "type": "boolean"
+                          },
+                          "showSchoolInfo": {
+                            "type": "boolean"
+                          },
+                          "size": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "primary": {
+                                "type": "string"
+                              },
+                              "secondary": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "primary",
+                              "secondary"
+                            ],
+                            "type": "object"
+                          },
+                          "sizings": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "soldPricesUrl": {
+                            "type": "string"
+                          },
+                          "soldPropertyType": {
+                            "type": "string"
+                          },
+                          "stampDutyCalculator": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "buyerType": {
+                                "type": "null"
+                              },
+                              "country": {
+                                "type": "string"
+                              },
+                              "price": {
+                                "type": "integer"
+                              },
+                              "result": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "buyerType",
+                              "country",
+                              "price",
+                              "result"
+                            ],
+                            "type": "object"
+                          },
+                          "staticMapImgUrls": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "staticMapImgUrlDesktopLarge": {
+                                "type": "string"
+                              },
+                              "staticMapImgUrlDesktopSmall": {
+                                "type": "string"
+                              },
+                              "staticMapImgUrlMobile": {
+                                "type": "string"
+                              },
+                              "staticMapImgUrlTablet": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "staticMapImgUrlDesktopLarge",
+                              "staticMapImgUrlDesktopSmall",
+                              "staticMapImgUrlMobile",
+                              "staticMapImgUrlTablet"
+                            ],
+                            "type": "object"
+                          },
+                          "stations": {
+                            "items": {
+                              "additionalProperties": true,
+                              "properties": {
+                                "distance": {
+                                  "type": "number"
+                                },
+                                "station": {
+                                  "type": "string"
+                                },
+                                "type": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "distance",
+                                "station",
+                                "type"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "status": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "archived": {
+                                "type": "boolean"
+                              },
+                              "available": {
+                                "type": "boolean"
+                              },
+                              "label": {
+                                "type": "null"
+                              },
+                              "published": {
+                                "type": "boolean"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "streetView": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "heading": {
+                                "type": "null"
+                              },
+                              "latitude": {
+                                "type": "number"
+                              },
+                              "longitude": {
+                                "type": "number"
+                              },
+                              "pitch": {
+                                "type": "null"
+                              },
+                              "zoom": {
+                                "type": "null"
+                              }
+                            },
+                            "required": [
+                              "heading",
+                              "latitude",
+                              "longitude",
+                              "pitch",
+                              "zoom"
+                            ],
+                            "type": "object"
+                          },
+                          "tags": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          },
+                          "telephoneNumber": {
+                            "type": "string"
+                          },
+                          "tenure": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "message": {
+                                "type": "null"
+                              },
+                              "tenureType": {
+                                "type": "string"
+                              },
+                              "yearsRemainingOnLease": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "message",
+                              "tenureType",
+                              "yearsRemainingOnLease"
+                            ],
+                            "type": "object"
+                          },
+                          "termsOfUse": {
+                            "type": "string"
+                          },
+                          "text": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "auctionFeesDisclaimer": {
+                                "type": "null"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "disclaimer": {
+                                "type": "string"
+                              },
+                              "guidePriceDisclaimer": {
+                                "type": "null"
+                              },
+                              "newHomesBrochureDisclaimer": {
+                                "type": "string"
+                              },
+                              "pageTitle": {
+                                "type": "string"
+                              },
+                              "propertyPhrase": {
+                                "type": "string"
+                              },
+                              "reservePriceDisclaimer": {
+                                "type": "null"
+                              },
+                              "shareDescription": {
+                                "type": "string"
+                              },
+                              "shareText": {
+                                "type": "string"
+                              },
+                              "shortDescription": {
+                                "type": "string"
+                              },
+                              "staticMapDisclaimerText": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "auctionFeesDisclaimer",
+                              "description",
+                              "disclaimer",
+                              "guidePriceDisclaimer",
+                              "newHomesBrochureDisclaimer",
+                              "pageTitle",
+                              "propertyPhrase",
+                              "reservePriceDisclaimer",
+                              "shareDescription",
+                              "shareText",
+                              "shortDescription",
+                              "staticMapDisclaimerText"
+                            ],
+                            "type": "object"
+                          },
+                          "transactionType": {
+                            "type": "string"
+                          },
+                          "virtualTours": {
+                            "items": {
+                              "type": "null"
+                            },
+                            "type": "array"
+                          }
+                        },
+                        "required": [
+                          "address",
+                          "bathrooms",
+                          "bedrooms",
+                          "channel",
+                          "features",
+                          "floorplans",
+                          "keyFeatures",
+                          "location",
+                          "misInfo",
+                          "mortgageCalculator",
+                          "status",
+                          "tags",
+                          "transactionType",
+                          "virtualTours"
+                        ],
+                        "type": "object"
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "data",
+                      "message",
+                      "status"
+                    ],
+                    "type": "object"
+                  },
+                  "stored": {
+                    "type": "boolean"
+                  },
+                  "super_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "api_endpoint",
+                  "message",
+                  "property_id",
+                  "raw_data",
+                  "stored",
+                  "super_id"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "super_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "property_id",
+            "property_url",
+            "results",
+            "super_id"
+          ],
+          "type": "object"
+        },
+        "metadata": {
+          "additionalProperties": true,
+          "properties": {
+            "callback_url": {
+              "type": "string"
+            },
+            "client_id": {
+              "type": "string"
+            },
+            "property_id": {
+              "type": "integer"
+            },
+            "property_url": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "callback_url",
+            "client_id",
+            "property_id",
+            "property_url"
+          ],
+          "type": "object"
+        },
+        "status": {
+          "type": "string"
+        },
+        "summary": {
+          "additionalProperties": true,
+          "properties": {
+            "completed_endpoints": {
+              "type": "integer"
+            },
+            "total_endpoints": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "completed_endpoints",
+            "total_endpoints"
+          ],
+          "type": "object"
+        },
+        "super_id": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "context",
+        "data",
+        "metadata",
+        "status",
+        "summary",
+        "super_id",
+        "timestamp"
+      ],
+      "type": "object"
+    },
+    "floorplan_data": {
+      "additionalProperties": true,
+      "properties": {
+        "fp_inline_csv": {
+          "type": "string"
+        },
+        "fp_json_csv_url": {
+          "type": "string"
+        },
+        "fp_json_file_url": {
+          "type": "string"
+        },
+        "image_labelme_side_by_side_url": {
+          "type": "string"
+        },
+        "total_area_csv_url": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fp_inline_csv",
+        "fp_json_csv_url",
+        "fp_json_file_url",
+        "image_labelme_side_by_side_url",
+        "total_area_csv_url"
+      ],
+      "type": "object"
+    },
+    "image_condition_data": {
+      "additionalProperties": true,
+      "properties": {
+        "ica_overall_analysis": {
+          "additionalProperties": true,
+          "properties": {
+            "property_url": {
+              "type": "string"
+            },
+            "stages": {
+              "additionalProperties": true,
+              "properties": {
+                "detailed_analysis": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "external_back_garden_space": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "condition_label": {
+                            "type": "string"
+                          },
+                          "condition_score": {
+                            "type": "integer"
+                          },
+                          "image_id": {
+                            "type": "integer"
+                          },
+                          "image_number": {
+                            "type": "integer"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "reasoning": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          },
+                          "similarities": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "above_average": {
+                                "type": "number"
+                              },
+                              "below_average": {
+                                "type": "number"
+                              },
+                              "excellent": {
+                                "type": "number"
+                              },
+                              "poor": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "above_average",
+                              "below_average",
+                              "excellent",
+                              "poor"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "condition_label",
+                          "condition_score",
+                          "image_id",
+                          "image_number",
+                          "image_url",
+                          "reasoning",
+                          "room_type",
+                          "similarities"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "external_front_garden_space": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "condition_label": {
+                            "type": "string"
+                          },
+                          "condition_score": {
+                            "type": "integer"
+                          },
+                          "image_id": {
+                            "type": "integer"
+                          },
+                          "image_number": {
+                            "type": "integer"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "reasoning": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          },
+                          "similarities": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "above_average": {
+                                "type": "number"
+                              },
+                              "below_average": {
+                                "type": "number"
+                              },
+                              "excellent": {
+                                "type": "number"
+                              },
+                              "poor": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "above_average",
+                              "below_average",
+                              "excellent",
+                              "poor"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "condition_label",
+                          "condition_score",
+                          "image_id",
+                          "image_number",
+                          "image_url",
+                          "reasoning",
+                          "room_type",
+                          "similarities"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "internal_bathroom_space": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "condition_label": {
+                            "type": "string"
+                          },
+                          "condition_score": {
+                            "type": "integer"
+                          },
+                          "image_id": {
+                            "type": "integer"
+                          },
+                          "image_number": {
+                            "type": "integer"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "reasoning": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          },
+                          "similarities": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "above_average": {
+                                "type": "number"
+                              },
+                              "below_average": {
+                                "type": "number"
+                              },
+                              "excellent": {
+                                "type": "number"
+                              },
+                              "poor": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "above_average",
+                              "below_average",
+                              "excellent",
+                              "poor"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "condition_label",
+                          "condition_score",
+                          "image_id",
+                          "image_number",
+                          "image_url",
+                          "reasoning",
+                          "room_type",
+                          "similarities"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "internal_bedroom_space": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "condition_label": {
+                            "type": "string"
+                          },
+                          "condition_score": {
+                            "type": "integer"
+                          },
+                          "image_id": {
+                            "type": "integer"
+                          },
+                          "image_number": {
+                            "type": "integer"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "reasoning": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          },
+                          "similarities": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "above_average": {
+                                "type": "number"
+                              },
+                              "below_average": {
+                                "type": "number"
+                              },
+                              "excellent": {
+                                "type": "number"
+                              },
+                              "poor": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "above_average",
+                              "below_average",
+                              "excellent",
+                              "poor"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "condition_label",
+                          "condition_score",
+                          "image_id",
+                          "image_number",
+                          "image_url",
+                          "reasoning",
+                          "room_type",
+                          "similarities"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "internal_kitchen_space": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "condition_label": {
+                            "type": "string"
+                          },
+                          "condition_score": {
+                            "type": "integer"
+                          },
+                          "image_id": {
+                            "type": "integer"
+                          },
+                          "image_number": {
+                            "type": "integer"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "reasoning": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          },
+                          "similarities": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "above_average": {
+                                "type": "number"
+                              },
+                              "below_average": {
+                                "type": "number"
+                              },
+                              "excellent": {
+                                "type": "number"
+                              },
+                              "poor": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "above_average",
+                              "below_average",
+                              "excellent",
+                              "poor"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "condition_label",
+                          "condition_score",
+                          "image_id",
+                          "image_number",
+                          "image_url",
+                          "reasoning",
+                          "room_type",
+                          "similarities"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "internal_living_space": {
+                      "items": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "condition_label": {
+                            "type": "string"
+                          },
+                          "condition_score": {
+                            "type": "integer"
+                          },
+                          "image_id": {
+                            "type": "integer"
+                          },
+                          "image_number": {
+                            "type": "integer"
+                          },
+                          "image_url": {
+                            "type": "string"
+                          },
+                          "reasoning": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          },
+                          "similarities": {
+                            "additionalProperties": true,
+                            "properties": {
+                              "above_average": {
+                                "type": "number"
+                              },
+                              "below_average": {
+                                "type": "number"
+                              },
+                              "excellent": {
+                                "type": "number"
+                              },
+                              "poor": {
+                                "type": "number"
+                              }
+                            },
+                            "required": [
+                              "above_average",
+                              "below_average",
+                              "excellent",
+                              "poor"
+                            ],
+                            "type": "object"
+                          }
+                        },
+                        "required": [
+                          "condition_label",
+                          "condition_score",
+                          "image_id",
+                          "image_number",
+                          "image_url",
+                          "reasoning",
+                          "room_type",
+                          "similarities"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "external_back_garden_space",
+                    "external_front_garden_space",
+                    "internal_bathroom_space",
+                    "internal_bedroom_space",
+                    "internal_kitchen_space",
+                    "internal_living_space"
+                  ],
+                  "type": "object"
+                },
+                "grouped_images": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "external": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "back_garden_space": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "front_garden_space": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "back_garden_space",
+                        "front_garden_space"
+                      ],
+                      "type": "object"
+                    },
+                    "internal": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "bathroom_space": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "bedroom_space": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "kitchen_space": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        },
+                        "living_space": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "bathroom_space",
+                        "bedroom_space",
+                        "kitchen_space",
+                        "living_space"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "external",
+                    "internal"
+                  ],
+                  "type": "object"
+                },
+                "initial_categorization": {
+                  "items": {
+                    "additionalProperties": true,
+                    "properties": {
+                      "category": {
+                        "type": "string"
+                      },
+                      "details": {
+                        "additionalProperties": true,
+                        "properties": {
+                          "exterior_type": {
+                            "type": "string"
+                          },
+                          "room_type": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "category",
+                      "details"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                },
+                "merged_images": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "external_back_garden_space": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "external_front_garden_space": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "internal_bathroom_space": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "internal_bedroom_space": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "internal_kitchen_space": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "internal_living_space": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "external_back_garden_space",
+                    "external_front_garden_space",
+                    "internal_bathroom_space",
+                    "internal_bedroom_space",
+                    "internal_kitchen_space",
+                    "internal_living_space"
+                  ],
+                  "type": "object"
+                },
+                "overall_condition": {
+                  "additionalProperties": true,
+                  "properties": {
+                    "areas_of_concern": {
+                      "type": "integer"
+                    },
+                    "average_score": {
+                      "type": "number"
+                    },
+                    "confidence": {
+                      "type": "string"
+                    },
+                    "explanation": {
+                      "type": "string"
+                    },
+                    "label_distribution": {
+                      "additionalProperties": true,
+                      "properties": {
+                        "Above Average": {
+                          "type": "number"
+                        },
+                        "Below Average": {
+                          "type": "number"
+                        },
+                        "Excellent": {
+                          "type": "number"
+                        },
+                        "Poor": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "Above Average",
+                        "Below Average",
+                        "Excellent",
+                        "Poor"
+                      ],
+                      "type": "object"
+                    },
+                    "overall_condition_label": {
+                      "type": "string"
+                    },
+                    "total_assessments": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "areas_of_concern",
+                    "average_score",
+                    "confidence",
+                    "explanation",
+                    "label_distribution",
+                    "overall_condition_label",
+                    "total_assessments"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "detailed_analysis",
+                "grouped_images",
+                "initial_categorization",
+                "merged_images",
+                "overall_condition"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "property_url",
+            "stages"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "ica_overall_analysis"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "data_captured",
+    "floorplan_data",
+    "image_condition_data"
+  ],
+  "title": "Observed schema (inferred)",
+  "type": "object"
+}
