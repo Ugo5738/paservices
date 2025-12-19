@@ -1,13 +1,18 @@
 import contextlib
-import json
 
 import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError
 
 from .auth import AuthMiddleware
 from .config import settings
-from .crud import get_analysis_result, upsert_analysis_result
+from .crud import (
+    create_analysis_update,
+    get_analysis_result,
+    list_analysis_updates,
+    upsert_analysis_result,
+)
 from .db import get_db
 from .mcp_metadata import prompts as prompt_templates
 from .mcp_metadata import resources as resources_catalog
@@ -70,15 +75,54 @@ async def oauth_protected_resource_metadata():
 async def receive_analysis_callback(
     payload: AnalysisCallbackPayload, db=Depends(get_db)
 ):
-    """Endpoint for n8n to post final workflow results."""
-    stored = await upsert_analysis_result(
-        db, payload.super_id, payload.model_dump(exclude_none=True)
-    )
+    """Endpoint for n8n/services to post workflow updates (including final results)."""
+    raw_payload = payload.model_dump(exclude_none=True)
+
+    try:
+        await create_analysis_update(db, raw_payload)
+    except SQLAlchemyError:
+        # Best-effort: if migration hasn't been applied yet, keep accepting callbacks.
+        logger.warning(
+            "Failed to persist analysis update event",
+            exc_info=True,
+            extra={"super_id": raw_payload.get("super_id")},
+        )
+
+    # Only persist keys that are actual columns. This avoids collisions with SQLAlchemy
+    # declarative attributes (e.g. incoming top-level `metadata`).
+    try:
+        from .models.analysis_result import (
+            AnalysisResult,  # local import to avoid cycles
+        )
+
+        allowed_cols = {col.name for col in AnalysisResult.__table__.columns}
+    except Exception:
+        allowed_cols = {
+            "status",
+            "remote_status",
+            "property_url",
+            "workflow_callback_url",
+            "n8n_triggered",
+            "final_result",
+            "error",
+        }
+
+    raw_payload.pop("super_id", None)
+    update_data = {k: v for k, v in raw_payload.items() if k in allowed_cols}
+
+    stored = await upsert_analysis_result(db, payload.super_id, update_data)
     logger.info(
         "Stored workflow callback",
         extra={"super_id": payload.super_id, "status": stored.status},
     )
     return {"status": "accepted", "super_id": payload.super_id}
+
+
+@app.get("/api/analysis/updates/{super_id}")
+async def read_analysis_updates(super_id: str, limit: int = 50, db=Depends(get_db)):
+    """Fetch recent workflow/service update events for a super_id."""
+    rows = await list_analysis_updates(db, super_id, limit=limit)
+    return {"super_id": super_id, "updates": [row.to_dict() for row in rows]}
 
 
 @app.get("/api/analysis/results/{super_id}")

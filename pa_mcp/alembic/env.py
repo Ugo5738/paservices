@@ -16,6 +16,7 @@ if str(SRC_DIR) not in sys.path:
 
 from pa_mcp.db import Base  # noqa: E402
 from pa_mcp.models.analysis_result import AnalysisResult  # noqa: F401,E402
+from pa_mcp.models.analysis_update import AnalysisUpdate  # noqa: F401,E402
 
 # Alembic Config object
 config = context.config
