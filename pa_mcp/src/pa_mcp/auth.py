@@ -32,6 +32,8 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
         if request.url.path.startswith("/api/analysis/callback"):
             return await call_next(request)
+        if request.url.path.startswith("/api/analysis/updates"):
+            return await call_next(request)
 
         try:
             auth_header = request.headers.get("Authorization")

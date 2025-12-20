@@ -70,7 +70,8 @@
     {
       "method": "trigger_full_property_analysis_tool",
       "params": {
-        "property_url": "https://www.rightmove.co.uk/properties/163495745#/?channel=RES_BUY"
+        "property_url": "https://www.rightmove.co.uk/properties/163495745#/?channel=RES_BUY",
+        "external_callback_url": "https://yourapp.example.com/analysis/updates"
       }
     }
     ```
@@ -90,11 +91,57 @@
   Body: `{"super_id":"abc","status":"complete|failed|pending","property_url":"...","final_result":{...},"error":{...}}`
 - Poll:  
   `GET https://mcp.supersami.com/api/analysis/results/<super_id>`
+- Updates (public):  
+  `GET https://mcp.supersami.com/api/analysis/updates/<super_id>?limit=50`
+
+### Service Update Payloads (external_callback_url)
+
+Services that honor `callback_urls` (Data Capture, Floorplan, and Image Condition) send status updates
+to both `workflow_callback_url` and `external_callback_url`. The update body looks like:
+
+```json
+{
+  "super_id": "e46209e3-1066-4ec8-ac53-ddf2202b0fc6",
+  "status": "started|in_progress|completed|failed",
+  "context": "fetch_combined|search|floorplan_analysis|image_condition_analysis",
+  "data_location": "https://<bucket>/<prefix>/<context>/<super_id>/status.json",
+  "timestamp": "2025-12-20T21:06:56.276459+00:00",
+  "summary": {},
+  "metadata": {}
+}
+```
+
+The `data_location` URL points to a richer snapshot with the same envelope plus a `data` field
+containing service-specific payloads:
+
+```json
+{
+  "super_id": "...",
+  "context": "...",
+  "status": "...",
+  "timestamp": "...",
+  "summary": { "...": "..." },
+  "metadata": { "...": "..." },
+  "data": { "...": "..." }
+}
+```
+
+The final aggregate result is posted by n8n to `workflow_callback_url` only:
+
+```json
+{
+  "super_id": "...",
+  "status": "complete",
+  "property_url": "...",
+  "final_result": { "...": "..." },
+  "error": null
+}
+```
 
 ### n8n Trigger (direct)
 
 - Webhook: `POST https://n8n-automation.supersami.com/webhook/d36312c5-f379-4b22-9f6c-e4d44f50af4c`
-- Body: `{"property_url":"<url>","workflow_callback_url":"https://mcp.supersami.com/api/analysis/callback"}`
+- Body: `{"property_url":"<url>","workflow_callback_url":"https://mcp.supersami.com/api/analysis/callback","external_callback_url":"https://yourapp.example.com/analysis/updates"}`
 - Expected response: `{"super_id":"...","status":"started"}` (ensure workflow responds early).
 
 ### Service Endpoints (direct, if needed)
@@ -107,7 +154,7 @@
 ### Example curls
 
 - Trigger via n8n:  
-  `curl -X POST https://n8n-automation.supersami.com/webhook/d36312c5-f379-4b22-9f6c-e4d44f50af4c -H 'Content-Type: application/json' -d '{"property_url":"<url>","workflow_callback_url":"https://mcp.supersami.com/api/analysis/callback"}'`
+  `curl -X POST https://n8n-automation.supersami.com/webhook/d36312c5-f379-4b22-9f6c-e4d44f50af4c -H 'Content-Type: application/json' -d '{"property_url":"<url>","workflow_callback_url":"https://mcp.supersami.com/api/analysis/callback","external_callback_url":"https://yourapp.example.com/analysis/updates"}'`
 - Poll via MCP API:  
   `curl https://mcp.supersami.com/api/analysis/results/<super_id>`
 
@@ -115,6 +162,7 @@
 
 - Ensure tokens include `aud=https://mcp.supersami.com/mcp` and `scope=users:analyze`.
 - Return the `super_id` immediately from the n8n webhook so the agent can poll.
+- `external_callback_url` is forwarded to downstream services for status updates, while the final aggregate result posts to `workflow_callback_url`.
 
 ### Common MCP Errors
 
