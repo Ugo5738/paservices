@@ -21,14 +21,21 @@ async def start_property_analysis_via_n8n(
         raise ValueError("property_url is required")
 
     callback_url = workflow_callback_url or settings.WORKFLOW_CALLBACK_URL
+    normalized_external_callback_url = None
+    if isinstance(external_callback_url, str):
+        normalized_external_callback_url = external_callback_url.strip() or None
+    else:
+        normalized_external_callback_url = external_callback_url
+    if not normalized_external_callback_url:
+        normalized_external_callback_url = callback_url
 
     payload = {
         "property_url": property_url,
         "workflow_callback_url": callback_url,
     }
     callback_urls: Dict[str, str] = {"workflow_callback_url": callback_url}
-    if external_callback_url:
-        callback_urls["external_callback_url"] = external_callback_url
+    if normalized_external_callback_url:
+        callback_urls["external_callback_url"] = normalized_external_callback_url
     payload["callback_urls"] = callback_urls
     if super_id:
         payload["super_id"] = super_id
@@ -67,7 +74,10 @@ async def start_property_analysis_via_n8n(
     if response_super_id and super_id and response_super_id != super_id:
         logger.warning(
             "n8n returned a different super_id than requested",
-            extra={"requested_super_id": super_id, "response_super_id": response_super_id},
+            extra={
+                "requested_super_id": super_id,
+                "response_super_id": response_super_id,
+            },
         )
 
     final_super_id = response_super_id or super_id
@@ -102,7 +112,7 @@ async def start_property_analysis_via_n8n(
         "status": "started",
         "workflow_callback_url": callback_url,
         "requested_super_id": super_id,
-        "external_callback_url": external_callback_url,
+        "external_callback_url": normalized_external_callback_url,
         "n8n_response": n8n_response,
     }
 
