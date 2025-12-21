@@ -111,6 +111,16 @@ to both `workflow_callback_url` and `external_callback_url`. The update body loo
 }
 ```
 
+Field reference:
+
+- `super_id`: Correlation ID for the workflow.
+- `status`: Lifecycle state for this service task.
+- `context`: Which subsystem produced the update.
+- `data_location`: URL to the full status snapshot JSON.
+- `timestamp`: ISO-8601 timestamp of the update.
+- `summary`: Small metrics and counts (service-specific).
+- `metadata`: Identifiers and callback info (service-specific).
+
 The `data_location` URL points to a richer snapshot with the same envelope plus a `data` field
 containing service-specific payloads:
 
@@ -125,6 +135,20 @@ containing service-specific payloads:
   "data": { "...": "..." }
 }
 ```
+
+Common `context` values:
+
+- `fetch_combined`: Data Capture combined fetch (Rightmove details + property-for-sale).
+- `search`: Data Capture property search.
+- `floorplan_analysis`: Floorplan service analysis.
+- `image_condition_analysis`: Image Condition service analysis.
+
+Delivery behavior:
+
+- Sent to both `workflow_callback_url` and `external_callback_url`.
+- Each update is append-only and can be polled from `GET /api/analysis/updates/<super_id>`.
+- Final aggregate result is posted by n8n to `workflow_callback_url` only.
+- `data_location` points to a mutable status snapshot that is overwritten as new updates arrive; re-fetch it to get the latest state.
 
 The final aggregate result is posted by n8n to `workflow_callback_url` only:
 
