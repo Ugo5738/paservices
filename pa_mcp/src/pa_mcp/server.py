@@ -77,7 +77,7 @@ async def receive_analysis_callback(
 ):
     """Endpoint for n8n/services to post workflow updates (including final results)."""
     raw_payload = payload.model_dump(exclude_none=True)
-    logger.info("Received analysis callback payload: %s", raw_payload)
+    # logger.info("Received analysis callback payload: %s", raw_payload)
 
     try:
         await create_analysis_update(db, raw_payload)
