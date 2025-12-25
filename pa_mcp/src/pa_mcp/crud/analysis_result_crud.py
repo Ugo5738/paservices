@@ -14,12 +14,16 @@ async def upsert_analysis_result(
     values = {"super_id": super_id, **payload}
     stmt = insert(AnalysisResult).values(values)
 
-    update_values = {
-        col.name: stmt.excluded[col.name]
-        for col in AnalysisResult.__table__.columns
-        if col.name not in ("super_id", "created_at")
+    # Only update columns that are present in the incoming payload to avoid
+    # overwriting existing data with NULLs from partial callbacks.
+    allowed_update_cols = {col.name for col in AnalysisResult.__table__.columns} - {
+        "super_id",
+        "created_at",
     }
-    update_values["updated_at"] = func.now()
+    update_values = {
+        key: stmt.excluded[key] for key in payload.keys() if key in allowed_update_cols
+    }
+    update_values["updated_at"] = func.now()  # Always bump updated_at
 
     stmt = stmt.on_conflict_do_update(
         index_elements=[AnalysisResult.super_id],
