@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 async def get_profile_by_user_id(
     db_session: AsyncSession, user_id: UUID
 ) -> Profile | None:
-    """Retrieves a user profile from the database by user_id."""
+    """Retrieves a user profile from the database by user_id"""
     try:
         result = await db_session.execute(
             select(Profile).filter(Profile.user_id == user_id)
@@ -72,9 +72,7 @@ async def create_profile_in_db(
         return None
 
 
-async def get_profile_by_email(
-    db_session: AsyncSession, email: str
-) -> Profile | None:
+async def get_profile_by_email(db_session: AsyncSession, email: str) -> Profile | None:
     """Retrieves a user profile from the database by email."""
     try:
         result = await db_session.execute(
@@ -97,7 +95,7 @@ async def update_profile(
         for key, value in update_data.items():
             if hasattr(profile, key) and value is not None:
                 setattr(profile, key, value)
-                
+
         await db_session.flush()
         await db_session.refresh(profile)
         logger.info(f"Profile updated successfully for user_id: {profile.user_id}")
@@ -111,15 +109,13 @@ async def update_profile(
         return None
 
 
-async def deactivate_profile(
-    db_session: AsyncSession, user_id: UUID
-) -> Profile | None:
+async def deactivate_profile(db_session: AsyncSession, user_id: UUID) -> Profile | None:
     """Deactivates a user profile by setting is_active to False."""
     try:
         profile = await get_profile_by_user_id(db_session, user_id)
         if not profile:
             return None
-            
+
         profile.is_active = False
         await db_session.flush()
         await db_session.refresh(profile)
