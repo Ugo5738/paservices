@@ -4,7 +4,7 @@ import httpx
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..config import settings
-from ..crud import get_analysis_result, upsert_analysis_result
+from ..crud import get_analysis_result, list_analysis_updates, upsert_analysis_result
 from ..db import AsyncSessionLocal
 from ..utils.logging_config import logger
 
@@ -117,11 +117,40 @@ async def start_property_analysis_via_n8n(
     }
 
 
+def _ts(value: Any) -> Optional[str]:
+    try:
+        return value.isoformat() if value else None
+    except Exception:
+        return None
+
+
 async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
-    """Fetch the stored analysis result by super_id."""
+    """Fetch the stored analysis result by super_id, plus per-context latest statuses."""
     async with AsyncSessionLocal() as session:
         existing = await get_analysis_result(session, super_id)
-        if existing:
-            return existing.to_dict()
+        base = (
+            existing.to_dict()
+            if existing
+            else {"super_id": super_id, "status": "pending"}
+        )
 
-    return {"super_id": super_id, "status": "pending"}
+        # Build latest_status_by_context from the append-only updates log
+        try:
+            updates = await list_analysis_updates(session, super_id, limit=200)
+            latest: Dict[str, Dict[str, Any]] = {}
+            for upd in updates:
+                ctx = upd.context or "unknown"
+                ts = upd.event_timestamp or upd.received_at
+                # first occurrence is the most recent because list_analysis_updates orders desc
+                if ctx not in latest:
+                    latest[ctx] = {
+                        "status": upd.status,
+                        "updated_at": _ts(ts),
+                    }
+            if latest:
+                base["latest_status_by_context"] = latest
+        except Exception:
+            # best-effort; do not fail the call
+            pass
+
+        return base

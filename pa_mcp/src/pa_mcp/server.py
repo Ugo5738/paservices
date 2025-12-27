@@ -111,6 +111,14 @@ async def receive_analysis_callback(
     raw_payload.pop("super_id", None)
     update_data = {k: v for k, v in raw_payload.items() if k in allowed_cols}
 
+    # Avoid bouncing the primary status field on intermediate callbacks.
+    # Only allow status to update when we have a final_result, or an explicit failure.
+    status_val = update_data.get("status")
+    is_final = "final_result" in update_data and update_data.get("final_result") is not None
+    is_failure = status_val in {"failed", "error"}
+    if status_val is not None and not (is_final or is_failure):
+        update_data.pop("status", None)
+
     stored = await upsert_analysis_result(db, payload.super_id, update_data)
     logger.info(
         "Stored workflow callback",
