@@ -83,6 +83,21 @@
     "params": { "super_id": "<id>" }
   }
   ```
+  - Response now includes `latest_status_by_context` (one most recent status per context) to show progress. Example:
+    ```json
+    {
+      "super_id": "abc-123",
+      "status": "completed",
+      "latest_status_by_context": {
+        "fetch_combined": { "status": "completed", "updated_at": "2025-12-26T10:00:10Z" },
+        "floorplan_analysis": { "status": "in_progress", "updated_at": "2025-12-26T10:01:05Z" },
+        "image_condition_analysis": { "status": "completed", "updated_at": "2025-12-26T10:01:50Z" },
+        "final": { "status": "completed", "updated_at": "2025-12-26T10:02:10Z" }
+      },
+      "final_result": { ... }
+    }
+    ```
+  - Completion signal: `final_result` non-null. Use `latest_status_by_context` for live stage; ignore snapshot `status` until `final_result` is present.
 
 ### Callback & Polling APIs
 
@@ -147,7 +162,7 @@ Delivery behavior:
 
 - Sent to both `workflow_callback_url` and `external_callback_url`.
 - Each update is append-only and can be polled from `GET /api/analysis/updates/<super_id>`.
-- Final aggregate result is posted by n8n to `workflow_callback_url` only.
+- Final aggregate result is posted by n8n to `workflow_callback_url` only (and sets `final_result`; this is the completion signal).
 - `data_location` points to a mutable status snapshot that is overwritten as new updates arrive; re-fetch it to get the latest state.
 
 The final aggregate result is posted by n8n to `workflow_callback_url` only:
