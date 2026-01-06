@@ -315,7 +315,7 @@ async def process_webhook_data_task(payload_data: dict):
                     floorplan_id=floorplan_id,
                 )
                 await floorplan_crud.update_property_with_webhook_data(
-                    db, item_data, fp_property.super_id
+                    db, item_data, fp_property
                 )
                 await event_crud.log_floorplan_event(
                     db,

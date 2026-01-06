@@ -5,7 +5,6 @@ from typing import Optional
 
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
 from ..models import (
     FpAnalysisUrls,
@@ -48,23 +47,9 @@ async def create_initial_property_record(
 
 
 async def update_property_with_webhook_data(
-    db: AsyncSession, item_data: dict, super_id: uuid.UUID
+    db: AsyncSession, item_data: dict, fp_property: FpPropertyData
 ):
-    """Finds the property record by floorplan_id and updates it with the webhook data."""
-    floorplan_id = item_data["floorplan_id"]
-
-    # Find the existing record
-    stmt = select(FpPropertyData).where(FpPropertyData.floorplan_id == floorplan_id)
-    result = await db.execute(stmt)
-    fp_property = result.scalars().first()
-
-    if not fp_property:
-        logger.error(
-            f"Webhook received for unknown floorplan_id: {floorplan_id}. Cannot process."
-        )
-        raise ValueError(f"Floorplan ID {floorplan_id} not found.")
-
-    # Update the main record
+    """Updates the provided property record with webhook data (no re-query)."""
     fp_property.message = item_data.get("message", "Analysis complete")
 
     # Create child records
@@ -76,7 +61,7 @@ async def update_property_with_webhook_data(
 
     analysis_urls = FpAnalysisUrls(
         fp_property_data_id=fp_property.id,
-        super_id=super_id,
+        super_id=fp_property.super_id,
         json_file_url=_coerce_url(all_floors_info.get("json_file_url")),
         csv_url=_coerce_url(all_floors_info.get("csv_url")),
         total_area_csv_url=_coerce_url(all_floors_info.get("total_area_csv_url")),
