@@ -12,7 +12,7 @@ AUDIENCE=${AUDIENCE:-"https://mcp.supersami.com/mcp"}
 TOKEN_URL=${TOKEN_URL:-"https://supersoftco.scalekit.dev/oauth/token"}
 
 MCP_URL=${MCP_URL:-"https://mcp.supersami.com/mcp"}
-PROPERTY_URL=${PROPERTY_URL:-"https://www.rightmove.co.uk/properties/170260643"}
+PROPERTY_URL=${PROPERTY_URL:-"https://www.rightmove.co.uk/properties/169034390"} 
 WORKFLOW_CB=${WORKFLOW_CB:-"https://mcp.supersami.com/api/analysis/callback"}
 EXTERNAL_CB=${EXTERNAL_CB:-"https://mcp.supersami.com/api/analysis/callback"}
 

@@ -4,6 +4,7 @@ import sqlalchemy.util.concurrency as _concurrency
 
 _concurrency._not_implemented = lambda *args, **kwargs: None
 
+from fastapi import Request
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -94,9 +95,11 @@ AsyncSessionLocal = async_sessionmaker(
 Base = declarative_base()
 Base.metadata.schema = "rightmove"
 
+SAFE_HTTP_METHODS = {"GET", "HEAD", "OPTIONS"}
+
 
 # --- 5. Simplified and Robust Session Dependency ---
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db(request: Request) -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI dependency that provides a transactional, auto-closing database session.
 
@@ -109,8 +112,12 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     try:
         # Yield the session to the route handler.
         yield session
-        # If the route handler finishes without errors, commit the transaction.
-        await session.commit()
+        # Avoid committing on read-only requests; rollback closes the transaction cleanly.
+        if request.method in SAFE_HTTP_METHODS:
+            if session.in_transaction():
+                await session.rollback()
+        else:
+            await session.commit()
     except SQLAlchemyError as e:
         # If a database-related error occurs, roll back all changes.
         logger.error(f"Database transaction failed: {e}", exc_info=True)

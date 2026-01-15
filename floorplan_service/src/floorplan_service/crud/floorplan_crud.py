@@ -49,8 +49,29 @@ async def create_initial_property_record(
 async def update_property_with_webhook_data(
     db: AsyncSession, item_data: dict, fp_property: FpPropertyData
 ):
-    """Updates the provided property record with webhook data (no re-query)."""
+    """Updates the provided property record with webhook data (no re-query).
+    
+    Implements 'latest wins' deduplication: if analysis data already exists
+    for this property, it is deleted before adding the new data.
+    """
+    from sqlalchemy import select
+    
     fp_property.message = item_data.get("message", "Analysis complete")
+
+    # Deduplication: Check if analysis urls already exist for this property
+    # If so, delete old records (cascade will remove child room data) before adding new
+    stmt = select(FpAnalysisUrls).where(
+        FpAnalysisUrls.fp_property_data_id == fp_property.id
+    )
+    result = await db.execute(stmt)
+    existing_analysis = result.scalars().first()
+
+    if existing_analysis:
+        logger.info(
+            f"Overwriting existing analysis data for fp_property_data_id={fp_property.id}"
+        )
+        await db.delete(existing_analysis)
+        await db.flush()  # Ensure delete is processed before add
 
     # Create child records
     all_floors_info = item_data["all_floors"]
@@ -73,11 +94,13 @@ async def update_property_with_webhook_data(
     db.add(analysis_urls)
     await db.flush()
 
-    # Process CSVs
+    # Process CSVs - use fp_property.super_id (not undefined 'super_id')
     if analysis_urls.csv_url:
-        await _process_room_csv(db, analysis_urls, super_id)
+        await _process_room_csv(db, analysis_urls, fp_property.super_id)
     if analysis_urls.total_area_csv_url:
-        await _process_total_area_csv(db, analysis_urls, super_id)
+        await _process_total_area_csv(db, analysis_urls, fp_property.super_id)
+
+
 
 
 async def download_csv_content(url: str) -> str:
