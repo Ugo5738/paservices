@@ -6,11 +6,19 @@ from fastmcp.server.dependencies import get_access_token
 from mcp.server.fastmcp import FastMCP
 
 from .config import settings
-from .tools.data_capture_tools import list_properties, trigger_detailed_scrape
+from .tools.data_capture_tools import list_properties, trigger_detailed_capture
 from .tools.floorplan_tools import trigger_floorplan_analysis
 from .tools.n8n_tools import (
     get_property_analysis_result,
     start_property_analysis_via_n8n,
+)
+from .tools.capture_service_tools import (
+    capture_with_motie,
+    check_property_fields,
+    get_capture_run_result,
+    get_capture_run_status,
+    retry_capture_run,
+    start_property_capture,
 )
 from .tools.super_id_service_tools import create_super_id
 from .utils.logging_config import logger
@@ -116,11 +124,11 @@ async def list_properties_tool(
 
 
 # @mcp.tool()
-# async def trigger_property_scrape_tool(
+# async def trigger_property_capture_tool(
 #     property_url: str,
 #     super_id: str = "",
 # ) -> str:
-#     """Trigger the Data Capture Rightmove Service to scrape a property URL."""
+#     """Trigger the Data Capture Rightmove Service to capture a property URL."""
 #     access_token = None
 #     try:
 #         access_token = get_access_token()
@@ -141,11 +149,11 @@ async def list_properties_tool(
 #         super_id = await create_super_id(prefix="fp_", token=raw_token)
 
 #     async with httpx.AsyncClient() as client:
-#         return await trigger_detailed_scrape(
+#         return await trigger_detailed_capture(
 #             client=client,
 #             token=raw_token,
 #             property_url=property_url,
-#             scrape_super_id=super_id,
+#             capture_super_id=super_id,
 #         )
 
 
@@ -185,3 +193,104 @@ async def get_property_analysis_result_tool(super_id: str = "") -> str:
     if result:
         return json.dumps(result)
     return f'{{"super_id": "{super_id}", "status": "pending"}}'
+
+
+# --- Property Data Capture Tools ---
+
+
+def _get_raw_token():
+    """Extract raw token string from FastMCP access token."""
+    try:
+        access_token = get_access_token()
+    except Exception:
+        return None
+
+    if isinstance(access_token, str):
+        return access_token
+    if access_token is not None:
+        return getattr(access_token, "token", None) or getattr(
+            access_token, "encoded", None
+        )
+    return None
+
+
+@mcp.tool()
+async def capture_property_data_tool(
+    url: str = "",
+    super_id: str = "",
+    skip_baseline: str = "",
+) -> str:
+    """Start the full property data capture pipeline for a listing URL. Returns a run_id for polling."""
+    if not url:
+        return "❌ Error: url is required"
+
+    token = _get_raw_token()
+    result = await start_property_capture(
+        url=url,
+        super_id=super_id if super_id else None,
+        skip_baseline=skip_baseline.lower() == "true" if skip_baseline else False,
+        token=token,
+    )
+    return f"✅ Capture started: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def capture_property_with_motie_tool(
+    url: str = "",
+    super_id: str = "",
+) -> str:
+    """Extract property data from a listing URL using the Motie AI adapter (includes baseline validation)."""
+    if not url:
+        return "❌ Error: url is required"
+
+    token = _get_raw_token()
+    result = await capture_with_motie(
+        url=url,
+        super_id=super_id if super_id else None,
+        token=token,
+    )
+    return f"✅ Motie extraction started: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def check_property_fields_tool(url: str = "") -> str:
+    """Quick baseline field-presence check for a property listing URL. Returns which data fields are available."""
+    if not url:
+        return "❌ Error: url is required"
+
+    token = _get_raw_token()
+    result = await check_property_fields(url=url, token=token)
+    return f"✅ Field check complete: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def get_capture_run_status_tool(run_id: str = "") -> str:
+    """Poll the status of a property data capture run by its run_id."""
+    if not run_id:
+        return "❌ Error: run_id is required"
+
+    token = _get_raw_token()
+    result = await get_capture_run_status(run_id=run_id, token=token)
+    return json.dumps(result)
+
+
+@mcp.tool()
+async def get_capture_run_result_tool(run_id: str = "") -> str:
+    """Get the canonical property data result of a completed capture run."""
+    if not run_id:
+        return "❌ Error: run_id is required"
+
+    token = _get_raw_token()
+    result = await get_capture_run_result(run_id=run_id, token=token)
+    return json.dumps(result)
+
+
+@mcp.tool()
+async def retry_capture_run_tool(run_id: str = "") -> str:
+    """Retry a failed or warning-status property data capture run."""
+    if not run_id:
+        return "❌ Error: run_id is required"
+
+    token = _get_raw_token()
+    result = await retry_capture_run(run_id=run_id, token=token)
+    return f"✅ Retry started: {json.dumps(result)}"

@@ -126,6 +126,30 @@ services:
       - "traefik.http.routers.floorplan-service.tls.certresolver=letsencrypt"
       - "traefik.http.services.floorplan-service.loadbalancer.server.port=8000"
 
+  ##########################
+  # DATA CAPTURE SERVICE #
+  ##########################
+  data_capture_service:
+    image: ${DOCKER_USERNAME}/data_capture_service:latest
+    platform: linux/arm64
+    container_name: data_capture_service_prod
+    env_file: ./data_capture_service/.env.prod
+    restart: unless-stopped
+    networks:
+      - paservices-network
+    depends_on:
+      - auth_service
+      - super_id_service
+    environment:
+      - PYTHONPATH=/app/src
+      - DATA_CAPTURE_SERVICE_M2M_JWT_SECRET_KEY=${SHARED_M2M_JWT_SECRET_KEY}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.capture-service.rule=Host(`${DATA_CAPTURE_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.capture-service.entrypoints=websecure"
+      - "traefik.http.routers.capture-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.capture-service.loadbalancer.server.port=8000"
+
   ################
   # MCP SERVICE #
   ################

@@ -92,26 +92,26 @@ async def list_properties(
         raise Exception(f"Failed to contact Data Capture Service: {e}")
 
 
-async def trigger_detailed_scrape(
+async def trigger_detailed_capture(
     client: httpx.AsyncClient,
     token: str | None,
     property_url: str,
-    scrape_super_id: str,
+    capture_super_id: str,
 ) -> str:
-    """Triggers the detailed property scrape task"""
-    print_color("   - Triggering detailed scrape...", "blue")
+    """Triggers the detailed property data capture task"""
+    print_color("   - Triggering detailed data capture...", "blue")
     url = f"{DATA_CAPTURE_RIGHTMOVE_SERVICE_URL}/properties/fetch/combined"
-    headers = {"X-Super-ID": scrape_super_id}
+    headers = {"X-Super-ID": capture_super_id}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-    payload = {"property_url": property_url, "super_id": scrape_super_id}
+    payload = {"property_url": property_url, "super_id": capture_super_id}
     try:
         response = await client.post(url, headers=headers, json=payload, timeout=120)
         response.raise_for_status()
-        success_message = f"✅ Scrape successfully initiated for {property_url} with super_id {scrape_super_id}."
+        success_message = f"✅ Data capture successfully initiated for {property_url} with super_id {capture_super_id}."
         print_color(f"   - {success_message}", "green")
         return success_message
     except httpx.HTTPStatusError as e:
-        error_message = f"❌ Scrape failed. Status: {e.response.status_code}, Details: {e.response.text}"
+        error_message = f"❌ Data capture failed. Status: {e.response.status_code}, Details: {e.response.text}"
         print_color(f"   - {error_message}", "red")
         return error_message

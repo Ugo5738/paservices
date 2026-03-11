@@ -115,6 +115,22 @@ services:
   #   env_file:
   #     - ./sanalysis/.env
 
+  # Data Capture Service
+  data_capture_service:
+    extends:
+      file: data_capture_service/docker-compose.dev.yml
+      service: data_capture_service_dev
+    ports:
+      - "8006:8000"
+    networks:
+      - paservices_network
+      - supabase_network_paservices
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   # MCP Service
   pa_mcp:
     extends:

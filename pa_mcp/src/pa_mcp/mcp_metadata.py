@@ -8,9 +8,9 @@ from typing import Dict, List
 
 TOOLS = [
     # {
-    #     "name": "trigger_property_scrape_tool",
-    #     "description": "Trigger the Data Capture service to scrape a property URL.",
-    #     "params": ["property_url", "super_id (optional)"],
+    #     "name": "capture_property_data_tool",
+    #     "description": "Start the data capture pipeline for a property listing URL.",
+    #     "params": ["url", "super_id (optional)", "skip_baseline (optional)"],
     #     "required_scope": "mcp:tools:data-capture",
     # },
     {
@@ -65,9 +65,9 @@ TOOLS = [
 
 
 PROMPT_TEMPLATES: Dict[str, str] = {
-    # "start_property_scrape": (
-    #     "Use the trigger_property_scrape_tool to start scraping the property. "
-    #     "Provide property_url and optionally supply or omit super_id to auto-generate one."
+    # "start_property_capture": (
+    #     "Use the capture_property_data_tool to start the data capture pipeline. "
+    #     "Provide url and optionally supply or omit super_id to auto-generate one."
     # ),
     "start_floorplan_analysis": (
         "Use the trigger_floorplan_analysis_tool to initiate floorplan analysis. "
