@@ -8,10 +8,10 @@ from sqlalchemy import Column, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from .base import Base, SuperIdMixin
 
 
-class SourceRawRecord(Base):
+class SourceRawRecord(Base, SuperIdMixin):
     """Append-only raw payload from each adapter/baseline fetch."""
 
     __tablename__ = "source_raw_records"

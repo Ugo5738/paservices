@@ -10,8 +10,8 @@ from sqlalchemy import (
     Column,
     Float,
     ForeignKey,
+    Identity,
     Integer,
-    Sequence,
     String,
     Text,
 )
@@ -19,9 +19,6 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
 from .base import Base, SuperIdMixin
-
-# Sequence for canonical snapshot ordering
-snapshot_seq = Sequence("canonical_snapshot_id_seq", schema="data_capture")
 
 
 class CanonicalPropertySnapshot(Base, SuperIdMixin):
@@ -41,9 +38,7 @@ class CanonicalPropertySnapshot(Base, SuperIdMixin):
         nullable=True,
         index=True,
     )
-    snapshot_id = Column(
-        BigInteger, snapshot_seq, server_default=snapshot_seq.next_value()
-    )
+    snapshot_id = Column(BigInteger, Identity(always=False), unique=True)
 
     # Source metadata
     source_adapter = Column(String(128), nullable=False)

@@ -8,10 +8,10 @@ from sqlalchemy import Column, Float, ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from .base import Base, SuperIdMixin
 
 
-class SourceParsedRecord(Base):
+class SourceParsedRecord(Base, SuperIdMixin):
     """Parsed interpretation of a raw record."""
 
     __tablename__ = "source_parsed_records"

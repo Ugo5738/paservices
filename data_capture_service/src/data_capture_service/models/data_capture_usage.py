@@ -8,10 +8,10 @@ from sqlalchemy import Column, Float, ForeignKey, Integer, String
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from .base import Base, SuperIdMixin
 
 
-class DataCaptureUsage(Base):
+class DataCaptureUsage(Base, SuperIdMixin):
     """Cost and usage tracking for each adapter operation."""
 
     __tablename__ = "data_capture_usage"

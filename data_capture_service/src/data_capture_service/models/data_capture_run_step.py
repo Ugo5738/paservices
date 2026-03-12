@@ -19,7 +19,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from .base import Base, SuperIdMixin
 
 
 class StepType(str, enum.Enum):
@@ -40,7 +40,7 @@ class StepStatus(str, enum.Enum):
     SKIPPED = "skipped"
 
 
-class DataCaptureRunStep(Base):
+class DataCaptureRunStep(Base, SuperIdMixin):
     """One row per adapter attempt within a data_capture run."""
 
     __tablename__ = "data_capture_run_steps"
