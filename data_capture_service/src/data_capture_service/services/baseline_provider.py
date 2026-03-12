@@ -164,11 +164,11 @@ class FirecrawlBaselineProvider:
         try:
             app = self._get_app()
 
-            # Firecrawl data_capture is synchronous — run in thread pool to avoid blocking
+            # Firecrawl scrape is synchronous — run in thread pool to avoid blocking
             import asyncio
 
             result = await asyncio.to_thread(
-                app.data_capture_url,
+                app.scrape_url,
                 url,
                 params={
                     "formats": ["markdown"],

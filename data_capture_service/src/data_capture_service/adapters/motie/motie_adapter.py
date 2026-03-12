@@ -120,13 +120,23 @@ class MotieAdapter:
         if not matches:
             return None
 
-        # Use the first match that has a results file
+        # Search results only return session_id + url + prompt.
+        # We need to call get_session() on each match to check if it
+        # completed successfully and has a results_file URL.
         for match in matches:
-            if match.results_file_url:
-                logger.info(
-                    f"Reusing existing Motie project {match.project_id} for {url}"
+            try:
+                session = await self.client.get_session(match.session_id)
+            except Exception as e:
+                logger.warning(
+                    f"Failed to fetch session {match.session_id} for existing project: {e}"
                 )
-                data = await self.client.download_results(match.results_file_url)
+                continue
+
+            if session.status == "completed" and session.results_file_url:
+                logger.info(
+                    f"Reusing existing Motie session {match.session_id} for {url}"
+                )
+                data = await self.client.download_results(session.results_file_url)
                 content_hash = hashlib.sha256(
                     json.dumps(data, sort_keys=True).encode()
                 ).hexdigest()
@@ -137,7 +147,7 @@ class MotieAdapter:
                     status=AdapterStatus.SUCCESS,
                     payload=data,
                     content_hash=content_hash,
-                    provider_run_id=match.project_id,
+                    provider_run_id=match.session_id,
                 )
 
         return None

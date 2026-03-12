@@ -32,21 +32,21 @@ class MotieSessionResponse:
     """Response from GET /api/v1/agent/session/:id."""
 
     session_id: str
-    status: str  # "running", "completed", "failed"
-    results_file_url: Optional[str] = None
+    status: str  # "pending", "running", "completed", "failed"
+    results_file_url: Optional[str] = None  # result.results_file (pre-signed S3 URL)
+    code: Optional[str] = None  # result.code (generated Python scraping code)
     error: Optional[str] = None
-    metadata: Optional[Dict[str, Any]] = None
+    created_at: Optional[str] = None
+    completed_at: Optional[str] = None
 
 
 @dataclass
 class MotieProjectMatch:
     """A matching project from GET /api/v1/projects/search."""
 
-    project_id: str
+    session_id: str
     url: str
-    name: Optional[str] = None
-    results_file_url: Optional[str] = None
-    created_at: Optional[str] = None
+    prompt: Optional[str] = None
 
 
 class MotieClient:
@@ -79,16 +79,16 @@ class MotieClient:
     async def invoke(
         self,
         url: str,
-        prompt: Optional[str] = None,
+        prompt: str,
     ) -> MotieInvokeResponse:
         """
         Start a new Motie scraping session.
 
         POST /api/v1/agent/invoke
+
+        Both url and prompt are required by the Motie API.
         """
-        payload: Dict[str, Any] = {"url": url}
-        if prompt:
-            payload["prompt"] = prompt
+        payload: Dict[str, Any] = {"url": url, "prompt": prompt}
 
         logger.info(f"Invoking Motie agent for URL: {url}")
 
@@ -128,12 +128,17 @@ class MotieClient:
             response.raise_for_status()
             data = response.json()
 
+        # The result object is nested: {"result": {"code": "...", "results_file": "..."}}
+        result_obj = data.get("result") or {}
+
         return MotieSessionResponse(
             session_id=session_id,
             status=data.get("status", "unknown"),
-            results_file_url=data.get("resultsFileUrl") or data.get("results_file_url"),
+            results_file_url=result_obj.get("results_file") if isinstance(result_obj, dict) else None,
+            code=result_obj.get("code") if isinstance(result_obj, dict) else None,
             error=data.get("error"),
-            metadata=data.get("metadata"),
+            created_at=data.get("created_at"),
+            completed_at=data.get("completed_at"),
         )
 
     async def search_projects(self, url: str) -> List[MotieProjectMatch]:
@@ -160,12 +165,9 @@ class MotieClient:
         for proj in projects:
             matches.append(
                 MotieProjectMatch(
-                    project_id=proj.get("projectId") or proj.get("project_id", ""),
+                    session_id=proj.get("session_id", ""),
                     url=proj.get("url", ""),
-                    name=proj.get("name"),
-                    results_file_url=proj.get("resultsFileUrl")
-                    or proj.get("results_file_url"),
-                    created_at=proj.get("createdAt") or proj.get("created_at"),
+                    prompt=proj.get("prompt"),
                 )
             )
 
