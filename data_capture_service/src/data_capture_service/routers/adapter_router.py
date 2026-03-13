@@ -16,9 +16,9 @@ from data_capture_service.clients.super_id_service_client import super_id_servic
 from data_capture_service.config import settings
 from data_capture_service.db import AsyncSessionLocal, get_db
 from data_capture_service.schemas.data_capture_schemas import (
+    AdapterDataCaptureRequest,
     AdapterInfo,
     AdapterRegistryResponse,
-    AdapterDataCaptureRequest,
     DataCaptureStartResponse,
     DataCaptureStatusEnum,
 )
@@ -81,8 +81,12 @@ async def data_capture_with_motie(
             super_id = await super_id_service_client.create_super_id(
                 description=f"Motie data_capture: {request.url}"
             )
-        except Exception:
-            super_id = uuid.uuid4()
+        except Exception as e:
+            logger.error(f"Failed to generate Super ID: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="Super ID service unavailable. Provide a super_id in the request or ensure the Super ID service is running.",
+            )
 
     from data_capture_service.crud import data_capture_run_crud
     from data_capture_service.utils.url_utils import extract_domain
@@ -132,7 +136,11 @@ async def data_capture_with_firecrawl(
 
     return {
         "url": request.url,
-        "status": baseline.status.value if hasattr(baseline.status, 'value') else str(baseline.status),
+        "status": (
+            baseline.status.value
+            if hasattr(baseline.status, "value")
+            else str(baseline.status)
+        ),
         "field_presence": baseline.field_presence,
         "image_count": baseline.image_count,
         "has_price": baseline.has_price,

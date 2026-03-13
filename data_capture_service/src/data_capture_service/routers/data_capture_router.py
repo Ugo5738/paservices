@@ -21,13 +21,13 @@ from data_capture_service.db import AsyncSessionLocal, get_db
 from data_capture_service.models.data_capture_run import DataCaptureRunStatus
 from data_capture_service.schemas.data_capture_schemas import (
     CanonicalSnapshotResponse,
-    MediaItem,
-    QualityReport,
     DataCaptureResultResponse,
     DataCaptureRunStatusResponse,
     DataCaptureStartRequest,
     DataCaptureStartResponse,
     DataCaptureStatusEnum,
+    MediaItem,
+    QualityReport,
     StepInfo,
     StepStatusEnum,
     StepTypeEnum,
@@ -88,8 +88,11 @@ async def start_data_capture(
                 description=f"DataCapture: {request.url}"
             )
         except Exception as e:
-            logger.warning(f"Failed to generate Super ID, using local UUID: {e}")
-            super_id = uuid.uuid4()
+            logger.error(f"Failed to generate Super ID: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="Super ID service unavailable. Provide a super_id in the request or ensure the Super ID service is running.",
+            )
 
     # Create the run record synchronously so we can return the run_id
     from data_capture_service.utils.url_utils import extract_domain
@@ -225,9 +228,21 @@ async def get_run_result(
 
     quality = QualityReport(
         completeness_score=snapshot.completeness_score or 0.0,
-        priority_scores=run.route_decision_json.get("priority_scores", {}) if run.route_decision_json else {},
-        fields_present=run.route_decision_json.get("fields_present", 0) if run.route_decision_json else 0,
-        fields_total=run.route_decision_json.get("fields_total", 0) if run.route_decision_json else 0,
+        priority_scores=(
+            run.route_decision_json.get("priority_scores", {})
+            if run.route_decision_json
+            else {}
+        ),
+        fields_present=(
+            run.route_decision_json.get("fields_present", 0)
+            if run.route_decision_json
+            else 0
+        ),
+        fields_total=(
+            run.route_decision_json.get("fields_total", 0)
+            if run.route_decision_json
+            else 0
+        ),
         baseline_available=True,  # Simplified — refine if needed
     )
 
@@ -244,7 +259,9 @@ async def get_run_result(
     )
 
 
-@router.post("/runs/{run_id}/retry", response_model=DataCaptureStartResponse, status_code=202)
+@router.post(
+    "/runs/{run_id}/retry", response_model=DataCaptureStartResponse, status_code=202
+)
 async def retry_run(
     run_id: uuid.UUID,
     background_tasks: BackgroundTasks,
@@ -255,7 +272,10 @@ async def retry_run(
     if not run:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
 
-    if run.status not in (DataCaptureRunStatus.FAILED, DataCaptureRunStatus.COMPLETED_WITH_WARNINGS):
+    if run.status not in (
+        DataCaptureRunStatus.FAILED,
+        DataCaptureRunStatus.COMPLETED_WITH_WARNINGS,
+    ):
         raise HTTPException(
             status_code=409,
             detail=f"Can only retry failed or warning runs (status={run.status.value})",
