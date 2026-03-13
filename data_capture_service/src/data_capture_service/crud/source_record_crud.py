@@ -21,6 +21,7 @@ async def store_raw_record(
     http_status_code: Optional[int] = None,
     http_meta_json: Optional[Dict[str, Any]] = None,
     content_hash: Optional[str] = None,
+    super_id: Optional[uuid.UUID] = None,
 ) -> SourceRawRecord:
     """Store a raw data_capture result."""
     record = SourceRawRecord(
@@ -33,6 +34,7 @@ async def store_raw_record(
         http_status_code=http_status_code,
         http_meta_json=http_meta_json,
         content_hash=content_hash,
+        super_id=super_id,
     )
     db.add(record)
     await db.flush()
@@ -50,6 +52,7 @@ async def store_parsed_record(
     confidence_score: Optional[float] = None,
     missing_fields: Optional[List[str]] = None,
     field_presence_json: Optional[Dict[str, bool]] = None,
+    super_id: Optional[uuid.UUID] = None,
 ) -> SourceParsedRecord:
     """Store a parsed data_capture result."""
     record = SourceParsedRecord(
@@ -63,6 +66,7 @@ async def store_parsed_record(
         confidence_score=confidence_score,
         missing_fields=missing_fields,
         field_presence_json=field_presence_json,
+        super_id=super_id,
     )
     db.add(record)
     await db.flush()

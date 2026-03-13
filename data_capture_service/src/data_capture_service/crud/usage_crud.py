@@ -20,6 +20,7 @@ async def record_usage(
     request_count: int = 0,
     response_bytes: int = 0,
     metadata_json: Optional[Dict[str, Any]] = None,
+    super_id: Optional[uuid.UUID] = None,
 ) -> DataCaptureUsage:
     """Record usage/cost data for a data_capture operation."""
     usage = DataCaptureUsage(
@@ -32,6 +33,7 @@ async def record_usage(
         request_count=request_count,
         response_bytes=response_bytes,
         metadata_json=metadata_json,
+        super_id=super_id,
     )
     db.add(usage)
     await db.flush()

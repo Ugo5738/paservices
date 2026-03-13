@@ -22,6 +22,7 @@ async def create_step(
     adapter_name: str,
     step_type: StepType,
     provider_type: Optional[str] = None,
+    super_id: Optional[uuid.UUID] = None,
 ) -> DataCaptureRunStep:
     """Create a new step record for a data_capture run."""
     step = DataCaptureRunStep(
@@ -33,6 +34,7 @@ async def create_step(
         provider_type=provider_type,
         status=StepStatus.PENDING,
         started_at=datetime.now(timezone.utc),
+        super_id=super_id,
     )
     db.add(step)
     await db.flush()

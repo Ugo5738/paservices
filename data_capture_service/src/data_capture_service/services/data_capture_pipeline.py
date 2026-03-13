@@ -20,17 +20,26 @@ from data_capture_service.adapters.base import (
     AdapterStatus,
     BaselineResult,
     CompletenessScore,
+    DataCaptureAdapter,
+    DataCaptureRequest,
     ParsedDataCaptureResult,
     RawDataCaptureResult,
-    DataCaptureRequest,
-    DataCaptureAdapter,
 )
 from data_capture_service.adapters.motie import motie_adapter
 from data_capture_service.config import settings
-from data_capture_service.crud import canonical_crud, data_capture_run_crud, data_capture_step_crud
-from data_capture_service.crud import source_record_crud, usage_crud
+from data_capture_service.crud import (
+    canonical_crud,
+    data_capture_run_crud,
+    data_capture_step_crud,
+    source_record_crud,
+    usage_crud,
+)
 from data_capture_service.mappers.canonical_mapper import map_to_canonical
-from data_capture_service.models.data_capture_run import DataCaptureRun, DataCaptureRunMode, DataCaptureRunStatus
+from data_capture_service.models.data_capture_run import (
+    DataCaptureRun,
+    DataCaptureRunMode,
+    DataCaptureRunStatus,
+)
 from data_capture_service.models.data_capture_run_step import StepStatus, StepType
 from data_capture_service.services.baseline_provider import firecrawl_baseline_provider
 from data_capture_service.services.field_registry import compute_completeness_score
@@ -103,6 +112,7 @@ class DataCapturePipeline:
                 adapter_name="firecrawl_baseline",
                 step_type=StepType.BASELINE,
                 provider_type="firecrawl",
+                super_id=super_id,
             )
             step_order += 1
 
@@ -115,8 +125,11 @@ class DataCapturePipeline:
                     run_id=run.id,
                     step_id=baseline_step.id,
                     adapter_name="firecrawl_baseline",
-                    payload_json={"markdown": baseline.markdown} if baseline.markdown else None,
+                    payload_json=(
+                        {"markdown": baseline.markdown} if baseline.markdown else None
+                    ),
                     source_domain=domain,
+                    super_id=super_id,
                 )
 
                 # Store baseline parsed record
@@ -127,6 +140,7 @@ class DataCapturePipeline:
                     raw_record_id=raw_rec.id,
                     adapter_name="firecrawl_baseline",
                     field_presence_json=baseline.field_presence,
+                    super_id=super_id,
                 )
 
                 # Record usage
@@ -138,12 +152,17 @@ class DataCapturePipeline:
                     operation="data_capture_baseline",
                     credits_used=baseline.credits_used,
                     request_count=1,
+                    super_id=super_id,
                 )
 
                 await data_capture_step_crud.update_step(
                     db=db,
                     step_id=baseline_step.id,
-                    status=StepStatus.COMPLETED if baseline.status == AdapterStatus.SUCCESS else StepStatus.FAILED,
+                    status=(
+                        StepStatus.COMPLETED
+                        if baseline.status == AdapterStatus.SUCCESS
+                        else StepStatus.FAILED
+                    ),
                     duration_ms=baseline.duration_ms,
                     error_message=baseline.error_message,
                 )
@@ -162,7 +181,9 @@ class DataCapturePipeline:
             db, run.id, DataCaptureRunStatus.SCRAPING
         )
 
-        best_result: Optional[Tuple[ParsedDataCaptureResult, CompletenessScore, str]] = None
+        best_result: Optional[
+            Tuple[ParsedDataCaptureResult, CompletenessScore, str]
+        ] = None
         fallback_count = 0
 
         for adapter_name in self._adapter_chain:
@@ -191,7 +212,10 @@ class DataCapturePipeline:
             parsed, score, validation_passed = result
 
             # Accept if score >= threshold and validation passes
-            if score.overall >= settings.COMPLETENESS_ACCEPT_THRESHOLD and validation_passed:
+            if (
+                score.overall >= settings.COMPLETENESS_ACCEPT_THRESHOLD
+                and validation_passed
+            ):
                 await self._store_canonical(
                     db=db,
                     run=run,
@@ -207,7 +231,10 @@ class DataCapturePipeline:
                 best_result = (parsed, score, adapter_name)
 
             # Fallback if score < threshold
-            if score.overall < settings.COMPLETENESS_FALLBACK_THRESHOLD or not validation_passed:
+            if (
+                score.overall < settings.COMPLETENESS_FALLBACK_THRESHOLD
+                or not validation_passed
+            ):
                 fallback_count += 1
                 continue
 
@@ -289,6 +316,7 @@ class DataCapturePipeline:
                 adapter_name="firecrawl_baseline",
                 step_type=StepType.BASELINE,
                 provider_type="firecrawl",
+                super_id=super_id,
             )
             step_order += 1
 
@@ -299,8 +327,11 @@ class DataCapturePipeline:
                     run_id=run.id,
                     step_id=baseline_step.id,
                     adapter_name="firecrawl_baseline",
-                    payload_json={"markdown": baseline.markdown} if baseline.markdown else None,
+                    payload_json=(
+                        {"markdown": baseline.markdown} if baseline.markdown else None
+                    ),
                     source_domain=domain,
+                    super_id=super_id,
                 )
                 await source_record_crud.store_parsed_record(
                     db=db,
@@ -309,6 +340,7 @@ class DataCapturePipeline:
                     raw_record_id=raw_rec.id,
                     adapter_name="firecrawl_baseline",
                     field_presence_json=baseline.field_presence,
+                    super_id=super_id,
                 )
                 await usage_crud.record_usage(
                     db=db,
@@ -318,38 +350,64 @@ class DataCapturePipeline:
                     operation="data_capture_baseline",
                     credits_used=baseline.credits_used,
                     request_count=1,
+                    super_id=super_id,
                 )
                 await data_capture_step_crud.update_step(
                     db=db,
                     step_id=baseline_step.id,
-                    status=StepStatus.COMPLETED if baseline.status == AdapterStatus.SUCCESS else StepStatus.FAILED,
+                    status=(
+                        StepStatus.COMPLETED
+                        if baseline.status == AdapterStatus.SUCCESS
+                        else StepStatus.FAILED
+                    ),
                     duration_ms=baseline.duration_ms,
                 )
             except Exception as e:
                 logger.error(f"Baseline failed: {e}")
                 await data_capture_step_crud.update_step(
-                    db=db, step_id=baseline_step.id, status=StepStatus.FAILED, error_message=str(e)
+                    db=db,
+                    step_id=baseline_step.id,
+                    status=StepStatus.FAILED,
+                    error_message=str(e),
                 )
 
         # Run adapter
-        await data_capture_run_crud.update_run_status(db, run.id, DataCaptureRunStatus.SCRAPING)
+        await data_capture_run_crud.update_run_status(
+            db, run.id, DataCaptureRunStatus.SCRAPING
+        )
 
-        request = DataCaptureRequest(url=url, super_id=str(super_id), adapter_name=adapter_name)
+        request = DataCaptureRequest(
+            url=url, super_id=str(super_id), adapter_name=adapter_name
+        )
         result = await self._run_adapter(
-            db=db, run=run, adapter=adapter, adapter_name=adapter_name,
-            request=request, baseline=baseline, step_order=step_order,
+            db=db,
+            run=run,
+            adapter=adapter,
+            adapter_name=adapter_name,
+            request=request,
+            baseline=baseline,
+            step_order=step_order,
         )
 
         if result:
             parsed, score, validation_passed = result
-            with_warnings = not validation_passed or score.overall < settings.COMPLETENESS_ACCEPT_THRESHOLD
+            with_warnings = (
+                not validation_passed
+                or score.overall < settings.COMPLETENESS_ACCEPT_THRESHOLD
+            )
             await self._store_canonical(
-                db=db, run=run, parsed=parsed, score=score,
-                adapter_name=adapter_name, with_warnings=with_warnings,
+                db=db,
+                run=run,
+                parsed=parsed,
+                score=score,
+                adapter_name=adapter_name,
+                with_warnings=with_warnings,
             )
         else:
             await data_capture_run_crud.update_run_status(
-                db=db, run_id=run.id, status=DataCaptureRunStatus.FAILED,
+                db=db,
+                run_id=run.id,
+                status=DataCaptureRunStatus.FAILED,
                 error_message=f"Adapter {adapter_name} failed",
             )
 
@@ -377,6 +435,7 @@ class DataCapturePipeline:
             adapter_name=adapter_name,
             step_type=StepType.DATA_CAPTURE,
             provider_type=adapter_name,
+            super_id=run.super_id,
         )
 
         try:
@@ -394,6 +453,7 @@ class DataCapturePipeline:
                 http_status_code=raw.http_status_code,
                 http_meta_json=raw.http_meta,
                 content_hash=raw.content_hash,
+                super_id=run.super_id,
             )
 
             if raw.status != AdapterStatus.SUCCESS:
@@ -420,6 +480,7 @@ class DataCapturePipeline:
                 parsed_json=parsed.fields,
                 field_presence_json=parsed.field_presence,
                 missing_fields=parsed.missing_fields,
+                super_id=run.super_id,
             )
 
             if parsed.status != AdapterStatus.SUCCESS:
@@ -462,6 +523,7 @@ class DataCapturePipeline:
                 adapter_name=adapter_name,
                 operation="data_capture",
                 request_count=1,
+                super_id=run.super_id,
             )
 
             return parsed, score, validation.passed
