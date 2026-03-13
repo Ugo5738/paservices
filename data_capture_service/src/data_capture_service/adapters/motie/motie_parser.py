@@ -18,6 +18,8 @@ FIELD_MAPPING: Dict[str, List[str]] = {
         "road",
         "street",
         "address_line_1",
+        # Prompt variant: "Address (Road name)" → normalized
+        "address_road_name",
     ],
     "price": ["price", "price_text", "asking_price"],
     "price_text": ["price_text", "price_raw", "price"],
@@ -27,16 +29,39 @@ FIELD_MAPPING: Dict[str, List[str]] = {
         "photo_urls",
         "property_images",
         "property_photos",
+        # Prompt variant: "Image(s) URL(s) (ALL, High Res)" → normalized
+        "images_urls_all_high_res",
+        "images_urls",
+        "image_url",
     ],
     "floorplan_urls": [
         "floorplan_images_urls",
         "floorplan_urls",
         "floorplans",
         "floor_plan_urls",
+        # Prompt variant: "Floorplan(s) Images URL(s)" → normalized
+        "floorplans_images_urls",
+        "floorplan_images",
     ],
-    "source_url": ["source_url", "url", "page_url", "listing_url"],
-    "address_town": ["address_town", "town", "city", "locality"],
-    "bedrooms": ["bedrooms_number", "bedrooms", "beds", "num_bedrooms"],
+    "source_url": [
+        "source_url",
+        "url",
+        "page_url",
+        "listing_url",
+        "source_url",
+    ],
+    "address_town": [
+        "address_town",
+        "town",
+        "city",
+        "locality",
+    ],
+    "bedrooms": [
+        "bedrooms_number",
+        "bedrooms",
+        "beds",
+        "num_bedrooms",
+    ],
     "estate_agent_name": [
         "estate_agent_name",
         "agent_name",
@@ -55,14 +80,53 @@ FIELD_MAPPING: Dict[str, List[str]] = {
         "listing_type",
         "sale_type",
     ],
-    "bathrooms": ["bathrooms_number", "bathrooms", "baths", "num_bathrooms"],
-    "property_type": ["type", "property_type", "house_type"],
-    "created_date": ["created", "created_date", "listed_date", "came_to_market"],
-    "full_address": ["address_full", "full_address", "complete_address"],
-    "postcode": ["address_postcode", "postcode", "zip_code", "postal_code"],
-    "description": ["description_full", "description", "full_description"],
-    "rightmove_url": ["property_url", "rightmove_url", "listing_url"],
-    "description_short": ["description_short", "short_description", "summary"],
+    "bathrooms": [
+        "bathrooms_number",
+        "bathrooms",
+        "baths",
+        "num_bathrooms",
+    ],
+    "property_type": [
+        "type",
+        "property_type",
+        "house_type",
+        # Prompt variant: "Type (House, Detached etc)" → normalized
+        "type_house_detached_etc",
+    ],
+    "created_date": [
+        "created",
+        "created_date",
+        "listed_date",
+        "came_to_market",
+        # Prompt variant: "Created (came to market)" → normalized
+        "created_came_to_market",
+    ],
+    "full_address": [
+        "address_full",
+        "full_address",
+        "complete_address",
+    ],
+    "postcode": [
+        "address_postcode",
+        "postcode",
+        "zip_code",
+        "postal_code",
+    ],
+    "description": [
+        "description_full",
+        "description",
+        "full_description",
+    ],
+    "rightmove_url": [
+        "property_url",
+        "rightmove_url",
+        "rightmove_url",
+    ],
+    "description_short": [
+        "description_short",
+        "short_description",
+        "summary",
+    ],
     "size": ["size", "floor_area", "square_footage", "sqft"],
     "tenure": ["tenure", "ownership_type"],
     "garden": ["garden", "gardens", "outdoor_space"],
@@ -75,30 +139,82 @@ FIELD_MAPPING: Dict[str, List[str]] = {
     ],
     "status_availability": [
         "status_availability",
+        "status_availability",
         "availability",
         "status",
     ],
     "last_update_reason": [
         "last_update_reason",
+        "last_update_reason",
         "last_updated",
         "update_reason",
     ],
-    "epcs": ["epcs", "epc", "epc_rating", "energy_rating"],
+    "epcs": [
+        "epcs",
+        "epc",
+        "epc_rating",
+        "energy_rating",
+    ],
     "train_station_nearby": [
         "train_station_nearby",
         "nearest_station",
         "transport",
     ],
-    "video_urls": ["video_urls", "videos", "virtual_tour"],
+    "video_urls": [
+        "video_urls",
+        "videos",
+        "virtual_tour",
+        # Prompt variant: "Video(s) URLs" → normalized
+        "videos_urls",
+    ],
     "access": ["access"],
     "accessibility": ["accessibility"],
     "flood_risk": ["flood_risk"],
     "heating": ["heating", "heating_type"],
-    "listed": ["listed", "listed_building"],
+    "listed": ["listed", "listed_building", "listed_"],
     "restrictions": ["restrictions"],
     "shared_ownership": ["shared_ownership"],
     "utilities": ["utilities"],
 }
+
+
+def _normalize_key(key: str) -> str:
+    """
+    Normalize a key to lowercase snake_case for matching.
+
+    Handles keys like:
+    - "Address (Road name)" → "address_road_name"
+    - "Price" → "price"
+    - "Image(s) URL(s) (ALL, High Res)" → "images_urls_all_high_res"
+    - "Bedrooms (number)" → "bedrooms_number"
+    - "estate_agent_name" → "estate_agent_name" (already normalized)
+    """
+    k = key.lower()
+    # Remove (s) pluralization markers
+    k = k.replace("(s)", "s")
+    # Replace parenthesized content: "Address (Road name)" → "Address Road name"
+    k = re.sub(r"[()&/,]", " ", k)
+    # Collapse whitespace and replace with underscores
+    k = re.sub(r"[\s\-]+", "_", k.strip())
+    # Remove trailing/leading underscores
+    k = k.strip("_")
+    return k
+
+
+def _normalize_data_keys(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Create a normalized copy of the data dict where all keys are lowercased
+    and converted to snake_case. Also preserves original keys so both can match.
+    """
+    normalized: Dict[str, Any] = {}
+    for key, value in data.items():
+        # Keep original
+        normalized[key] = value
+        # Also add normalized version
+        norm_key = _normalize_key(key)
+        if norm_key != key:
+            normalized[norm_key] = value
+    return normalized
 
 
 def _extract_field(data: Dict[str, Any], possible_keys: List[str]) -> Any:
@@ -107,7 +223,11 @@ def _extract_field(data: Dict[str, Any], possible_keys: List[str]) -> Any:
         value = data.get(key)
         if value is not None:
             # Normalize "null" strings to None
-            if isinstance(value, str) and value.strip().lower() in ("null", "none", "n/a"):
+            if isinstance(value, str) and value.strip().lower() in (
+                "null",
+                "none",
+                "n/a",
+            ):
                 continue
             return value
     return None
@@ -167,6 +287,16 @@ def parse_motie_result(
     if "data" in data and isinstance(data["data"], dict):
         data = data["data"]
 
+    # Log raw keys from Motie for debugging field mapping issues
+    raw_keys = list(data.keys())
+    logger.info(f"Raw Motie JSON keys ({len(raw_keys)}): {raw_keys}")
+
+    # Normalize all keys to snake_case so we can match regardless of format
+    data = _normalize_data_keys(data)
+    normalized_keys = [k for k in data.keys() if k not in raw_keys]
+    if normalized_keys:
+        logger.info(f"Normalized keys added: {normalized_keys}")
+
     fields: Dict[str, Any] = {}
 
     for canonical_name, possible_keys in FIELD_MAPPING.items():
@@ -211,16 +341,20 @@ def parse_motie_result(
         fields["source_url"] = source_url
 
     # Coerce numeric fields
-    fields["bedrooms"] = _coerce_int(
-        _extract_field(data, FIELD_MAPPING["bedrooms"])
-    )
-    fields["bathrooms"] = _coerce_int(
-        _extract_field(data, FIELD_MAPPING["bathrooms"])
-    )
+    fields["bedrooms"] = _coerce_int(_extract_field(data, FIELD_MAPPING["bedrooms"]))
+    fields["bathrooms"] = _coerce_int(_extract_field(data, FIELD_MAPPING["bathrooms"]))
+
+    # Count non-None fields for meaningful logging
+    present_fields = [
+        k for k, v in fields.items() if v is not None and v != [] and v != ""
+    ]
+    missing_fields = [k for k, v in fields.items() if v is None or v == [] or v == ""]
 
     logger.info(
-        f"Parsed Motie result: {len(fields)} fields, "
+        f"Parsed Motie result: {len(present_fields)}/{len(fields)} fields present, "
         f"{len(image_urls)} images, {len(floorplan_urls)} floorplans"
     )
+    logger.info(f"Present fields: {present_fields}")
+    logger.info(f"Missing fields: {missing_fields}")
 
     return fields, image_urls, floorplan_urls
