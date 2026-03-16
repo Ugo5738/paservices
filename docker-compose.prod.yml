@@ -97,10 +97,10 @@ services:
       - DATA_CAPTURE_RIGHTMOVE_SERVICE_M2M_JWT_SECRET_KEY=${SHARED_M2M_JWT_SECRET_KEY}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.data-capture-service.rule=Host(`${DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN}`)"
-      - "traefik.http.routers.data-capture-service.entrypoints=websecure"
-      - "traefik.http.routers.data-capture-service.tls.certresolver=letsencrypt"
-      - "traefik.http.services.data-capture-service.loadbalancer.server.port=8000"
+      - "traefik.http.routers.data-capture-rightmove-service.rule=Host(`${DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.data-capture-rightmove-service.entrypoints=websecure"
+      - "traefik.http.routers.data-capture-rightmove-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.data-capture-rightmove-service.loadbalancer.server.port=8000"
 
   ################
   # FLOORPLAN SERVICE #
@@ -145,10 +145,10 @@ services:
       - DATA_CAPTURE_SERVICE_M2M_JWT_SECRET_KEY=${SHARED_M2M_JWT_SECRET_KEY}
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.capture-service.rule=Host(`${DATA_CAPTURE_SERVICE_DOMAIN}`)"
-      - "traefik.http.routers.capture-service.entrypoints=websecure"
-      - "traefik.http.routers.capture-service.tls.certresolver=letsencrypt"
-      - "traefik.http.services.capture-service.loadbalancer.server.port=8000"
+      - "traefik.http.routers.data-capture-service.rule=Host(`${DATA_CAPTURE_SERVICE_DOMAIN}`)"
+      - "traefik.http.routers.data-capture-service.entrypoints=websecure"
+      - "traefik.http.routers.data-capture-service.tls.certresolver=letsencrypt"
+      - "traefik.http.services.data-capture-service.loadbalancer.server.port=8000"
 
   ################
   # MCP SERVICE #
