@@ -192,8 +192,8 @@ def _normalize_key(key: str) -> str:
     k = key.lower()
     # Remove (s) pluralization markers
     k = k.replace("(s)", "s")
-    # Replace parenthesized content: "Address (Road name)" → "Address Road name"
-    k = re.sub(r"[()&/,]", " ", k)
+    # Replace parenthesized content and special chars
+    k = re.sub(r"[()&/,?]", " ", k)
     # Collapse whitespace and replace with underscores
     k = re.sub(r"[\s\-]+", "_", k.strip())
     # Remove trailing/leading underscores
@@ -271,6 +271,39 @@ def _coerce_int(value: Any) -> Optional[int]:
     return None
 
 
+def _clean_price(raw_price: Any) -> Optional[str]:
+    """
+    Extract just the price amount from a potentially long string.
+
+    Motie may return: "£550,000 Knowing the purchase price means..."
+    We want just: "£550,000"
+    """
+    if raw_price is None:
+        return None
+    if not isinstance(raw_price, str):
+        return str(raw_price)
+
+    # Try to extract a price pattern: £/$/€ followed by digits with commas/dots
+    match = re.match(
+        r"([$£€]?\s*[\d,]+(?:\.\d{1,2})?(?:\s*(?:pcm|pw|pa|per\s+\w+))?)",
+        raw_price.strip(),
+    )
+    if match:
+        return match.group(1).strip()
+
+    # Try "Guide price: £X" or "Offers over £X" patterns
+    match = re.search(
+        r"((?:guide\s+price|offers?\s+(?:over|in\s+excess\s+of)|from)\s*:?\s*[$£€]?\s*[\d,]+(?:\.\d{1,2})?)",
+        raw_price,
+        re.IGNORECASE,
+    )
+    if match:
+        return match.group(1).strip()
+
+    # Fallback: just take first 128 chars
+    return raw_price[:128].strip()
+
+
 def parse_motie_result(
     data: Dict[str, Any],
     source_url: str,
@@ -308,6 +341,18 @@ def parse_motie_result(
         elif canonical_name in ("image_urls", "floorplan_urls", "video_urls", "epcs"):
             # Will handle these separately below
             pass
+        elif canonical_name == "price":
+            # Clean price: extract just the amount, store raw in price_text
+            raw_price = value
+            fields["price"] = _clean_price(raw_price)
+            if raw_price and isinstance(raw_price, str):
+                fields["price_text"] = raw_price
+            continue  # Skip default assignment — we already set both fields
+        elif canonical_name == "price_text":
+            # price_text is already handled above in the price block
+            if "price_text" not in fields:
+                fields["price_text"] = value
+            continue
         else:
             fields[canonical_name] = value
 

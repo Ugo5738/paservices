@@ -48,7 +48,7 @@ class CanonicalPropertySnapshot(Base, SuperIdMixin):
     # --- Priority 0: Essential ---
     address_road = Column(String(512), nullable=True)
     price = Column(String(128), nullable=True)
-    price_text = Column(String(256), nullable=True)
+    price_text = Column(Text, nullable=True)
     # image_urls and floorplan_urls stored in canonical_media table
 
     # --- Priority 1: Very High ---

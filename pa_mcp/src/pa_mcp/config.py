@@ -135,6 +135,33 @@ class Settings(BaseSettings):
         alias="PA_MCP_SCALEKIT_AUTHORIZATION_SERVERS",
     )
 
+    # Per-service n8n workflow webhook URLs
+    N8N_DATA_CAPTURE_RIGHTMOVE_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_DATA_CAPTURE_RIGHTMOVE_URL",
+        description="Webhook URL for the Rightmove data capture n8n workflow",
+    )
+    N8N_DATA_CAPTURE_MOTIE_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_DATA_CAPTURE_MOTIE_URL",
+        description="Webhook URL for the Motie data capture n8n workflow",
+    )
+    N8N_FLOORPLAN_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_FLOORPLAN_URL",
+        description="Webhook URL for the floorplan analysis n8n workflow",
+    )
+    N8N_IMAGE_CONDITION_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_IMAGE_CONDITION_URL",
+        description="Webhook URL for the image condition analysis n8n workflow",
+    )
+    N8N_ORCHESTRATOR_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_ORCHESTRATOR_URL",
+        description="Webhook URL for the orchestrator n8n workflow",
+    )
+
     @field_validator("METADATA_JSON_RESPONSE", mode="before")
     @classmethod
     def parse_json(cls, value: Any) -> Any:

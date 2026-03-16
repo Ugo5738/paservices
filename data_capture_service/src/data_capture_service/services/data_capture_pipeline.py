@@ -5,9 +5,12 @@ Pipeline steps:
 1. Create DataCaptureRun (status=pending)
 2. Run Firecrawl baseline → store raw+parsed in source tables (step_type=baseline)
 3. For each adapter: fetch_raw → parse → validate_against_baseline → score
-4. If score >= 0.85 and validation passes → canonical_mapper → store → completed
-5. If score < 0.7 or validation fails → next adapter
-6. Chain exhausted → store best result → completed_with_warnings or failed
+4. Auto-retry: if P0/P1 fields missing, retry adapter with targeted prompt
+   - Retry results stored separately, then merged with original
+   - Max retries per adapter controlled by MAX_RETRIES_PER_ADAPTER config
+5. If score >= 0.85 and validation passes → canonical_mapper → store → completed
+6. If score < 0.7 or validation fails → next adapter
+7. Chain exhausted → store best result → completed_with_warnings or failed
 """
 
 import logging
@@ -42,7 +45,12 @@ from data_capture_service.models.data_capture_run import (
 )
 from data_capture_service.models.data_capture_run_step import StepStatus, StepType
 from data_capture_service.services.baseline_provider import firecrawl_baseline_provider
-from data_capture_service.services.field_registry import compute_completeness_score
+from data_capture_service.services.field_registry import (
+    FIELD_PRIORITIES,
+    compute_completeness_score,
+    compute_field_presence,
+    get_missing_critical_fields,
+)
 from data_capture_service.services.validation_gate import validate_against_baseline
 from data_capture_service.utils.url_utils import extract_domain
 
@@ -210,6 +218,23 @@ class DataCapturePipeline:
                 continue
 
             parsed, score, validation_passed = result
+
+            # --- Auto-retry for missing P0/P1 fields ---
+            parsed, score, validation_passed, step_order = (
+                await self._retry_for_missing_fields(
+                    db=db,
+                    run=run,
+                    adapter=adapter,
+                    adapter_name=adapter_name,
+                    url=url,
+                    super_id=super_id,
+                    parsed=parsed,
+                    score=score,
+                    validation_passed=validation_passed,
+                    baseline=baseline,
+                    step_order=step_order,
+                )
+            )
 
             # Accept if score >= threshold and validation passes
             if (
@@ -391,6 +416,22 @@ class DataCapturePipeline:
 
         if result:
             parsed, score, validation_passed = result
+
+            # --- Auto-retry for missing P0/P1 fields ---
+            parsed, score, validation_passed, _ = await self._retry_for_missing_fields(
+                db=db,
+                run=run,
+                adapter=adapter,
+                adapter_name=adapter_name,
+                url=url,
+                super_id=super_id,
+                parsed=parsed,
+                score=score,
+                validation_passed=validation_passed,
+                baseline=baseline,
+                step_order=step_order + 1,
+            )
+
             with_warnings = (
                 not validation_passed
                 or score.overall < settings.COMPLETENESS_ACCEPT_THRESHOLD
@@ -422,10 +463,14 @@ class DataCapturePipeline:
         request: DataCaptureRequest,
         baseline: Optional[BaselineResult],
         step_order: int,
+        is_retry: bool = False,
+        retry_metadata: Optional[Dict[str, Any]] = None,
     ) -> Optional[Tuple[ParsedDataCaptureResult, CompletenessScore, bool]]:
         """
         Run a single adapter through: fetch → parse → validate → score.
         Returns (parsed, score, validation_passed) or None on failure.
+
+        For retry attempts, is_retry=True and retry_metadata contains attempt info.
         """
         # Create data_capture step
         data_capture_step = await data_capture_step_crud.create_step(
@@ -500,6 +545,16 @@ class DataCapturePipeline:
             # Score
             score = await adapter.score(parsed)
 
+            # Build step metadata
+            step_metadata: Dict[str, Any] = {
+                "validation_passed": validation.passed,
+                "validation_summary": validation.summary,
+                "priority_scores": score.priority_scores,
+            }
+            if is_retry and retry_metadata:
+                step_metadata["is_retry"] = True
+                step_metadata.update(retry_metadata)
+
             # Update step
             await data_capture_step_crud.update_step(
                 db=db,
@@ -508,11 +563,7 @@ class DataCapturePipeline:
                 completeness_score=score.overall,
                 duration_ms=raw.duration_ms,
                 provider_run_id=raw.provider_run_id,
-                metadata_json={
-                    "validation_passed": validation.passed,
-                    "validation_summary": validation.summary,
-                    "priority_scores": score.priority_scores,
-                },
+                metadata_json=step_metadata,
             )
 
             # Record usage
@@ -537,6 +588,170 @@ class DataCapturePipeline:
                 error_message=str(e),
             )
             return None
+
+    def _merge_parsed_results(
+        self,
+        original: ParsedDataCaptureResult,
+        retry: ParsedDataCaptureResult,
+    ) -> ParsedDataCaptureResult:
+        """
+        Merge retry results into original, filling in missing fields.
+
+        Strategy:
+        - Scalar fields: use retry value only if original was missing/empty
+        - URL lists (images, floorplans, videos): union with dedup, preserving order
+        - Recompute field_presence and missing_fields from merged data
+        """
+        merged_fields = dict(original.fields)
+
+        for key, value in retry.fields.items():
+            if value is None or value == [] or value == "":
+                continue
+
+            if key in ("image_urls", "floorplan_urls", "video_urls"):
+                # Union URL lists, preserving order and deduplicating
+                existing = merged_fields.get(key, [])
+                if isinstance(existing, list) and isinstance(value, list):
+                    seen = set(existing)
+                    merged = list(existing) + [u for u in value if u not in seen]
+                    merged_fields[key] = merged
+                elif not existing:
+                    merged_fields[key] = value
+            else:
+                # For scalar fields, only fill in if original was missing
+                original_value = merged_fields.get(key)
+                if (
+                    original_value is None
+                    or original_value == ""
+                    or original_value == []
+                ):
+                    merged_fields[key] = value
+
+        # Merge media URL lists (top-level attributes on ParsedDataCaptureResult)
+        image_seen = set(original.image_urls)
+        merged_images = list(original.image_urls) + [
+            u for u in retry.image_urls if u not in image_seen
+        ]
+
+        fp_seen = set(original.floorplan_urls)
+        merged_floorplans = list(original.floorplan_urls) + [
+            u for u in retry.floorplan_urls if u not in fp_seen
+        ]
+
+        # Recompute field presence from merged fields
+        field_presence = compute_field_presence(merged_fields)
+        missing = [f for f, present in field_presence.items() if not present]
+
+        logger.info(
+            f"Merged results: {len([v for v in merged_fields.values() if v])} fields, "
+            f"{len(merged_images)} images, {len(merged_floorplans)} floorplans"
+        )
+
+        return ParsedDataCaptureResult(
+            adapter_name=original.adapter_name,
+            url=original.url,
+            status=AdapterStatus.SUCCESS,
+            fields=merged_fields,
+            field_presence=field_presence,
+            image_urls=merged_images,
+            floorplan_urls=merged_floorplans,
+            missing_fields=missing,
+        )
+
+    async def _retry_for_missing_fields(
+        self,
+        db: AsyncSession,
+        run: DataCaptureRun,
+        adapter: DataCaptureAdapter,
+        adapter_name: str,
+        url: str,
+        super_id: uuid.UUID,
+        parsed: ParsedDataCaptureResult,
+        score: CompletenessScore,
+        validation_passed: bool,
+        baseline: Optional[BaselineResult],
+        step_order: int,
+    ) -> Tuple[ParsedDataCaptureResult, CompletenessScore, bool, int]:
+        """
+        Auto-retry adapter for missing P0/P1 fields.
+
+        Builds a targeted prompt for just the missing fields, invokes the adapter
+        again, and merges the retry results with the original. Each retry attempt
+        is stored as a separate source record for full audit history.
+
+        Returns (merged_parsed, new_score, validation_passed, updated_step_order)
+        """
+        missing_critical = get_missing_critical_fields(parsed.field_presence)
+        retry_count = 0
+
+        while missing_critical and retry_count < settings.MAX_RETRIES_PER_ADAPTER:
+            # Check if adapter supports targeted retry prompts
+            if not hasattr(adapter, "build_retry_prompt"):
+                logger.info(f"Adapter {adapter_name} does not support targeted retry")
+                break
+
+            retry_prompt = adapter.build_retry_prompt(missing_critical)
+            if not retry_prompt:
+                logger.info(f"Could not build retry prompt for: {missing_critical}")
+                break
+
+            logger.info(
+                f"Auto-retry {retry_count + 1}/{settings.MAX_RETRIES_PER_ADAPTER} "
+                f"for {adapter_name}: targeting {len(missing_critical)} missing "
+                f"P0/P1 fields: {missing_critical}"
+            )
+
+            retry_request = DataCaptureRequest(
+                url=url,
+                super_id=str(super_id),
+                adapter_name=adapter_name,
+                prompt=retry_prompt,
+            )
+
+            retry_result = await self._run_adapter(
+                db=db,
+                run=run,
+                adapter=adapter,
+                adapter_name=adapter_name,
+                request=retry_request,
+                baseline=baseline,
+                step_order=step_order,
+                is_retry=True,
+                retry_metadata={
+                    "retry_attempt": retry_count + 1,
+                    "targeted_fields": missing_critical,
+                    "previous_score": score.overall,
+                },
+            )
+            step_order += 1
+
+            if retry_result:
+                retry_parsed, _, _ = retry_result
+                parsed = self._merge_parsed_results(parsed, retry_parsed)
+                score = await adapter.score(parsed)
+                validation = validate_against_baseline(parsed, baseline)
+                validation_passed = validation.passed
+
+                new_missing = get_missing_critical_fields(parsed.field_presence)
+                logger.info(
+                    f"After retry {retry_count + 1}: score={score.overall:.4f}, "
+                    f"still missing P0/P1: {new_missing if new_missing else 'none'}"
+                )
+
+                # Stop retrying if no improvement
+                if set(new_missing) == set(missing_critical):
+                    logger.info("No improvement from retry — stopping")
+                    break
+
+                missing_critical = new_missing
+            else:
+                logger.warning(
+                    f"Retry {retry_count + 1} failed — adapter returned None"
+                )
+
+            retry_count += 1
+
+        return parsed, score, validation_passed, step_order
 
     async def _store_canonical(
         self,
@@ -592,10 +807,59 @@ class DataCapturePipeline:
             },
         )
 
-        logger.info(
-            f"Stored canonical snapshot for run {run.id}: "
-            f"adapter={adapter_name}, score={score.overall:.4f}, status={status.value}"
+        # --- Detailed capture summary ---
+        photo_count = len([m for m in media_items if m["media_type"] == "photo"])
+        floorplan_count = len(
+            [m for m in media_items if m["media_type"] == "floorplan"]
         )
+        video_count = len([m for m in media_items if m["media_type"] == "video"])
+
+        logger.info("=" * 60)
+        logger.info("CAPTURE SUMMARY — Source vs Canonical")
+        logger.info(
+            f"Score: {score.overall:.4f} | Adapter: {adapter_name} | "
+            f"Status: {status.value}"
+        )
+        logger.info(
+            f"Fields: {score.fields_present}/{score.fields_total} | "
+            f"Media: {photo_count} photos, {floorplan_count} floorplans, "
+            f"{video_count} videos"
+        )
+
+        # Per-tier breakdown
+        for priority in sorted(score.priority_scores.keys()):
+            tier_score = score.priority_scores[priority]
+            tier_fields = FIELD_PRIORITIES.get(priority, [])
+            present = [f for f in tier_fields if parsed.field_presence.get(f, False)]
+            missing = [
+                f for f in tier_fields if not parsed.field_presence.get(f, False)
+            ]
+            logger.info(
+                f"  P{priority}: {tier_score:.0%} — "
+                f"present={present}, missing={missing}"
+            )
+
+        # Key field values
+        logger.info("--- Key Field Values ---")
+        for key_field in [
+            "address_road",
+            "price",
+            "address_town",
+            "bedrooms",
+            "bathrooms",
+            "property_type",
+            "estate_agent_name",
+        ]:
+            value = column_fields.get(key_field, "—")
+            if isinstance(value, str) and len(value) > 60:
+                value = value[:57] + "..."
+            logger.info(f"  {key_field}: {value}")
+
+        # Extras summary
+        if extras_json:
+            logger.info(f"Extras (P4+): {list(extras_json.keys())}")
+
+        logger.info("=" * 60)
 
 
 # Global instance

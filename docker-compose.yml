@@ -162,5 +162,5 @@ networks:
 #   --batch --yes \
 #   --pinentry-mode loopback \
 #   --passphrase "paservices" \
-#   --output pa_mcp/.env.prod.gpg \
-#   pa_mcp/.env.prod
+#   --output data_capture_service/.env.prod.gpg \
+#   data_capture_service/.env.prod

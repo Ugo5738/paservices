@@ -6,12 +6,6 @@ from fastmcp.server.dependencies import get_access_token
 from mcp.server.fastmcp import FastMCP
 
 from .config import settings
-from .tools.data_capture_tools import list_properties, trigger_detailed_capture
-from .tools.floorplan_tools import trigger_floorplan_analysis
-from .tools.n8n_tools import (
-    get_property_analysis_result,
-    start_property_analysis_via_n8n,
-)
 from .tools.capture_service_tools import (
     capture_with_motie,
     check_property_fields,
@@ -19,6 +13,19 @@ from .tools.capture_service_tools import (
     get_capture_run_status,
     retry_capture_run,
     start_property_capture,
+)
+from .tools.data_capture_tools import list_properties, trigger_detailed_capture
+from .tools.floorplan_tools import trigger_floorplan_analysis
+from .tools.n8n_service_tools import (
+    trigger_data_capture_via_n8n,
+    trigger_floorplan_via_n8n,
+    trigger_image_condition_via_n8n,
+    trigger_orchestrator_via_n8n,
+    trigger_rightmove_via_n8n,
+)
+from .tools.n8n_tools import (
+    get_property_analysis_result,
+    start_property_analysis_via_n8n,
 )
 from .tools.super_id_service_tools import create_super_id
 from .utils.logging_config import logger
@@ -294,3 +301,154 @@ async def retry_capture_run_tool(run_id: str = "") -> str:
     token = _get_raw_token()
     result = await retry_capture_run(run_id=run_id, token=token)
     return f"✅ Retry started: {json.dumps(result)}"
+
+
+# ---------------------------------------------------------------------------
+# Per-service n8n workflow tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def trigger_rightmove_capture_tool(
+    property_url: str = "",
+    super_id: str = "",
+) -> str:
+    """Trigger the Rightmove data capture via its dedicated n8n workflow. Returns a super_id for tracking."""
+    if not property_url:
+        return "❌ Error: property_url is required"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_rightmove_via_n8n(
+            client=client,
+            property_url=property_url,
+            super_id=super_id if super_id else None,
+        )
+        return f"✅ Rightmove capture triggered: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def trigger_data_capture_tool(
+    url: str = "",
+    super_id: str = "",
+    skip_baseline: str = "",
+) -> str:
+    """Trigger property data capture (Motie) via its dedicated n8n workflow. Use for non-Rightmove URLs. Returns a super_id for tracking."""
+    if not url:
+        return "❌ Error: url is required"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_data_capture_via_n8n(
+            client=client,
+            url=url,
+            super_id=super_id if super_id else None,
+            skip_baseline=skip_baseline.lower() == "true" if skip_baseline else False,
+        )
+        return f"✅ Data capture triggered: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def trigger_floorplan_tool(
+    super_id: str = "",
+    property_id: str = "",
+    floorplans_json: str = "",
+) -> str:
+    """Trigger floorplan analysis via its dedicated n8n workflow. Requires super_id, property_id, and a JSON object of floorplans (e.g. '{"fp1": {"url": "https://..."}}')."""
+    if not super_id:
+        return "❌ Error: super_id is required"
+    if not property_id:
+        return "❌ Error: property_id is required"
+    if not floorplans_json:
+        return "❌ Error: floorplans_json is required"
+
+    try:
+        floorplans = json.loads(floorplans_json)
+    except json.JSONDecodeError:
+        return "❌ Error: floorplans_json is not valid JSON"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_floorplan_via_n8n(
+            client=client,
+            super_id=super_id,
+            property_id=property_id,
+            floorplans=floorplans,
+        )
+        return f"✅ Floorplan analysis triggered: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def trigger_image_condition_tool(
+    super_id: str = "",
+    image_urls_json: str = "",
+    property_id: str = "",
+    bedrooms: str = "",
+) -> str:
+    """Trigger image condition analysis via its dedicated n8n workflow. Requires super_id and a JSON array of image URLs."""
+    if not super_id:
+        return "❌ Error: super_id is required"
+    if not image_urls_json:
+        return "❌ Error: image_urls_json is required"
+
+    try:
+        image_urls = json.loads(image_urls_json)
+    except json.JSONDecodeError:
+        return "❌ Error: image_urls_json is not valid JSON"
+
+    notes = {}
+    if bedrooms:
+        try:
+            notes["bedrooms"] = int(bedrooms)
+        except ValueError:
+            pass
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_image_condition_via_n8n(
+            client=client,
+            super_id=super_id,
+            image_urls=image_urls,
+            property_id=property_id if property_id else None,
+            notes=notes if notes else None,
+        )
+        return f"✅ Image condition analysis triggered: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def trigger_orchestrated_analysis_tool(
+    property_url: str = "",
+    services_json: str = "",
+    service_params_json: str = "",
+    super_id: str = "",
+) -> str:
+    """Trigger an orchestrated analysis that runs multiple services in sequence under one super_id.
+
+    services_json: JSON array of service names, e.g. '["data_capture_rightmove", "floorplan_analysis", "image_condition_analysis"]'.
+    Valid service names: data_capture_rightmove, data_capture_motie, floorplan_analysis, image_condition_analysis.
+
+    service_params_json: Optional JSON object with per-service params, e.g.
+    '{"floorplan_analysis": {"property_id": "123", "floorplans": {"fp1": {"url": "..."}}}, "image_condition_analysis": {"image_urls": ["..."]}}'.
+    """
+    if not property_url:
+        return "❌ Error: property_url is required"
+    if not services_json:
+        return "❌ Error: services_json is required"
+
+    try:
+        services = json.loads(services_json)
+    except json.JSONDecodeError:
+        return "❌ Error: services_json is not valid JSON"
+
+    service_params = None
+    if service_params_json:
+        try:
+            service_params = json.loads(service_params_json)
+        except json.JSONDecodeError:
+            return "❌ Error: service_params_json is not valid JSON"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_orchestrator_via_n8n(
+            client=client,
+            property_url=property_url,
+            services=services,
+            service_params=service_params,
+            super_id=super_id if super_id else None,
+        )
+        return f"✅ Orchestrated analysis triggered: {json.dumps(result)}"

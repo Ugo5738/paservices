@@ -25,6 +25,7 @@ class DataCaptureRequest:
     url: str
     super_id: Optional[str] = None
     adapter_name: Optional[str] = None
+    prompt: Optional[str] = None  # Custom prompt for retry attempts
     metadata: Optional[Dict[str, Any]] = None
 
 
@@ -66,7 +67,9 @@ class CompletenessScore:
     """Result from an adapter's score method."""
 
     overall: float  # 0.0 to 1.0
-    priority_scores: Dict[int, float] = field(default_factory=dict)  # {0: 0.8, 1: 0.5, ...}
+    priority_scores: Dict[int, float] = field(
+        default_factory=dict
+    )  # {0: 0.8, 1: 0.5, ...}
     fields_present: int = 0
     fields_total: int = 0
     details: Optional[Dict[str, Any]] = None

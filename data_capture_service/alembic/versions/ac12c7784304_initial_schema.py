@@ -157,7 +157,7 @@ def upgrade() -> None:
         sa.Column("completeness_score", sa.Float(), nullable=True),
         sa.Column("address_road", sa.String(length=512), nullable=True),
         sa.Column("price", sa.String(length=128), nullable=True),
-        sa.Column("price_text", sa.String(length=256), nullable=True),
+        sa.Column("price_text", sa.Text(), nullable=True),
         sa.Column("address_town", sa.String(length=256), nullable=True),
         sa.Column("bedrooms", sa.Integer(), nullable=True),
         sa.Column("estate_agent_name", sa.String(length=512), nullable=True),

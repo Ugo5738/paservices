@@ -122,6 +122,19 @@ def compute_field_presence(fields: Dict[str, Any]) -> Dict[str, bool]:
     return presence
 
 
+def get_missing_critical_fields(field_presence: Dict[str, bool]) -> List[str]:
+    """
+    Return missing P0 and P1 field names.
+    These are the essential and very-high priority fields that trigger auto-retry.
+    """
+    missing: List[str] = []
+    for priority in (0, 1):
+        for field_name in FIELD_PRIORITIES[priority]:
+            if not field_presence.get(field_name, False):
+                missing.append(field_name)
+    return missing
+
+
 def compute_completeness_score(
     field_presence: Dict[str, bool],
 ) -> CompletenessScore:
@@ -143,9 +156,7 @@ def compute_completeness_score(
         if not field_names:
             continue
 
-        tier_present = sum(
-            1 for f in field_names if field_presence.get(f, False)
-        )
+        tier_present = sum(1 for f in field_names if field_presence.get(f, False))
         tier_total = len(field_names)
         tier_score = tier_present / tier_total if tier_total > 0 else 0.0
 
@@ -167,9 +178,7 @@ def compute_completeness_score(
         details={
             "weights": PRIORITY_WEIGHTS,
             "missing_p0": [
-                f
-                for f in FIELD_PRIORITIES[0]
-                if not field_presence.get(f, False)
+                f for f in FIELD_PRIORITIES[0] if not field_presence.get(f, False)
             ],
         },
     )

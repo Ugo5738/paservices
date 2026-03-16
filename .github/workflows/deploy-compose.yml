@@ -13,6 +13,7 @@ env:
   AUTH_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/auth_service
   SUPER_ID_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/super_id_service
   DATA_CAPTURE_RIGHTMOVE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_rightmove_service
+  DATA_CAPTURE_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_service
   FLOORPLAN_SERVICE_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/floorplan_service
   PA_MCP_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/pa_mcp
 
@@ -26,6 +27,7 @@ jobs:
       auth_service: ${{ steps.filter.outputs.auth_service }}
       super_id_service: ${{ steps.filter.outputs.super_id_service }}
       data_capture_rightmove_service: ${{ steps.filter.outputs.data_capture_rightmove_service }}
+      data_capture_service: ${{ steps.filter.outputs.data_capture_service }}
       floorplan_service: ${{ steps.filter.outputs.floorplan_service }}
       pa_mcp: ${{ steps.filter.outputs.pa_mcp }}
       workflow_changed: ${{ steps.filter.outputs.workflow_changed }}
@@ -41,6 +43,8 @@ jobs:
               - 'super_id_service/**'
             data_capture_rightmove_service:
               - 'data_capture_rightmove_service/**'
+            data_capture_service:
+              - 'data_capture_service/**'
             floorplan_service:
               - 'floorplan_service/**'
             pa_mcp:
@@ -93,6 +97,19 @@ jobs:
           dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
 
+  build-data-capture-motie-service:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.data_capture_service == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/workflows/actions/build-push
+        with:
+          service_name: data_capture_service
+          image_name: ${{ secrets.DOCKERHUB_USERNAME }}/data_capture_service
+          dockerhub_username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_MONOREPO_TOKEN }}
+
   build-floorplan-service:
     runs-on: ubuntu-latest
     needs: detect-changes
@@ -129,10 +146,11 @@ jobs:
       - build-auth-service
       - build-super-id-service
       - build-data-capture-service
+      - build-data-capture-motie-service
       - build-floorplan-service
       - build-pa-mcp
     # It will only proceed if a change was detected or if manually triggered.
-    if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.floorplan_service == 'true' || needs.detect-changes.outputs.pa_mcp == 'true' ||needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
+    if: always() && (needs.detect-changes.outputs.auth_service == 'true' || needs.detect-changes.outputs.super_id_service == 'true' || needs.detect-changes.outputs.data_capture_rightmove_service == 'true' || needs.detect-changes.outputs.data_capture_service == 'true' || needs.detect-changes.outputs.floorplan_service == 'true' || needs.detect-changes.outputs.pa_mcp == 'true' || needs.detect-changes.outputs.workflow_changed == 'true' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     steps:
       - name: Deploy to Server
@@ -183,6 +201,12 @@ jobs:
               -o data_capture_rightmove_service/.env.prod data_capture_rightmove_service/.env.prod.gpg
             echo "✅ Decrypted environment for data_capture_rightmove_service."
 
+            # Decrypt for data_capture_service
+            gpg --quiet --batch --yes --decrypt \
+              --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
+              -o data_capture_service/.env.prod data_capture_service/.env.prod.gpg
+            echo "✅ Decrypted environment for data_capture_service."
+
             # Decrypt for floorplan_service (note the .env.prod filename)
             gpg --quiet --batch --yes --decrypt \
               --passphrase="${{ secrets.GPG_PASSPHRASE }}" \
@@ -206,6 +230,7 @@ jobs:
             SUPER_ID_SERVICE_DOMAIN=${{ secrets.SUPER_ID_SERVICE_DOMAIN }}
             DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN=${{ secrets.DATA_CAPTURE_RIGHTMOVE_SERVICE_DOMAIN }}
             FLOORPLAN_SERVICE_DOMAIN=${{ secrets.FLOORPLAN_SERVICE_DOMAIN }}
+            DATA_CAPTURE_SERVICE_DOMAIN=${{ secrets.DATA_CAPTURE_SERVICE_DOMAIN }}
             PA_MCP_DOMAIN=${{ secrets.PA_MCP_DOMAIN }}
 
             # These variables are also needed by the services themselves, and Docker Compose
