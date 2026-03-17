@@ -2,7 +2,10 @@
 Motie polling logic with exponential backoff.
 
 Polls GET /api/v1/agent/session/:id until the session completes or times out.
-Default: 5s initial → 1.5x multiplier → 30s cap → 300s total max.
+Polls GET /api/v1/agent/deployment/:id until deployment completes or times out.
+
+Default session:    5s initial → 1.5x multiplier → 30s cap → 300s total max.
+Default deployment: 5s initial → 1.5x multiplier → 30s cap → 180s total max.
 """
 
 import asyncio
@@ -12,7 +15,7 @@ from typing import Optional
 
 from data_capture_service.config import settings
 
-from .motie_client import MotieClient, MotieSessionResponse
+from .motie_client import MotieClient, MotieDeploymentResponse, MotieSessionResponse
 
 logger = logging.getLogger(__name__)
 
@@ -102,5 +105,83 @@ async def poll_session(
             raise MotiePollerError(error_msg)
 
         # Still running — wait and retry with backoff
+        await asyncio.sleep(interval)
+        interval = min(interval * backoff_mult, max_iv)
+
+
+async def poll_deployment(
+    client: MotieClient,
+    deployment_id: str,
+    timeout: Optional[float] = None,
+    initial_interval: Optional[float] = None,
+    backoff: Optional[float] = None,
+    max_interval: Optional[float] = None,
+) -> MotieDeploymentResponse:
+    """
+    Poll a Motie deployment until it completes, fails, or times out.
+
+    Uses exponential backoff:
+    - initial_interval: 5s (default from MOTIE_DEPLOY_POLL_INTERVAL)
+    - backoff multiplier: 1.5x (default)
+    - max_interval cap: 30s (default)
+    - total timeout: 180s (default from MOTIE_DEPLOY_POLL_TIMEOUT)
+
+    Returns the final MotieDeploymentResponse.
+    Raises MotiePollerTimeout if the deployment doesn't complete in time.
+    Raises MotiePollerError if the deployment fails.
+    """
+    timeout = timeout or settings.MOTIE_DEPLOY_POLL_TIMEOUT
+    interval = initial_interval or settings.MOTIE_DEPLOY_POLL_INTERVAL
+    backoff_mult = backoff or settings.MOTIE_POLL_BACKOFF
+    max_iv = max_interval or settings.MOTIE_POLL_MAX_INTERVAL
+
+    start_time = time.time()
+    poll_count = 0
+
+    logger.info(
+        f"Starting poll for Motie deployment {deployment_id} "
+        f"(timeout={timeout}s, interval={interval}s, backoff={backoff_mult}x, cap={max_iv}s)"
+    )
+
+    while True:
+        elapsed = time.time() - start_time
+        if elapsed > timeout:
+            logger.error(
+                f"Motie deployment {deployment_id} timed out after {elapsed:.1f}s ({poll_count} polls)"
+            )
+            raise MotiePollerTimeout(
+                f"Motie deployment {deployment_id} did not complete within {timeout}s"
+            )
+
+        poll_count += 1
+        try:
+            deployment = await client.get_deployment(deployment_id)
+        except Exception as e:
+            logger.warning(
+                f"Poll #{poll_count} for deployment {deployment_id} failed: {e}. Retrying..."
+            )
+            await asyncio.sleep(interval)
+            interval = min(interval * backoff_mult, max_iv)
+            continue
+
+        status = deployment.status.lower()
+        logger.debug(
+            f"Poll #{poll_count} for deployment {deployment_id}: status={status}, "
+            f"elapsed={elapsed:.1f}s, next_interval={interval:.1f}s"
+        )
+
+        if status == "deployed":
+            logger.info(
+                f"Motie deployment {deployment_id} completed after {elapsed:.1f}s "
+                f"({poll_count} polls), api_url={deployment.api_url}"
+            )
+            return deployment
+
+        if status in ("failed", "error", "cancelled"):
+            error_msg = deployment.error or f"Deployment ended with status: {status}"
+            logger.error(f"Motie deployment {deployment_id} failed: {error_msg}")
+            raise MotiePollerError(error_msg)
+
+        # Still deploying — wait and retry with backoff
         await asyncio.sleep(interval)
         interval = min(interval * backoff_mult, max_iv)

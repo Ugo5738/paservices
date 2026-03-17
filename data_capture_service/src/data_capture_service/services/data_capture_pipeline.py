@@ -88,21 +88,31 @@ class DataCapturePipeline:
         super_id: uuid.UUID,
         skip_baseline: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
+        existing_run_id: Optional[uuid.UUID] = None,
     ) -> DataCaptureRun:
         """
         Full orchestrated pipeline: baseline → adapter chain → validate → score → store.
+
+        If existing_run_id is provided, reuses that run instead of creating a new one.
+        This avoids the double-run problem when the caller has already created a run record.
         """
         domain = extract_domain(url)
 
-        # Step 1: Create run
-        run = await data_capture_run_crud.create_run(
-            db=db,
-            super_id=super_id,
-            target_url=url,
-            target_domain=domain,
-            mode=DataCaptureRunMode.ORCHESTRATED,
-        )
-        logger.info(f"Created data_capture run {run.id} for {url}")
+        # Step 1: Reuse existing run or create a new one
+        if existing_run_id:
+            run = await data_capture_run_crud.get_run(db, existing_run_id)
+            if not run:
+                raise ValueError(f"Run {existing_run_id} not found")
+            logger.info(f"Reusing existing data_capture run {run.id} for {url}")
+        else:
+            run = await data_capture_run_crud.create_run(
+                db=db,
+                super_id=super_id,
+                target_url=url,
+                target_domain=domain,
+                mode=DataCaptureRunMode.ORCHESTRATED,
+            )
+            logger.info(f"Created data_capture run {run.id} for {url}")
 
         # Step 2: Run baseline
         baseline: Optional[BaselineResult] = None
@@ -200,6 +210,7 @@ class DataCapturePipeline:
                 url=url,
                 super_id=str(super_id),
                 adapter_name=adapter_name,
+                metadata={"db": db},
             )
 
             result = await self._run_adapter(
@@ -306,10 +317,13 @@ class DataCapturePipeline:
         adapter_name: str,
         skip_baseline: bool = False,
         metadata: Optional[Dict[str, Any]] = None,
+        existing_run_id: Optional[uuid.UUID] = None,
     ) -> DataCaptureRun:
         """
         Direct adapter call (for per-adapter endpoints).
         Still runs baseline + validation for data quality.
+
+        If existing_run_id is provided, reuses that run instead of creating a new one.
         """
         adapter = self.get_adapter(adapter_name)
         if not adapter:
@@ -317,14 +331,20 @@ class DataCapturePipeline:
 
         domain = extract_domain(url)
 
-        run = await data_capture_run_crud.create_run(
-            db=db,
-            super_id=super_id,
-            target_url=url,
-            target_domain=domain,
-            mode=DataCaptureRunMode.DIRECT_ADAPTER,
-            selected_adapter=adapter_name,
-        )
+        if existing_run_id:
+            run = await data_capture_run_crud.get_run(db, existing_run_id)
+            if not run:
+                raise ValueError(f"Run {existing_run_id} not found")
+            logger.info(f"Reusing existing run {run.id} for adapter {adapter_name}")
+        else:
+            run = await data_capture_run_crud.create_run(
+                db=db,
+                super_id=super_id,
+                target_url=url,
+                target_domain=domain,
+                mode=DataCaptureRunMode.DIRECT_ADAPTER,
+                selected_adapter=adapter_name,
+            )
 
         # Run baseline
         baseline: Optional[BaselineResult] = None
@@ -402,7 +422,10 @@ class DataCapturePipeline:
         )
 
         request = DataCaptureRequest(
-            url=url, super_id=str(super_id), adapter_name=adapter_name
+            url=url,
+            super_id=str(super_id),
+            adapter_name=adapter_name,
+            metadata={"db": db},
         )
         result = await self._run_adapter(
             db=db,
@@ -706,6 +729,7 @@ class DataCapturePipeline:
                 super_id=str(super_id),
                 adapter_name=adapter_name,
                 prompt=retry_prompt,
+                metadata={"db": db},
             )
 
             retry_result = await self._run_adapter(

@@ -47,6 +47,7 @@ router = APIRouter(
 async def _run_pipeline_background(
     url: str,
     super_id: uuid.UUID,
+    run_id: uuid.UUID,
     skip_baseline: bool = False,
 ):
     """Background task that runs the full data_capture pipeline."""
@@ -57,6 +58,7 @@ async def _run_pipeline_background(
                 url=url,
                 super_id=super_id,
                 skip_baseline=skip_baseline,
+                existing_run_id=run_id,
             )
             await db.commit()
         except Exception as e:
@@ -110,6 +112,7 @@ async def start_data_capture(
         _run_pipeline_background,
         url=request.url,
         super_id=super_id,
+        run_id=run.id,
         skip_baseline=request.skip_baseline,
     )
 
@@ -294,6 +297,7 @@ async def retry_run(
         _run_pipeline_background,
         url=run.target_url,
         super_id=run.super_id,
+        run_id=new_run.id,
     )
 
     return DataCaptureStartResponse(

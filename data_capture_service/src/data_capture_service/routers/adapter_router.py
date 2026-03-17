@@ -39,6 +39,7 @@ async def _run_single_adapter_background(
     url: str,
     super_id: uuid.UUID,
     adapter_name: str,
+    run_id: uuid.UUID,
 ):
     """Background task for single-adapter data_capture."""
     async with AsyncSessionLocal() as db:
@@ -48,6 +49,7 @@ async def _run_single_adapter_background(
                 url=url,
                 super_id=super_id,
                 adapter_name=adapter_name,
+                existing_run_id=run_id,
             )
             await db.commit()
         except Exception as e:
@@ -105,6 +107,7 @@ async def data_capture_with_motie(
         url=request.url,
         super_id=super_id,
         adapter_name="motie",
+        run_id=run.id,
     )
 
     return DataCaptureStartResponse(

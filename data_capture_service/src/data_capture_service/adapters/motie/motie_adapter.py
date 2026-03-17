@@ -1,9 +1,15 @@
 """
 Motie Adapter — implements the DataCaptureAdapter protocol.
 
-Two modes:
-1. motie_existing: Search for an existing Motie project with results → reuse
-2. motie_build: Invoke a new Motie agent session → poll → download → parse
+Supports the full Motie v2 flow taxonomy:
+
+- Flow D (routing): Check internal registry → known domain? → Flow B, else → Flow A.
+- Flow B (deployed endpoint): Call existing deployed scraper directly (fast, cheap).
+- Flow A (agent build): Create project, invoke agent, deploy, discover route, call.
+- Flow E (repair/rebuild): When Flow B fails on a known domain, invoke a new agent
+  session on the *same* project with a repair prompt, redeploy, call updated endpoint.
+- Flow G (validation/drift): Handled by the pipeline's baseline/scoring layer.
+- Flow F (multiple scrapers per website): Deferred — future enhancement.
 """
 
 import hashlib
@@ -11,7 +17,10 @@ import json
 import logging
 import time
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
+
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.adapters.base import (
     AdapterStatus,
@@ -21,6 +30,7 @@ from data_capture_service.adapters.base import (
     RawDataCaptureResult,
 )
 from data_capture_service.config import settings
+from data_capture_service.crud import motie_project_crud
 from data_capture_service.services.field_registry import (
     compute_completeness_score,
     compute_field_presence,
@@ -28,15 +38,23 @@ from data_capture_service.services.field_registry import (
 
 from .motie_client import MotieClient, motie_client
 from .motie_parser import parse_motie_result
-from .motie_poller import MotiePollerError, MotiePollerTimeout, poll_session
+from .motie_poller import (
+    MotiePollerError,
+    MotiePollerTimeout,
+    poll_deployment,
+    poll_session,
+)
 
 logger = logging.getLogger(__name__)
 
-# Default prompt for Motie agent invocation
+# Default prompt for Motie agent invocation.
+# Instructs the agent to build a FastAPI endpoint that accepts listing_url
+# and extracts all property details.
 DEFAULT_MOTIE_PROMPT = (
-    "From this property page, extract all property details. "
-    "Get ALL high-resolution images if available, otherwise get the highest quality images. "
-    "Return an object with these keys and extracted values. "
+    "Build a scraper for this property listing website. "
+    "The scraper should accept a listing_url query parameter and extract "
+    "all property details from the page at that URL.\n\n"
+    "Extract these fields and return them as a JSON object. "
     "If a detail isn't present on the page, put null as the value:\n\n"
     "Address (Road name), Floorplan(s) Images URL(s), Image(s) URL(s) (ALL, High Res), "
     "Source URL, Price, Address (Town), Bedrooms (number), Estate Agent Name, "
@@ -90,41 +108,51 @@ CANONICAL_TO_PROMPT_KEY: Dict[str, str] = {
     "utilities": "Utilities",
 }
 
+# Default route path for deployed Motie scrapers.
+# Used as fallback when OpenAPI spec discovery fails.
+DEFAULT_ROUTE_PATH = "/v1/listing-extract"
 
-def _normalize_url_for_comparison(url: str) -> str:
-    """
-    Normalize a URL for comparison by stripping fragments, query params,
-    and trailing slashes. This ensures we match on the core property page URL.
 
-    e.g. "https://www.rightmove.co.uk/properties/166533791#/?channel=RES_BUY"
-      → "https://www.rightmove.co.uk/properties/166533791"
-    """
+def _extract_domain(url: str) -> str:
+    """Extract the domain (host) from a URL, stripping www. prefix."""
     parsed = urlparse(url)
-    # Rebuild without fragment and query string
-    normalized = urlunparse(
-        (
-            parsed.scheme,
-            parsed.netloc,
-            parsed.path.rstrip("/"),
-            "",  # params
-            "",  # query
-            "",  # fragment
-        )
-    )
-    return normalized.lower()
+    domain = parsed.netloc or parsed.path.split("/")[0]
+    if domain.startswith("www."):
+        domain = domain[4:]
+    return domain.lower()
+
+
+def _discover_route_from_openapi(spec: Dict[str, Any]) -> Optional[str]:
+    """
+    Extract the first GET route path from an OpenAPI spec.
+
+    Motie-deployed scrapers typically expose a single GET endpoint
+    that accepts a listing_url query parameter.
+    """
+    paths = spec.get("paths", {})
+    for path, methods in paths.items():
+        if isinstance(methods, dict) and "get" in methods:
+            return path
+    return None
 
 
 class MotieAdapter:
     """
-    DataCapture adapter for Motie AI.
+    DataCapture adapter for Motie AI (v2 API).
 
-    Implements the DataCaptureAdapter protocol with two sub-modes:
-    - motie_existing: Try to reuse results from a previously data_captured URL
-    - motie_build: Invoke a new Motie session, poll until complete, download results
+    Implements the DataCaptureAdapter protocol with the full flow taxonomy:
+
+    Flow D (routing decision — the main fetch_raw logic):
+    ├── Known domain with deployed endpoint? → Flow B (direct call)
+    │   └── Flow B fails? → Flow E (repair/rebuild on same project)
+    └── Unknown domain? → Flow A (full build cycle)
+
+    Flow G (validation & drift monitoring) is handled by the pipeline layer.
+    Flow F (multiple scrapers per website) is deferred for future implementation.
     """
 
     name: str = "motie"
-    supported_domains: List[str] = ["*"]  # Motie can data_capture any domain
+    supported_domains: List[str] = ["*"]  # Motie can scrape any domain
 
     def __init__(self, client: Optional[MotieClient] = None):
         self.client = client or motie_client
@@ -156,29 +184,96 @@ class MotieAdapter:
 
     async def fetch_raw(self, request: DataCaptureRequest) -> RawDataCaptureResult:
         """
-        Fetch raw data using Motie.
+        Fetch raw data using Motie — implements Flow D (routing).
 
-        First tries to find existing project results (motie_existing mode).
-        Falls back to invoking a new session (motie_build mode).
+        Routing logic:
+        1. Extract domain from URL
+        2. Look up MotieScraperProject by domain in DB
+        3. If project exists with deployed endpoint → Flow B (call deployed endpoint)
+           a. If Flow B fails → Flow E (repair scraper on same project, redeploy)
+        4. If project exists but no deployment → Flow A (invoke agent, deploy, call)
+        5. If no project exists → Flow A (create project, invoke agent, deploy, call)
 
-        If request.prompt is set (retry attempt), skips existing project search
-        and invokes a fresh session with the custom prompt.
+        For retry attempts with custom prompts, always goes through the
+        rebuild cycle (new session on existing project → redeploy → call).
         """
         start_time = time.time()
+        domain = _extract_domain(request.url)
 
-        # Skip existing project search for retry attempts with custom prompts
-        if not request.prompt:
+        # Get DB session from request metadata
+        db: Optional[AsyncSession] = None
+        if request.metadata:
+            db = request.metadata.get("db")
+
+        # --- Retry with custom prompt: invoke new session on existing project ---
+        if request.prompt:
+            return await self._handle_retry(request, db, domain, start_time)
+
+        # --- Look up existing project (Flow D routing) ---
+        project = None
+        if db:
             try:
-                existing_result = await self._try_existing(request.url)
-                if existing_result:
-                    existing_result.duration_ms = int((time.time() - start_time) * 1000)
-                    return existing_result
+                project = await motie_project_crud.get_by_domain(db, domain)
             except Exception as e:
-                logger.warning(f"Motie existing project search failed: {e}")
+                logger.warning(
+                    f"Failed to look up Motie project for domain {domain}: {e}"
+                )
 
-        # --- Invoke new session ---
+        # --- Flow B: Call deployed endpoint (known domain) ---
+        if (
+            project
+            and project.api_url
+            and project.route_path
+            and project.is_active
+            and project.deployment_status == "deployed"
+        ):
+            try:
+                result = await self._flow_b_deployed(
+                    request.url, project.api_url, project.route_path, start_time
+                )
+                if result.status == AdapterStatus.SUCCESS:
+                    return result
+
+                # Flow B failed → escalate to Flow E (repair/rebuild)
+                flow_b_error = result.error_message or "Unknown error"
+                logger.warning(
+                    f"Flow B failed for {domain}: {flow_b_error}. "
+                    f"Escalating to Flow E (repair/rebuild)."
+                )
+            except Exception as e:
+                flow_b_error = str(e)
+                logger.warning(
+                    f"Flow B failed for {domain}: {e}. "
+                    f"Escalating to Flow E (repair/rebuild)."
+                )
+
+            # --- Flow E: Repair/rebuild on existing project ---
+            try:
+                return await self._flow_e_repair(
+                    request, db, domain, project, flow_b_error, start_time
+                )
+            except (MotiePollerTimeout, MotiePollerError, Exception) as e:
+                duration_ms = int((time.time() - start_time) * 1000)
+                status = (
+                    AdapterStatus.TIMEOUT
+                    if isinstance(e, MotiePollerTimeout)
+                    else AdapterStatus.FAILED
+                )
+                logger.error(
+                    f"Flow E (repair) also failed for {domain}: {e}. "
+                    f"Domain may need manual attention."
+                )
+                return RawDataCaptureResult(
+                    adapter_name=self.name,
+                    url=request.url,
+                    status=status,
+                    error_message=f"Flow B failed ({flow_b_error}), Flow E repair also failed: {e}",
+                    duration_ms=duration_ms,
+                )
+
+        # --- Flow A: Build, deploy, call (unknown domain or undeployed project) ---
         try:
-            return await self._invoke_and_poll(request, start_time)
+            return await self._flow_a_build(request, db, domain, project, start_time)
         except MotiePollerTimeout as e:
             duration_ms = int((time.time() - start_time) * 1000)
             return RawDataCaptureResult(
@@ -208,138 +303,313 @@ class MotieAdapter:
                 duration_ms=duration_ms,
             )
 
-    # Minimum number of non-null fields required to consider an existing session usable.
-    # Sessions with fewer meaningful fields are skipped (they likely used a different
-    # or too-narrow prompt and don't have enough data for our full property extraction).
-    MIN_EXISTING_FIELDS = 5
+    # ──────────────────────────────────────────────────────────────────────
+    # Flow B — Call existing deployed endpoint
+    # ──────────────────────────────────────────────────────────────────────
 
-    async def _try_existing(self, url: str) -> Optional[RawDataCaptureResult]:
-        """
-        Search for and reuse existing Motie project results.
-
-        Validates:
-        1. URL match — the session must be for the same property page
-           (Motie search API may return broad/fuzzy matches from different URLs)
-        2. Data quality — the session must have enough non-null fields to be useful
-        """
-        matches = await self.client.search_projects(url)
-        if not matches:
-            return None
-
-        target_normalized = _normalize_url_for_comparison(url)
-        logger.info(
-            f"Checking {len(matches)} existing Motie sessions "
-            f"(target URL: {target_normalized})"
-        )
-
-        # Search results only return session_id + url + prompt.
-        # We need to call get_session() on each match to check if it
-        # completed successfully and has a results_file URL.
-        for match in matches:
-            # --- URL validation ---
-            # Motie's search API returns broad matches that may include
-            # sessions from completely different property URLs.
-            # We must verify the session URL matches our target URL.
-            match_normalized = _normalize_url_for_comparison(match.url)
-            if match_normalized != target_normalized:
-                logger.info(
-                    f"Skipping existing Motie session {match.session_id}: "
-                    f"URL mismatch — session URL '{match.url}' "
-                    f"does not match target '{url}'"
-                )
-                continue
-
-            try:
-                session = await self.client.get_session(match.session_id)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to fetch session {match.session_id} for existing project: {e}"
-                )
-                continue
-
-            if session.status == "completed" and session.results_file_url:
-                data = await self.client.download_results(session.results_file_url)
-
-                # Validate data quality — skip sessions with too few meaningful fields
-                raw_data = data.get("data", data) if isinstance(data, dict) else data
-                if isinstance(raw_data, dict):
-                    non_null_count = sum(
-                        1
-                        for v in raw_data.values()
-                        if v is not None
-                        and v != ""
-                        and v != []
-                        and v != "null"
-                        and v != "None"
-                    )
-                else:
-                    non_null_count = 0
-
-                if non_null_count < self.MIN_EXISTING_FIELDS:
-                    logger.info(
-                        f"Skipping existing Motie session {match.session_id}: "
-                        f"only {non_null_count} non-null fields "
-                        f"(need >= {self.MIN_EXISTING_FIELDS})"
-                    )
-                    continue
-
-                logger.info(
-                    f"Reusing existing Motie session {match.session_id} for {url} "
-                    f"({non_null_count} non-null fields)"
-                )
-                content_hash = hashlib.sha256(
-                    json.dumps(data, sort_keys=True).encode()
-                ).hexdigest()
-
-                return RawDataCaptureResult(
-                    adapter_name=f"{self.name}_existing",
-                    url=url,
-                    status=AdapterStatus.SUCCESS,
-                    payload=data,
-                    content_hash=content_hash,
-                    provider_run_id=match.session_id,
-                )
-
-        logger.info(
-            f"No existing Motie sessions with matching URL and sufficient data for {url}, "
-            f"will invoke new session"
-        )
-        return None
-
-    async def _invoke_and_poll(
-        self, request: DataCaptureRequest, start_time: float
+    async def _flow_b_deployed(
+        self,
+        listing_url: str,
+        api_url: str,
+        route_path: str,
+        start_time: float,
     ) -> RawDataCaptureResult:
-        """Invoke a new Motie session, poll until complete, download results."""
-        # Use custom prompt if provided (retry attempts), otherwise default
-        prompt = request.prompt or DEFAULT_MOTIE_PROMPT
+        """
+        Flow B: Call an existing deployed Motie scraper endpoint.
 
-        # Invoke
-        invoke_response = await self.client.invoke(
-            url=request.url,
+        GET {api_url}{route_path}?listing_url={listing_url}
+
+        Fast, cheap, deterministic. No agent involvement.
+        """
+        logger.info(
+            f"Flow B: calling deployed endpoint {api_url}{route_path} "
+            f"for {listing_url}"
+        )
+
+        data = await self.client.call_deployed_endpoint(
+            api_url=api_url,
+            route_path=route_path,
+            listing_url=listing_url,
+        )
+
+        content_hash = hashlib.sha256(
+            json.dumps(data, sort_keys=True).encode()
+        ).hexdigest()
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info(f"Flow B: got response in {duration_ms}ms")
+
+        return RawDataCaptureResult(
+            adapter_name=f"{self.name}_deployed",
+            url=listing_url,
+            status=AdapterStatus.SUCCESS,
+            payload=data,
+            content_hash=content_hash,
+            duration_ms=duration_ms,
+        )
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Flow A — Full build cycle for unknown domains
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _flow_a_build(
+        self,
+        request: DataCaptureRequest,
+        db: Optional[AsyncSession],
+        domain: str,
+        project,  # Optional[MotieScraperProject]
+        start_time: float,
+    ) -> RawDataCaptureResult:
+        """
+        Flow A: Full build cycle — create project, invoke agent, deploy, call endpoint.
+
+        Used for first-time builds on unknown domains (no existing project)
+        or domains with a project but no successful deployment.
+
+        Steps:
+        1. Create Motie project (if none exists)
+        2. Invoke agent session with prompt (including target URL)
+        3. Poll session until complete
+        4. Deploy the project
+        5. Poll deployment until deployed
+        6. Discover route via OpenAPI spec
+        7. Update DB with api_url and route_path
+        8. Call the deployed endpoint
+        """
+        logger.info(f"Flow A: building new scraper for domain {domain}")
+
+        # Step 1: Create or reuse project
+        motie_project_id = None
+        if project:
+            motie_project_id = project.motie_project_id
+            logger.info(
+                f"Reusing existing Motie project {motie_project_id} for {domain}"
+            )
+        else:
+            project_name = f"data-capture-{domain}"
+            create_resp = await self.client.create_project(
+                name=project_name,
+                description=f"Property data capture scraper for {domain}",
+            )
+            motie_project_id = create_resp.id
+            logger.info(f"Created Motie project {motie_project_id} for {domain}")
+
+            # Store in DB
+            if db:
+                try:
+                    project = await motie_project_crud.create(
+                        db=db,
+                        domain=domain,
+                        motie_project_id=motie_project_id,
+                        motie_project_name=project_name,
+                    )
+                except IntegrityError:
+                    # Concurrent request already created it — re-read
+                    await db.rollback()
+                    project = await motie_project_crud.get_by_domain(db, domain)
+                    if project:
+                        motie_project_id = project.motie_project_id
+                        logger.info(
+                            f"Concurrent create detected, reusing project "
+                            f"{motie_project_id} for {domain}"
+                        )
+
+        # Steps 2–8: Invoke, deploy, discover, call
+        return await self._invoke_deploy_call(
+            request=request,
+            db=db,
+            project=project,
+            motie_project_id=motie_project_id,
+            prompt=f"Target URL: {request.url}\n\n{DEFAULT_MOTIE_PROMPT}",
+            start_time=start_time,
+            flow_label="Flow A",
+        )
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Flow E — Repair/rebuild a broken scraper
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _flow_e_repair(
+        self,
+        request: DataCaptureRequest,
+        db: Optional[AsyncSession],
+        domain: str,
+        project,  # MotieScraperProject (must exist for Flow E)
+        flow_b_error: str,
+        start_time: float,
+    ) -> RawDataCaptureResult:
+        """
+        Flow E: Repair/rebuild a broken deployed scraper.
+
+        When Flow B fails (endpoint errors, bad data, HTTP errors), we invoke
+        a new agent session on the *same* project with a repair prompt that
+        includes:
+        - The failing URL
+        - The error details from Flow B
+        - Instructions to fix the scraper
+
+        The agent sees the existing scraper code in the project and can fix it.
+        After the session completes, we redeploy and call the updated endpoint.
+        """
+        logger.info(
+            f"Flow E: repairing scraper for {domain} "
+            f"(project={project.motie_project_id}, error={flow_b_error})"
+        )
+
+        # Mark deployment as needing repair in DB
+        if db and project:
+            await motie_project_crud.update_deployment(
+                db=db,
+                project_id=project.id,
+                deployment_status="repairing",
+            )
+
+        # Build repair prompt — give the agent context about what went wrong
+        repair_prompt = (
+            f"The deployed scraper for this website has broken or is returning errors.\n\n"
+            f"Failing URL: {request.url}\n"
+            f"Error: {flow_b_error}\n\n"
+            f"Please fix the scraper so it correctly handles this URL. "
+            f"The scraper should accept a listing_url query parameter and extract "
+            f"all property details from the page at that URL.\n\n"
+            f"Extract these fields and return them as a JSON object. "
+            f"If a detail isn't present on the page, put null as the value:\n\n"
+            f"Address (Road name), Floorplan(s) Images URL(s), "
+            f"Image(s) URL(s) (ALL, High Res), Source URL, Price, Address (Town), "
+            f"Bedrooms (number), Estate Agent Name, Estate Agent Address, "
+            f"Transaction Type Details, Bathrooms (number), "
+            f"Type (House, Detached etc), Created (came to market), Address (full), "
+            f"Address (Postcode), Description (Full), Rightmove URL, "
+            f"Description (Short), Size, Tenure, Garden, Parking, "
+            f"Address (Location Coordinates), Status/Availability, "
+            f"Last Update & Reason, EPC(s), Train Station (nearby), "
+            f"Video(s) URLs, Access, Accessibility, Flood Risk, Heating, Listed?, "
+            f"Restrictions, Shared Ownership, Utilities"
+        )
+
+        return await self._invoke_deploy_call(
+            request=request,
+            db=db,
+            project=project,
+            motie_project_id=project.motie_project_id,
+            prompt=repair_prompt,
+            start_time=start_time,
+            flow_label="Flow E",
+        )
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Shared: invoke session → deploy → discover route → call endpoint
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _invoke_deploy_call(
+        self,
+        request: DataCaptureRequest,
+        db: Optional[AsyncSession],
+        project,  # Optional[MotieScraperProject]
+        motie_project_id: str,
+        prompt: str,
+        start_time: float,
+        flow_label: str = "Flow",
+    ) -> RawDataCaptureResult:
+        """
+        Shared logic for Flow A, Flow E, and retries:
+        invoke agent session → poll → deploy → poll → discover route → call endpoint.
+        """
+        # Step 1: Invoke agent session
+        invoke_resp = await self.client.invoke(
+            project_id=motie_project_id,
             prompt=prompt,
         )
+        session_id = invoke_resp.session_id
+        logger.info(f"{flow_label}: agent session started: {session_id}")
 
-        session_id = invoke_response.session_id
-        logger.info(f"Motie session started: {session_id}")
+        # Step 2: Poll session until complete
+        await poll_session(self.client, session_id)
+        logger.info(f"{flow_label}: agent session completed: {session_id}")
 
-        # Poll
-        session = await poll_session(self.client, session_id)
+        # Update DB with session ID
+        if db and project:
+            await motie_project_crud.update_deployment(
+                db=db,
+                project_id=project.id,
+                last_session_id=session_id,
+            )
 
-        # Download results
-        if not session.results_file_url:
+        # Step 3: Deploy the project
+        deploy_resp = await self.client.deploy(motie_project_id)
+        deployment_id = deploy_resp.deployment_id
+        logger.info(f"{flow_label}: deployment started: {deployment_id}")
+
+        if db and project:
+            await motie_project_crud.update_deployment(
+                db=db,
+                project_id=project.id,
+                deployment_id=deployment_id,
+                deployment_status="deploying",
+            )
+
+        # Step 4: Poll deployment until deployed
+        deployment = await poll_deployment(self.client, deployment_id)
+        api_url = deployment.api_url
+        logger.info(f"{flow_label}: deployment complete, api_url={api_url}")
+
+        if not api_url:
+            duration_ms = int((time.time() - start_time) * 1000)
             return RawDataCaptureResult(
                 adapter_name=f"{self.name}_build",
                 url=request.url,
                 status=AdapterStatus.FAILED,
-                error_message="Session completed but no results file URL",
-                provider_run_id=session_id,
-                duration_ms=int((time.time() - start_time) * 1000),
+                error_message=f"{flow_label}: deployment completed but no api_url returned",
+                duration_ms=duration_ms,
             )
 
-        data = await self.client.download_results(session.results_file_url)
+        # Step 5: Discover route via OpenAPI spec
+        route_path = DEFAULT_ROUTE_PATH
+        try:
+            spec = await self.client.get_openapi_spec(api_url)
+            discovered = _discover_route_from_openapi(spec)
+            if discovered:
+                route_path = discovered
+                logger.info(
+                    f"{flow_label}: discovered route from OpenAPI: {route_path}"
+                )
+            else:
+                logger.info(
+                    f"{flow_label}: no GET route in OpenAPI spec, "
+                    f"using default: {route_path}"
+                )
+        except Exception as e:
+            logger.warning(
+                f"{flow_label}: OpenAPI spec discovery failed, "
+                f"using default route: {e}"
+            )
+
+        # Step 6: Update DB with deployment info
+        if db and project:
+            await motie_project_crud.update_deployment(
+                db=db,
+                project_id=project.id,
+                api_url=api_url,
+                route_path=route_path,
+                deployment_id=deployment_id,
+                deployment_status="deployed",
+            )
+
+        # Step 7: Call the deployed endpoint
+        data = await self.client.call_deployed_endpoint(
+            api_url=api_url,
+            route_path=route_path,
+            listing_url=request.url,
+        )
+
         content_hash = hashlib.sha256(
             json.dumps(data, sort_keys=True).encode()
         ).hexdigest()
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        logger.info(
+            f"{flow_label}: complete in {duration_ms}ms for {_extract_domain(request.url)}"
+        )
 
         return RawDataCaptureResult(
             adapter_name=f"{self.name}_build",
@@ -348,8 +618,85 @@ class MotieAdapter:
             payload=data,
             content_hash=content_hash,
             provider_run_id=session_id,
-            duration_ms=int((time.time() - start_time) * 1000),
+            duration_ms=duration_ms,
         )
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Retry handler (pipeline auto-retry for missing fields)
+    # ──────────────────────────────────────────────────────────────────────
+
+    async def _handle_retry(
+        self,
+        request: DataCaptureRequest,
+        db: Optional[AsyncSession],
+        domain: str,
+        start_time: float,
+    ) -> RawDataCaptureResult:
+        """
+        Handle pipeline auto-retry with custom prompt for missing fields.
+
+        Invokes a new session on the existing project with the retry prompt,
+        then redeploys and calls the endpoint. Uses the shared
+        _invoke_deploy_call path.
+        """
+        logger.info(f"Retry: invoking new session for {domain} with custom prompt")
+
+        # Find existing project
+        project = None
+        motie_project_id = None
+        if db:
+            try:
+                project = await motie_project_crud.get_by_domain(db, domain)
+            except Exception:
+                pass
+
+        if project:
+            motie_project_id = project.motie_project_id
+        else:
+            # Create project for retry (shouldn't normally happen)
+            project_name = f"data-capture-{domain}"
+            create_resp = await self.client.create_project(
+                name=project_name,
+                description=f"Property data capture scraper for {domain}",
+            )
+            motie_project_id = create_resp.id
+
+        # Build prompt with URL + custom retry prompt
+        prompt = f"Target URL: {request.url}\n\n{request.prompt}"
+
+        try:
+            return await self._invoke_deploy_call(
+                request=request,
+                db=db,
+                project=project,
+                motie_project_id=motie_project_id,
+                prompt=prompt,
+                start_time=start_time,
+                flow_label="Retry",
+            )
+        except MotiePollerTimeout as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            return RawDataCaptureResult(
+                adapter_name=self.name,
+                url=request.url,
+                status=AdapterStatus.TIMEOUT,
+                error_message=str(e),
+                duration_ms=duration_ms,
+            )
+        except (MotiePollerError, Exception) as e:
+            duration_ms = int((time.time() - start_time) * 1000)
+            logger.error(f"Motie retry failed: {e}", exc_info=True)
+            return RawDataCaptureResult(
+                adapter_name=self.name,
+                url=request.url,
+                status=AdapterStatus.FAILED,
+                error_message=str(e),
+                duration_ms=duration_ms,
+            )
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Parse & Score
+    # ──────────────────────────────────────────────────────────────────────
 
     async def parse(self, raw: RawDataCaptureResult) -> ParsedDataCaptureResult:
         """Parse Motie raw result into structured fields."""

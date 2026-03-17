@@ -113,7 +113,7 @@ class Settings(BaseSettings):
 
     # --- Motie Adapter ---
     MOTIE_BASE_URL: str = Field(
-        "https://app.motie.dev",
+        "https://api.motie.dev",
         alias="DATA_CAPTURE_SERVICE_MOTIE_BASE_URL",
         description="Motie API base URL.",
     )
@@ -141,6 +141,21 @@ class Settings(BaseSettings):
         30.0,
         alias="DATA_CAPTURE_SERVICE_MOTIE_POLL_MAX_INTERVAL",
         description="Maximum poll interval in seconds (cap).",
+    )
+    MOTIE_DEPLOY_POLL_TIMEOUT: float = Field(
+        180.0,
+        alias="DATA_CAPTURE_SERVICE_MOTIE_DEPLOY_POLL_TIMEOUT",
+        description="Maximum seconds to poll Motie deployment before timeout.",
+    )
+    MOTIE_DEPLOY_POLL_INTERVAL: float = Field(
+        5.0,
+        alias="DATA_CAPTURE_SERVICE_MOTIE_DEPLOY_POLL_INTERVAL",
+        description="Initial poll interval for deployment status in seconds.",
+    )
+    MOTIE_DEPLOYED_ENDPOINT_TIMEOUT: float = Field(
+        30.0,
+        alias="DATA_CAPTURE_SERVICE_MOTIE_DEPLOYED_ENDPOINT_TIMEOUT",
+        description="Timeout for calling deployed Motie scraper endpoints.",
     )
 
     # --- Adapter Feature Flags ---
