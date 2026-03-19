@@ -22,9 +22,8 @@ from data_capture_service.models.data_capture_run_step import (
 from data_capture_service.models.data_capture_usage import DataCaptureUsage
 from data_capture_service.models.motie_scraper_project import MotieScraperProject
 from data_capture_service.models.provider_data_capture import ProviderDataCapture
-from data_capture_service.models.source_parsed_record import (
-    SourceParsedRecord,
-)
+from data_capture_service.models.source_parsed_record import SourceParsedRecord
+from data_capture_service.models.source_raw_record import SourceRawRecord
 
 __all__ = [
     "Base",
