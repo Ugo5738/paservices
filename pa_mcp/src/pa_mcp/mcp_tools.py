@@ -165,13 +165,46 @@ async def list_properties_tool(
 
 
 @mcp.tool()
+async def analyze_property_tool(
+    property_url: str = "",
+    super_id: str = "",
+) -> str:
+    """Run the complete property analysis pipeline for a listing URL.
+
+    This triggers all services in the correct order:
+    1. Scrape property data (data capture)
+    2. Extract floorplan and image URLs from scraped data
+    3. Run floorplan analysis and image condition analysis in parallel
+
+    Returns a super_id. Use get_property_analysis_result_tool(super_id) to
+    poll progress and retrieve the final combined result.
+    """
+    if not property_url:
+        return "❌ Error: property_url is required"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_orchestrator_via_n8n(
+            client=client,
+            property_url=property_url,
+            services=[
+                "data_capture_motie",
+                "floorplan_analysis",
+                "image_condition_analysis",
+            ],
+            super_id=super_id if super_id else None,
+        )
+        return f"✅ Full analysis started: {json.dumps(result)}"
+
+
+@mcp.tool()
 async def trigger_full_property_analysis_tool(
     property_url: str = "",
     workflow_callback_url: str = "",
     super_id: str = "",
     external_callback_url: str = "",
 ) -> str:
-    """Trigger the full property analysis workflow."""
+    """[Legacy] Trigger the full property analysis workflow via the old SuperSami trigger.
+    Prefer analyze_property_tool() for new usage."""
     if not property_url:
         return "❌ Error: property_url is required"
 

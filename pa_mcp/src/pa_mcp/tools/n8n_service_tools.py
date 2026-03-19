@@ -226,9 +226,11 @@ async def trigger_orchestrator_via_n8n(
     }
     if service_params:
         payload["service_params"] = service_params
+    # Prefer v2 orchestrator (handles sequential dependencies); fall back to v1
+    orchestrator_url = settings.N8N_ORCHESTRATOR_V2_URL or settings.N8N_ORCHESTRATOR_URL
     return await _trigger_n8n_service_workflow(
         client=client,
-        webhook_url=settings.N8N_ORCHESTRATOR_URL,
+        webhook_url=orchestrator_url,
         payload=payload,
         super_id=super_id,
         context="orchestrator",

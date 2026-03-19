@@ -104,6 +104,7 @@ async def start_data_capture(
         super_id=super_id,
         target_url=request.url,
         target_domain=extract_domain(request.url),
+        callback_url=request.callback_url,
     )
     await db.commit()
 

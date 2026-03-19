@@ -5,16 +5,7 @@ DataCaptureRun model — central audit record for each data_capture request.
 import enum
 import uuid
 
-from sqlalchemy import (
-    Column,
-    DateTime,
-    Enum,
-    Float,
-    Integer,
-    String,
-    Text,
-    func,
-)
+from sqlalchemy import Column, DateTime, Enum, Float, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import relationship
 
@@ -55,7 +46,9 @@ class DataCaptureRun(Base, SuperIdMixin):
     )
     selected_adapter = Column(String(128), nullable=True)
     status = Column(
-        Enum(DataCaptureRunStatus, name="data_capture_run_status", schema="data_capture"),
+        Enum(
+            DataCaptureRunStatus, name="data_capture_run_status", schema="data_capture"
+        ),
         nullable=False,
         default=DataCaptureRunStatus.PENDING,
         index=True,
@@ -64,6 +57,7 @@ class DataCaptureRun(Base, SuperIdMixin):
     fallback_count = Column(Integer, nullable=False, default=0)
     error_message = Column(Text, nullable=True)
     route_decision_json = Column(JSONB, nullable=True)
+    callback_url = Column(String(2048), nullable=True)
     started_at = Column(DateTime(timezone=True), server_default=func.now())
     finished_at = Column(DateTime(timezone=True), nullable=True)
 

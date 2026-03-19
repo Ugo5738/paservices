@@ -99,6 +99,7 @@ async def data_capture_with_motie(
         target_url=request.url,
         target_domain=extract_domain(request.url),
         selected_adapter="motie",
+        callback_url=request.callback_url,
     )
     await db.commit()
 

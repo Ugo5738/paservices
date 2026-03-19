@@ -15,8 +15,10 @@ Pipeline steps:
 
 import logging
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.adapters.base import (
@@ -306,6 +308,11 @@ class DataCapturePipeline:
                 error_message="All adapters failed",
                 fallback_count=fallback_count,
             )
+            await self._notify_callback(
+                run=run,
+                status_str="failed",
+                error_message="All adapters failed",
+            )
 
         return run
 
@@ -472,6 +479,11 @@ class DataCapturePipeline:
                 db=db,
                 run_id=run.id,
                 status=DataCaptureRunStatus.FAILED,
+                error_message=f"Adapter {adapter_name} failed",
+            )
+            await self._notify_callback(
+                run=run,
+                status_str="failed",
                 error_message=f"Adapter {adapter_name} failed",
             )
 
@@ -884,6 +896,92 @@ class DataCapturePipeline:
             logger.info(f"Extras (P4+): {list(extras_json.keys())}")
 
         logger.info("=" * 60)
+
+        # Notify callback URL if configured
+        await self._notify_callback(
+            run=run,
+            status_str=status.value,
+            column_fields=column_fields,
+            media_items=media_items,
+            score=score,
+        )
+
+    async def _notify_callback(
+        self,
+        run: DataCaptureRun,
+        status_str: str,
+        column_fields: Optional[Dict[str, Any]] = None,
+        media_items: Optional[List[Dict[str, Any]]] = None,
+        score: Optional[CompletenessScore] = None,
+        error_message: Optional[str] = None,
+    ) -> None:
+        """POST callback notification when a run reaches a terminal state.
+
+        Fire-and-forget — errors are logged but never raised.
+        If no callback_url is set on the run, this is a no-op.
+        """
+        if not run.callback_url:
+            return
+
+        summary: Dict[str, Any] = {}
+        final_result: Optional[Dict[str, Any]] = None
+
+        if media_items:
+            summary["floorplan_urls"] = [
+                m["url"] for m in media_items if m.get("media_type") == "floorplan"
+            ]
+            summary["image_urls"] = [
+                m["url"] for m in media_items if m.get("media_type") == "photo"
+            ]
+            summary["photo_count"] = len(summary["image_urls"])
+            summary["floorplan_count"] = len(summary["floorplan_urls"])
+
+        if column_fields:
+            summary["address_road"] = column_fields.get("address_road")
+            summary["price"] = column_fields.get("price")
+            summary["bedrooms"] = column_fields.get("bedrooms")
+
+        if status_str != "failed":
+            final_result = {}
+            if column_fields:
+                final_result["canonical"] = column_fields
+            if media_items:
+                final_result["media"] = media_items
+            if score:
+                final_result["quality"] = {
+                    "completeness_score": score.overall,
+                    "fields_present": score.fields_present,
+                    "fields_total": score.fields_total,
+                    "priority_scores": score.priority_scores,
+                }
+
+        if score:
+            summary["completeness_score"] = score.overall
+
+        payload = {
+            "super_id": str(run.super_id),
+            "status": status_str,
+            "context": "data_capture",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "summary": summary,
+            "final_result": final_result,
+            "error": {"message": error_message} if error_message else None,
+        }
+
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await client.post(run.callback_url, json=payload, timeout=10)
+                logger.info(
+                    "Callback POST to %s returned %s",
+                    run.callback_url,
+                    resp.status_code,
+                )
+        except Exception as exc:
+            logger.error(
+                "Callback POST to %s failed: %s",
+                run.callback_url,
+                exc,
+            )
 
 
 # Global instance

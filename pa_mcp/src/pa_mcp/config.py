@@ -159,7 +159,12 @@ class Settings(BaseSettings):
     N8N_ORCHESTRATOR_URL: str = Field(
         "",
         validation_alias="PA_MCP_N8N_ORCHESTRATOR_URL",
-        description="Webhook URL for the orchestrator n8n workflow",
+        description="Webhook URL for the v1 orchestrator n8n workflow (parallel only)",
+    )
+    N8N_ORCHESTRATOR_V2_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_ORCHESTRATOR_V2_URL",
+        description="Webhook URL for the v2 orchestrator n8n workflow (handles sequential dependencies)",
     )
 
     @field_validator("METADATA_JSON_RESPONSE", mode="before")

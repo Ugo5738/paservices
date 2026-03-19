@@ -10,7 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from data_capture_service.models.data_capture_run import DataCaptureRun, DataCaptureRunMode, DataCaptureRunStatus
+from data_capture_service.models.data_capture_run import (
+    DataCaptureRun,
+    DataCaptureRunMode,
+    DataCaptureRunStatus,
+)
 
 
 async def create_run(
@@ -20,6 +24,7 @@ async def create_run(
     target_domain: str,
     mode: DataCaptureRunMode = DataCaptureRunMode.ORCHESTRATED,
     selected_adapter: Optional[str] = None,
+    callback_url: Optional[str] = None,
 ) -> DataCaptureRun:
     """Create a new data_capture run record."""
     run = DataCaptureRun(
@@ -30,6 +35,7 @@ async def create_run(
         mode=mode,
         selected_adapter=selected_adapter,
         status=DataCaptureRunStatus.PENDING,
+        callback_url=callback_url,
     )
     db.add(run)
     await db.flush()
