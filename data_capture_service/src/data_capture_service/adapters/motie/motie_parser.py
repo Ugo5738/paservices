@@ -353,7 +353,18 @@ def parse_motie_result(
             if "price_text" not in fields:
                 fields["price_text"] = value
             continue
+        elif canonical_name == "transaction_type":
+            # Motie may return a dict like {"transactionType": "BUY", "priceQualifier": "..."}
+            if isinstance(value, dict):
+                value = value.get("transactionType") or value.get("transaction_type") or str(value)
+            fields[canonical_name] = value
         else:
+            # Safety: convert any remaining dict/list values to strings for VARCHAR columns
+            if isinstance(value, (dict, list)) and canonical_name not in (
+                "image_urls", "floorplan_urls", "video_urls", "epcs",
+                "address_coordinates", "extras",
+            ):
+                value = str(value)
             fields[canonical_name] = value
 
     # Extract media URLs
