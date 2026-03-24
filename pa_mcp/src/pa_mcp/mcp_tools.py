@@ -33,8 +33,8 @@ async def analyze_property_tool(
     """Run the complete property analysis pipeline for a listing URL.
 
     This triggers all services in the correct order:
-    1. Scrape property data (data capture)
-    2. Extract floorplan and image URLs from scraped data
+    1. Capture property data from the listing
+    2. Extract floorplan and image URLs from captured data
     3. Run floorplan analysis and image condition analysis in parallel
 
     Returns a super_id. Use get_property_analysis_result_tool(super_id) to
@@ -108,7 +108,7 @@ async def trigger_data_capture_tool(
     super_id: str = "",
     skip_baseline: str = "",
 ) -> str:
-    """Trigger property data capture (scraping) via the Motie scraper.
+    """Trigger property data capture for a listing URL.
     Returns a super_id for tracking. Use get_property_analysis_result_tool(super_id) to poll.
     """
     if not url:
