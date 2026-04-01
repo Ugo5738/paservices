@@ -268,11 +268,103 @@ class DataCapturePipeline:
             if best_result is None or score.overall > best_result[1].overall:
                 best_result = (parsed, score, adapter_name)
 
-            # Fallback if score < threshold
+            # Fallback if score < threshold — attempt quality repair first
             if (
                 score.overall < settings.COMPLETENESS_FALLBACK_THRESHOLD
                 or not validation_passed
             ):
+                # Try a quality repair on this adapter before falling back
+                if hasattr(adapter, "build_retry_prompt"):
+                    missing = parsed.missing_fields or []
+                    repair_prompt = (
+                        f"The data captured from {url} has very low quality "
+                        f"(score: {score.overall:.2f}).\n\n"
+                        f"Missing or empty fields: {', '.join(missing[:15])}\n\n"
+                        f"Please rebuild the endpoint to correctly extract "
+                        f"all property listing data including: price, address, "
+                        f"bedrooms, bathrooms, description, images, and floorplans."
+                    )
+                    logger.warning(
+                        f"Score {score.overall:.2f} below threshold "
+                        f"({settings.COMPLETENESS_FALLBACK_THRESHOLD}). "
+                        f"Attempting quality repair on {adapter_name} before fallback."
+                    )
+                    try:
+                        repair_request = DataCaptureRequest(
+                            url=url,
+                            super_id=str(super_id),
+                            adapter_name=adapter_name,
+                            prompt=repair_prompt,
+                            metadata={"db": db},
+                        )
+                        repair_result = await self._run_adapter(
+                            db=db,
+                            run=run,
+                            adapter=adapter,
+                            adapter_name=adapter_name,
+                            request=repair_request,
+                            baseline=baseline,
+                            step_order=step_order,
+                            is_retry=True,
+                            retry_metadata={
+                                "reason": "quality_repair",
+                                "original_score": score.overall,
+                            },
+                        )
+                        step_order += 1
+
+                        if repair_result:
+                            repair_parsed, repair_score, repair_valid = repair_result
+                            if repair_score.overall > score.overall:
+                                logger.info(
+                                    f"Quality repair improved score: "
+                                    f"{score.overall:.2f} → {repair_score.overall:.2f}"
+                                )
+                                parsed, score = repair_parsed, repair_score
+                                validation_passed = repair_valid
+
+                                # Update best result
+                                best_result = (parsed, score, adapter_name)
+
+                                # Re-check against thresholds
+                                if (
+                                    score.overall
+                                    >= settings.COMPLETENESS_ACCEPT_THRESHOLD
+                                    and validation_passed
+                                ):
+                                    await self._store_canonical(
+                                        db=db,
+                                        run=run,
+                                        parsed=parsed,
+                                        score=score,
+                                        adapter_name=adapter_name,
+                                        fallback_count=fallback_count,
+                                    )
+                                    return run
+
+                                if (
+                                    score.overall
+                                    >= settings.COMPLETENESS_FALLBACK_THRESHOLD
+                                ):
+                                    # Improved enough to store with warnings
+                                    await self._store_canonical(
+                                        db=db,
+                                        run=run,
+                                        parsed=parsed,
+                                        score=score,
+                                        adapter_name=adapter_name,
+                                        fallback_count=fallback_count,
+                                        with_warnings=True,
+                                    )
+                                    return run
+                            else:
+                                logger.info(
+                                    f"Quality repair did not improve: "
+                                    f"{repair_score.overall:.2f} vs {score.overall:.2f}"
+                                )
+                    except Exception as e:
+                        logger.error(f"Quality repair failed: {e}", exc_info=True)
+
                 fallback_count += 1
                 continue
 
@@ -288,7 +380,7 @@ class DataCapturePipeline:
             )
             return run
 
-        # Step 6: Chain exhausted
+        # Step 6: Chain exhausted — store best result or fail
         if best_result:
             parsed, score, adapter_name = best_result
             await self._store_canonical(
