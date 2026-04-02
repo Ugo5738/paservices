@@ -276,10 +276,24 @@ class DataCapturePipeline:
                 # Try a quality repair on this adapter before falling back
                 if hasattr(adapter, "build_retry_prompt"):
                     missing = parsed.missing_fields or []
+                    # Build baseline-aware repair prompt
+                    baseline_info = ""
+                    if baseline and hasattr(baseline, "field_presence") and baseline.field_presence:
+                        baseline_present = [
+                            f for f, present in baseline.field_presence.items() if present
+                        ]
+                        baseline_gaps = [f for f in baseline_present if f in missing]
+                        if baseline_gaps:
+                            baseline_info = (
+                                f"\n\nOur validation system confirmed these fields ARE "
+                                f"present on the page but your code missed them: "
+                                f"{baseline_gaps}. The page contains: {baseline_present}."
+                            )
                     repair_prompt = (
                         f"The data captured from {url} has very low quality "
                         f"(score: {score.overall:.2f}).\n\n"
-                        f"Missing or empty fields: {', '.join(missing[:15])}\n\n"
+                        f"Missing or empty fields: {', '.join(missing[:15])}"
+                        f"{baseline_info}\n\n"
                         f"Please rebuild the endpoint to correctly extract "
                         f"all property listing data including: price, address, "
                         f"bedrooms, bathrooms, description, images, and floorplans."
@@ -817,7 +831,9 @@ class DataCapturePipeline:
                 logger.info(f"Adapter {adapter_name} does not support targeted retry")
                 break
 
-            retry_prompt = adapter.build_retry_prompt(missing_critical)
+            retry_prompt = adapter.build_retry_prompt(
+                missing_critical, baseline=baseline
+            )
             if not retry_prompt:
                 logger.info(f"Could not build retry prompt for: {missing_critical}")
                 break

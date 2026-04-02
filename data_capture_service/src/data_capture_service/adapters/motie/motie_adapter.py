@@ -157,9 +157,17 @@ class MotieAdapter:
     def __init__(self, client: Optional[MotieClient] = None):
         self.client = client or motie_client
 
-    def build_retry_prompt(self, missing_fields: List[str]) -> Optional[str]:
+    def build_retry_prompt(
+        self,
+        missing_fields: List[str],
+        baseline: Optional[Any] = None,
+    ) -> Optional[str]:
         """
         Build a targeted Motie prompt focusing on specific missing fields.
+
+        If a Firecrawl baseline is provided, references the specific fields
+        that the baseline detected as present on the page but the scraper
+        failed to extract — giving the agent concrete evidence of what to fix.
 
         Returns None if no valid prompt keys can be mapped from the missing fields.
         """
@@ -172,6 +180,24 @@ class MotieAdapter:
         if not prompt_keys:
             return None
 
+        # Build baseline comparison info if available
+        baseline_info = ""
+        if baseline and hasattr(baseline, "field_presence") and baseline.field_presence:
+            baseline_present = [
+                f for f, present in baseline.field_presence.items() if present
+            ]
+            baseline_missing_from_scraper = [
+                f for f in baseline_present if f in missing_fields
+            ]
+            if baseline_missing_from_scraper:
+                baseline_info = (
+                    "\n\nIMPORTANT: Our validation system independently confirmed "
+                    "these fields ARE present on the page but your code failed to "
+                    f"extract them: {baseline_missing_from_scraper}. "
+                    f"The page definitely contains: {baseline_present}. "
+                    "Fix your extraction code to capture these fields."
+                )
+
         return (
             "From this property page, I need you to carefully look for these specific "
             "details that were not found in the previous extraction. "
@@ -180,6 +206,7 @@ class MotieAdapter:
             "Return an object with these keys and extracted values. "
             "If a detail truly isn't present on the page, put null as the value:\n\n"
             + ", ".join(prompt_keys)
+            + baseline_info
         )
 
     async def fetch_raw(self, request: DataCaptureRequest) -> RawDataCaptureResult:

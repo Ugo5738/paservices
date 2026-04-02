@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -43,12 +44,19 @@ async def analyze_property_tool(
     if not property_url:
         return "❌ Error: property_url is required"
 
+    # Auto-pick data capture adapter based on domain
+    domain = urlparse(property_url).netloc.lower().replace("www.", "")
+    if "rightmove.co.uk" in domain:
+        data_capture_service = "data_capture_rightmove"
+    else:
+        data_capture_service = "data_capture_motie"
+
     async with httpx.AsyncClient() as client:
         result = await trigger_orchestrator_via_n8n(
             client=client,
             property_url=property_url,
             services=[
-                "data_capture_motie",
+                data_capture_service,
                 "floorplan_analysis",
                 "image_condition_analysis",
             ],
@@ -109,19 +117,33 @@ async def trigger_data_capture_tool(
     skip_baseline: str = "",
 ) -> str:
     """Trigger property data capture for a listing URL.
+    Automatically picks the best adapter based on the domain (Rightmove vs other).
     Returns a super_id for tracking. Use get_property_analysis_result_tool(super_id) to poll.
     """
     if not url:
         return "❌ Error: url is required"
 
-    async with httpx.AsyncClient() as client:
-        result = await trigger_data_capture_via_n8n(
-            client=client,
-            url=url,
-            super_id=super_id if super_id else None,
-            skip_baseline=skip_baseline.lower() == "true" if skip_baseline else False,
-        )
-        return f"✅ Data capture triggered: {json.dumps(result)}"
+    # Auto-pick adapter based on domain
+    domain = urlparse(url).netloc.lower().replace("www.", "")
+    if "rightmove.co.uk" in domain:
+        # Use orchestrator with rightmove adapter
+        async with httpx.AsyncClient() as client:
+            result = await trigger_orchestrator_via_n8n(
+                client=client,
+                property_url=url,
+                services=["data_capture_rightmove"],
+                super_id=super_id if super_id else None,
+            )
+            return f"✅ Data capture triggered: {json.dumps(result)}"
+    else:
+        async with httpx.AsyncClient() as client:
+            result = await trigger_data_capture_via_n8n(
+                client=client,
+                url=url,
+                super_id=super_id if super_id else None,
+                skip_baseline=skip_baseline.lower() == "true" if skip_baseline else False,
+            )
+            return f"✅ Data capture triggered: {json.dumps(result)}"
 
 
 @mcp.tool()

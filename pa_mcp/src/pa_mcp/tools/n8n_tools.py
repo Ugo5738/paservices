@@ -135,6 +135,8 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
         )
 
         # Build latest_status_by_context from the append-only updates log
+        # Includes per-context data_location, final_result, and summary
+        # so the agent gets progressive results as each service completes
         try:
             updates = await list_analysis_updates(session, super_id, limit=200)
             latest: Dict[str, Dict[str, Any]] = {}
@@ -143,10 +145,17 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
                 ts = upd.event_timestamp or upd.received_at
                 # first occurrence is the most recent because list_analysis_updates orders desc
                 if ctx not in latest:
-                    latest[ctx] = {
+                    entry: Dict[str, Any] = {
                         "status": upd.status,
                         "updated_at": _ts(ts),
                     }
+                    if upd.data_location:
+                        entry["data_location"] = upd.data_location
+                    if upd.final_result:
+                        entry["final_result"] = upd.final_result
+                    if upd.summary:
+                        entry["summary"] = upd.summary
+                    latest[ctx] = entry
             if latest:
                 base["latest_status_by_context"] = latest
         except Exception:
