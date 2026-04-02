@@ -124,6 +124,16 @@ def _ts(value: Any) -> Optional[str]:
         return None
 
 
+async def _fetch_s3_data(client: httpx.AsyncClient, url: str) -> Optional[Dict[str, Any]]:
+    """Fetch JSON data from an S3 data_location URL. Returns None on any failure."""
+    try:
+        resp = await client.get(url, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return None
+
+
 async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
     """Fetch the stored analysis result by super_id, plus per-context latest statuses."""
     async with AsyncSessionLocal() as session:
@@ -161,5 +171,39 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
         except Exception:
             # best-effort; do not fail the call
             pass
+
+        # Fetch actual data from S3 for contexts that have data_location
+        # but no final_result. This includes in-progress contexts so
+        # ChatGPT can see progressive results as each service updates.
+        contexts_to_fetch = {}
+        for ctx, entry in base.get("latest_status_by_context", {}).items():
+            if entry.get("data_location") and not entry.get("final_result"):
+                contexts_to_fetch[ctx] = entry["data_location"]
+
+        if contexts_to_fetch:
+            try:
+                async with httpx.AsyncClient() as client:
+                    for ctx, url in contexts_to_fetch.items():
+                        data = await _fetch_s3_data(client, url)
+                        if data:
+                            base["latest_status_by_context"][ctx]["data"] = data
+            except Exception:
+                pass
+
+        # Derive overall status from per-context statuses.
+        # The DB-stored status can be wrong (e.g. "completed" when only data_capture
+        # finished, or "pending" when all contexts actually completed).
+        ctx_statuses = base.get("latest_status_by_context", {})
+        if ctx_statuses:
+            all_statuses = [e.get("status") for e in ctx_statuses.values()]
+            terminal = {"completed", "failed", "error", "completed_with_warnings"}
+            if all(s in terminal for s in all_statuses):
+                if any(s in {"failed", "error"} for s in all_statuses):
+                    base["status"] = "failed"
+                else:
+                    base["status"] = "completed"
+            elif any(s in terminal for s in all_statuses):
+                base["status"] = "in_progress"
+            # else leave as-is (pending)
 
         return base
