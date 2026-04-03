@@ -74,6 +74,18 @@ class Settings(BaseSettings):
         description="List of origins that are allowed to make cross-origin requests",
     )
 
+    # M2M credentials for calling auth + super_id services
+    M2M_CLIENT_ID: str = Field(
+        "",
+        validation_alias="PA_MCP_M2M_CLIENT_ID",
+        description="M2M client ID for authenticating with auth service",
+    )
+    M2M_CLIENT_SECRET: str = Field(
+        "",
+        validation_alias="PA_MCP_M2M_CLIENT_SECRET",
+        description="M2M client secret for authenticating with auth service",
+    )
+
     # Service URLs
     AUTH_SERVICE_URL: str = Field(
         "http://localhost:8001/api/v1",

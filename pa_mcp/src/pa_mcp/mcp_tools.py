@@ -3,8 +3,12 @@ from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from sqlalchemy.exc import SQLAlchemyError
 
 from .config import settings
+from .crud import upsert_analysis_result
+from .db import AsyncSessionLocal
+from .tools.auth_helper import get_m2m_token
 from .tools.n8n_service_tools import (
     trigger_data_capture_via_n8n,
     trigger_floorplan_via_n8n,
@@ -154,9 +158,10 @@ async def trigger_floorplan_tool(
 ) -> str:
     """Trigger floorplan analysis. Requires super_id, property_id, and a JSON object of floorplans
     (e.g. '{"fp1": {"url": "https://..."}}').
+    Use create_super_id_tool() first to get a super_id if you don't have one.
     Use get_property_analysis_result_tool(super_id) to poll."""
     if not super_id:
-        return "❌ Error: super_id is required"
+        return "❌ Error: super_id is required. Call create_super_id_tool() first."
     if not property_id:
         return "❌ Error: property_id is required"
     if not floorplans_json:
@@ -185,9 +190,10 @@ async def trigger_image_condition_tool(
     bedrooms: str = "",
 ) -> str:
     """Trigger image condition analysis. Requires super_id and a JSON array of image URLs.
+    Use create_super_id_tool() first to get a super_id if you don't have one.
     Use get_property_analysis_result_tool(super_id) to poll."""
     if not super_id:
-        return "❌ Error: super_id is required"
+        return "❌ Error: super_id is required. Call create_super_id_tool() first."
     if not image_urls_json:
         return "❌ Error: image_urls_json is required"
 
@@ -221,7 +227,7 @@ async def get_property_analysis_result_tool(super_id: str = "") -> str:
     Returns per-service status via latest_status_by_context and the final_result
     when all services have completed."""
     if not super_id:
-        return "❌ Error: super_id is required"
+        return "❌ Error: super_id is required. Call create_super_id_tool() first."
 
     result = await get_property_analysis_result(super_id)
     if result:
@@ -288,7 +294,49 @@ async def trigger_full_property_analysis_tool(
 # async def retry_capture_run_tool(run_id): ...
 # @mcp.tool()
 # async def trigger_floorplan_analysis_tool(floorplan_key, ...): ...
-# @mcp.tool()
-# async def create_super_id_tool(prefix): ...
+@mcp.tool()
+async def create_super_id_tool() -> str:
+    """Create a new super_id for tracking a property analysis session.
+    Call this FIRST before using any other tool. The returned super_id links
+    all service results (data capture, floorplan analysis, image condition analysis)
+    together under one session.
+
+    Flow: create_super_id_tool() → pass super_id to analyze_property_tool(),
+    trigger_floorplan_tool(), trigger_image_condition_tool(), etc."""
+    try:
+        async with httpx.AsyncClient() as client:
+            token = await get_m2m_token(client)
+            url = f"{settings.SUPER_ID_SERVICE_URL}/super_ids"
+            resp = await client.post(
+                url,
+                json={"count": 1, "metadata": {}},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            super_id = str(data.get("super_id", ""))
+            if not super_id:
+                return f"❌ Error: Super ID service returned invalid response: {data}"
+    except Exception as exc:
+        logger.error("Failed to create super_id: %s", exc, exc_info=True)
+        return f"❌ Error creating super_id: {exc}"
+
+    # Seed local analysis_result row so polling works immediately
+    async with AsyncSessionLocal() as session:
+        try:
+            await upsert_analysis_result(
+                session,
+                super_id,
+                {"status": "pending", "n8n_triggered": False},
+            )
+            await session.commit()
+        except SQLAlchemyError as exc:
+            await session.rollback()
+            logger.error("Failed to seed analysis result: %s", exc, exc_info=True)
+
+    return json.dumps({"super_id": super_id, "status": "created"})
+
+
 # @mcp.tool()
 # async def list_properties_tool(...): ...
