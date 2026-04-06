@@ -123,9 +123,9 @@ class Settings(BaseSettings):
         description="Motie API bearer token (mtk_...).",
     )
     MOTIE_POLL_TIMEOUT: float = Field(
-        300.0,
+        1800.0,
         alias="DATA_CAPTURE_SERVICE_MOTIE_POLL_TIMEOUT",
-        description="Maximum seconds to poll Motie before timeout.",
+        description="Maximum seconds to poll Motie agent session before timeout.",
     )
     MOTIE_POLL_INTERVAL: float = Field(
         5.0,
@@ -138,7 +138,7 @@ class Settings(BaseSettings):
         description="Exponential backoff multiplier for polling.",
     )
     MOTIE_POLL_MAX_INTERVAL: float = Field(
-        30.0,
+        60.0,
         alias="DATA_CAPTURE_SERVICE_MOTIE_POLL_MAX_INTERVAL",
         description="Maximum poll interval in seconds (cap).",
     )

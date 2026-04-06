@@ -145,7 +145,9 @@ async def trigger_data_capture_tool(
                 client=client,
                 url=url,
                 super_id=super_id if super_id else None,
-                skip_baseline=skip_baseline.lower() == "true" if skip_baseline else False,
+                skip_baseline=(
+                    skip_baseline.lower() == "true" if skip_baseline else False
+                ),
             )
             return f"✅ Data capture triggered: {json.dumps(result)}"
 
@@ -279,6 +281,7 @@ async def trigger_full_property_analysis_tool(
 # ---------------------------------------------------------------------------
 # Direct API tools (commented out — use orchestrated tools above instead)
 # ---------------------------------------------------------------------------
+
 
 # @mcp.tool()
 # async def capture_property_data_tool(url, super_id, skip_baseline): ...
