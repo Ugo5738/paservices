@@ -54,6 +54,7 @@ from data_capture_service.services.field_registry import (
     get_missing_critical_fields,
 )
 from data_capture_service.services.validation_gate import validate_against_baseline
+from data_capture_service.utils.status_notifier import get_status_notifier
 from data_capture_service.utils.url_utils import extract_domain
 
 logger = logging.getLogger(__name__)
@@ -1112,10 +1113,44 @@ class DataCapturePipeline:
         if score:
             summary["completeness_score"] = score.overall
 
+        # Upload snapshot to S3 for data_location (matches floorplan_service pattern)
+        data_location: Optional[str] = None
+        notifier = get_status_notifier()
+        if notifier:
+            try:
+                snapshot = {
+                    "super_id": str(run.super_id),
+                    "context": "data_capture",
+                    "status": status_str,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "summary": summary,
+                    "data": {
+                        "final_result": final_result,
+                        "error": error_message,
+                    },
+                }
+                data_location = await notifier.upload_snapshot(
+                    super_id=run.super_id,
+                    context="data_capture",
+                    snapshot=snapshot,
+                )
+                logger.info(
+                    "Uploaded status snapshot to %s for super_id=%s",
+                    data_location,
+                    run.super_id,
+                )
+            except Exception as exc:
+                logger.error(
+                    "Failed to upload S3 snapshot for super_id=%s: %s",
+                    run.super_id,
+                    exc,
+                )
+
         payload = {
             "super_id": str(run.super_id),
             "status": status_str,
             "context": "data_capture",
+            "data_location": data_location,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "summary": summary,
             "final_result": final_result,
