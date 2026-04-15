@@ -205,6 +205,7 @@ class DataCapturePipeline:
             Tuple[ParsedDataCaptureResult, CompletenessScore, str]
         ] = None
         fallback_count = 0
+        adapter_errors: Dict[str, str] = {}
 
         for adapter_name in self._adapter_chain:
             adapter = self._adapters[adapter_name]
@@ -215,7 +216,7 @@ class DataCapturePipeline:
                 metadata={"db": db},
             )
 
-            result = await self._run_adapter(
+            result, error_reason = await self._run_adapter(
                 db=db,
                 run=run,
                 adapter=adapter,
@@ -228,6 +229,14 @@ class DataCapturePipeline:
 
             if result is None:
                 fallback_count += 1
+                if error_reason:
+                    adapter_errors[adapter_name] = error_reason
+                    logger.warning(
+                        "Adapter %s failed for %s: %s",
+                        adapter_name,
+                        url,
+                        error_reason,
+                    )
                 continue
 
             parsed, score, validation_passed = result
@@ -278,9 +287,15 @@ class DataCapturePipeline:
                     missing = parsed.missing_fields or []
                     # Build baseline-aware repair prompt
                     baseline_info = ""
-                    if baseline and hasattr(baseline, "field_presence") and baseline.field_presence:
+                    if (
+                        baseline
+                        and hasattr(baseline, "field_presence")
+                        and baseline.field_presence
+                    ):
                         baseline_present = [
-                            f for f, present in baseline.field_presence.items() if present
+                            f
+                            for f, present in baseline.field_presence.items()
+                            if present
                         ]
                         baseline_gaps = [f for f in baseline_present if f in missing]
                         if baseline_gaps:
@@ -311,7 +326,7 @@ class DataCapturePipeline:
                             prompt=repair_prompt,
                             metadata={"db": db},
                         )
-                        repair_result = await self._run_adapter(
+                        repair_result, _ = await self._run_adapter(
                             db=db,
                             run=run,
                             adapter=adapter,
@@ -407,17 +422,33 @@ class DataCapturePipeline:
                 with_warnings=True,
             )
         else:
+            # Build detailed error message from per-adapter failures
+            error_parts = [
+                f"{name}: {reason}" for name, reason in adapter_errors.items()
+            ]
+            detailed_error = (
+                "All adapters failed — " + "; ".join(error_parts)
+                if error_parts
+                else "All adapters failed"
+            )
+            logger.error(
+                "All adapters failed for %s (super_id=%s): %s",
+                url,
+                super_id,
+                detailed_error,
+            )
             await data_capture_run_crud.update_run_status(
                 db=db,
                 run_id=run.id,
                 status=DataCaptureRunStatus.FAILED,
-                error_message="All adapters failed",
+                error_message=detailed_error,
                 fallback_count=fallback_count,
             )
             await self._notify_callback(
                 run=run,
                 status_str="failed",
-                error_message="All adapters failed",
+                error_message=detailed_error,
+                adapter_errors=adapter_errors,
             )
 
         return run
@@ -540,7 +571,7 @@ class DataCapturePipeline:
             adapter_name=adapter_name,
             metadata={"db": db},
         )
-        result = await self._run_adapter(
+        result, error_reason = await self._run_adapter(
             db=db,
             run=run,
             adapter=adapter,
@@ -581,16 +612,22 @@ class DataCapturePipeline:
                 with_warnings=with_warnings,
             )
         else:
+            detailed_error = (
+                f"Adapter {adapter_name} failed: {error_reason}"
+                if error_reason
+                else f"Adapter {adapter_name} failed"
+            )
             await data_capture_run_crud.update_run_status(
                 db=db,
                 run_id=run.id,
                 status=DataCaptureRunStatus.FAILED,
-                error_message=f"Adapter {adapter_name} failed",
+                error_message=detailed_error,
             )
             await self._notify_callback(
                 run=run,
                 status_str="failed",
-                error_message=f"Adapter {adapter_name} failed",
+                error_message=detailed_error,
+                adapter_errors={adapter_name: error_reason} if error_reason else None,
             )
 
         return run
@@ -606,10 +643,16 @@ class DataCapturePipeline:
         step_order: int,
         is_retry: bool = False,
         retry_metadata: Optional[Dict[str, Any]] = None,
-    ) -> Optional[Tuple[ParsedDataCaptureResult, CompletenessScore, bool]]:
+    ) -> Tuple[
+        Optional[Tuple[ParsedDataCaptureResult, CompletenessScore, bool]],
+        Optional[str],
+    ]:
         """
         Run a single adapter through: fetch → parse → validate → score.
-        Returns (parsed, score, validation_passed) or None on failure.
+        Returns (result, error_reason) where result is
+        (parsed, score, validation_passed) on success, or None on failure.
+        error_reason is a human-readable string describing why the adapter failed,
+        or None on success.
 
         For retry attempts, is_retry=True and retry_metadata contains attempt info.
         """
@@ -643,6 +686,7 @@ class DataCapturePipeline:
             )
 
             if raw.status != AdapterStatus.SUCCESS:
+                reason = f"fetch_raw {raw.status.value}: {raw.error_message or 'unknown error'}"
                 await data_capture_step_crud.update_step(
                     db=db,
                     step_id=data_capture_step.id,
@@ -651,7 +695,7 @@ class DataCapturePipeline:
                     duration_ms=raw.duration_ms,
                     provider_run_id=raw.provider_run_id,
                 )
-                return None
+                return None, reason
 
             # Parse
             parsed = await adapter.parse(raw)
@@ -670,6 +714,7 @@ class DataCapturePipeline:
             )
 
             if parsed.status != AdapterStatus.SUCCESS:
+                reason = f"parse {parsed.status.value}: {parsed.error_message or 'unknown error'}"
                 await data_capture_step_crud.update_step(
                     db=db,
                     step_id=data_capture_step.id,
@@ -678,7 +723,7 @@ class DataCapturePipeline:
                     duration_ms=raw.duration_ms,
                     provider_run_id=raw.provider_run_id,
                 )
-                return None
+                return None, reason
 
             # Validate against baseline
             validation = validate_against_baseline(parsed, baseline)
@@ -718,7 +763,7 @@ class DataCapturePipeline:
                 super_id=run.super_id,
             )
 
-            return parsed, score, validation.passed
+            return (parsed, score, validation.passed), None
 
         except Exception as e:
             logger.error(f"Adapter {adapter_name} failed: {e}", exc_info=True)
@@ -728,7 +773,7 @@ class DataCapturePipeline:
                 status=StepStatus.FAILED,
                 error_message=str(e),
             )
-            return None
+            return None, f"exception: {e}"
 
     def _merge_parsed_results(
         self,
@@ -852,7 +897,7 @@ class DataCapturePipeline:
                 metadata={"db": db},
             )
 
-            retry_result = await self._run_adapter(
+            retry_result, _ = await self._run_adapter(
                 db=db,
                 run=run,
                 adapter=adapter,
@@ -1022,6 +1067,7 @@ class DataCapturePipeline:
         media_items: Optional[List[Dict[str, Any]]] = None,
         score: Optional[CompletenessScore] = None,
         error_message: Optional[str] = None,
+        adapter_errors: Optional[Dict[str, str]] = None,
     ) -> None:
         """POST callback notification when a run reaches a terminal state.
 
@@ -1073,7 +1119,14 @@ class DataCapturePipeline:
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "summary": summary,
             "final_result": final_result,
-            "error": {"message": error_message} if error_message else None,
+            "error": (
+                {
+                    "message": error_message,
+                    **({"adapter_errors": adapter_errors} if adapter_errors else {}),
+                }
+                if error_message
+                else None
+            ),
         }
 
         try:
