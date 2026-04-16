@@ -39,6 +39,7 @@ from data_capture_service.crud import (
     source_record_crud,
     usage_crud,
 )
+from data_capture_service.db import AsyncSessionLocal
 from data_capture_service.mappers.canonical_mapper import map_to_canonical
 from data_capture_service.models.data_capture_run import (
     DataCaptureRun,
@@ -196,6 +197,10 @@ class DataCapturePipeline:
                     status=StepStatus.FAILED,
                     error_message=str(e),
                 )
+
+        # Commit baseline work so the DB connection is released before
+        # the potentially long-running adapter chain.
+        await db.commit()
 
         # Step 3: Adapter chain
         await data_capture_run_crud.update_run_status(
@@ -657,7 +662,10 @@ class DataCapturePipeline:
 
         For retry attempts, is_retry=True and retry_metadata contains attempt info.
         """
-        # Create data_capture step
+        # Create data_capture step and flush to DB before the long-running
+        # adapter call.  This ensures the step record is persisted and the
+        # DB connection is released — otherwise Supabase/PgBouncer can kill
+        # idle connections during multi-minute Motie polls.
         data_capture_step = await data_capture_step_crud.create_step(
             db=db,
             run_id=run.id,
@@ -667,113 +675,150 @@ class DataCapturePipeline:
             provider_type=adapter_name,
             super_id=run.super_id,
         )
+        step_id = data_capture_step.id
+        await db.commit()
 
         try:
-            # Fetch raw
+            # Fetch raw — this is the long-running call (can take 30+ mins
+            # for Motie Flow A builds).  No DB session is held open.
             raw = await adapter.fetch_raw(request)
 
-            # Store raw record
-            raw_rec = await source_record_crud.store_raw_record(
-                db=db,
-                run_id=run.id,
-                step_id=data_capture_step.id,
-                adapter_name=adapter_name,
-                payload_json=raw.payload,
-                source_domain=run.target_domain,
-                http_status_code=raw.http_status_code,
-                http_meta_json=raw.http_meta,
-                content_hash=raw.content_hash,
-                super_id=run.super_id,
-            )
+            # Parse — also external, no DB needed
+            parsed = None
+            if raw.status == AdapterStatus.SUCCESS:
+                parsed = await adapter.parse(raw)
 
-            if raw.status != AdapterStatus.SUCCESS:
-                reason = f"fetch_raw {raw.status.value}: {raw.error_message or 'unknown error'}"
+        except Exception as e:
+            logger.error(
+                f"Adapter {adapter_name} failed during fetch/parse: {e}", exc_info=True
+            )
+            # Use a fresh session to record the failure
+            async with AsyncSessionLocal() as fresh_db:
+                try:
+                    await data_capture_step_crud.update_step(
+                        db=fresh_db,
+                        step_id=step_id,
+                        status=StepStatus.FAILED,
+                        error_message=str(e),
+                    )
+                    await fresh_db.commit()
+                except Exception as db_err:
+                    logger.error(f"Failed to record step failure: {db_err}")
+            return None, f"exception: {e}"
+
+        # --- All DB writes below use a fresh session ---
+        try:
+            async with AsyncSessionLocal() as fresh_db:
+                # Store raw record
+                raw_rec = await source_record_crud.store_raw_record(
+                    db=fresh_db,
+                    run_id=run.id,
+                    step_id=step_id,
+                    adapter_name=adapter_name,
+                    payload_json=raw.payload,
+                    source_domain=run.target_domain,
+                    http_status_code=raw.http_status_code,
+                    http_meta_json=raw.http_meta,
+                    content_hash=raw.content_hash,
+                    super_id=run.super_id,
+                )
+
+                if raw.status != AdapterStatus.SUCCESS:
+                    reason = f"fetch_raw {raw.status.value}: {raw.error_message or 'unknown error'}"
+                    await data_capture_step_crud.update_step(
+                        db=fresh_db,
+                        step_id=step_id,
+                        status=StepStatus.FAILED,
+                        error_message=raw.error_message,
+                        duration_ms=raw.duration_ms,
+                        provider_run_id=raw.provider_run_id,
+                    )
+                    await fresh_db.commit()
+                    return None, reason
+
+                # Store parsed record
+                await source_record_crud.store_parsed_record(
+                    db=fresh_db,
+                    run_id=run.id,
+                    step_id=step_id,
+                    raw_record_id=raw_rec.id,
+                    adapter_name=adapter_name,
+                    parsed_json=parsed.fields,
+                    field_presence_json=parsed.field_presence,
+                    missing_fields=parsed.missing_fields,
+                    super_id=run.super_id,
+                )
+
+                if parsed.status != AdapterStatus.SUCCESS:
+                    reason = f"parse {parsed.status.value}: {parsed.error_message or 'unknown error'}"
+                    await data_capture_step_crud.update_step(
+                        db=fresh_db,
+                        step_id=step_id,
+                        status=StepStatus.FAILED,
+                        error_message=parsed.error_message,
+                        duration_ms=raw.duration_ms,
+                        provider_run_id=raw.provider_run_id,
+                    )
+                    await fresh_db.commit()
+                    return None, reason
+
+                # Validate against baseline
+                validation = validate_against_baseline(parsed, baseline)
+
+                # Score
+                score = await adapter.score(parsed)
+
+                # Build step metadata
+                step_metadata: Dict[str, Any] = {
+                    "validation_passed": validation.passed,
+                    "validation_summary": validation.summary,
+                    "priority_scores": score.priority_scores,
+                }
+                if is_retry and retry_metadata:
+                    step_metadata["is_retry"] = True
+                    step_metadata.update(retry_metadata)
+
+                # Update step
                 await data_capture_step_crud.update_step(
-                    db=db,
-                    step_id=data_capture_step.id,
-                    status=StepStatus.FAILED,
-                    error_message=raw.error_message,
+                    db=fresh_db,
+                    step_id=step_id,
+                    status=StepStatus.COMPLETED,
+                    completeness_score=score.overall,
                     duration_ms=raw.duration_ms,
                     provider_run_id=raw.provider_run_id,
+                    metadata_json=step_metadata,
                 )
-                return None, reason
 
-            # Parse
-            parsed = await adapter.parse(raw)
-
-            # Store parsed record
-            await source_record_crud.store_parsed_record(
-                db=db,
-                run_id=run.id,
-                step_id=data_capture_step.id,
-                raw_record_id=raw_rec.id,
-                adapter_name=adapter_name,
-                parsed_json=parsed.fields,
-                field_presence_json=parsed.field_presence,
-                missing_fields=parsed.missing_fields,
-                super_id=run.super_id,
-            )
-
-            if parsed.status != AdapterStatus.SUCCESS:
-                reason = f"parse {parsed.status.value}: {parsed.error_message or 'unknown error'}"
-                await data_capture_step_crud.update_step(
-                    db=db,
-                    step_id=data_capture_step.id,
-                    status=StepStatus.FAILED,
-                    error_message=parsed.error_message,
-                    duration_ms=raw.duration_ms,
-                    provider_run_id=raw.provider_run_id,
+                # Record usage
+                await usage_crud.record_usage(
+                    db=fresh_db,
+                    run_id=run.id,
+                    step_id=step_id,
+                    adapter_name=adapter_name,
+                    operation="data_capture",
+                    request_count=1,
+                    super_id=run.super_id,
                 )
-                return None, reason
 
-            # Validate against baseline
-            validation = validate_against_baseline(parsed, baseline)
-
-            # Score
-            score = await adapter.score(parsed)
-
-            # Build step metadata
-            step_metadata: Dict[str, Any] = {
-                "validation_passed": validation.passed,
-                "validation_summary": validation.summary,
-                "priority_scores": score.priority_scores,
-            }
-            if is_retry and retry_metadata:
-                step_metadata["is_retry"] = True
-                step_metadata.update(retry_metadata)
-
-            # Update step
-            await data_capture_step_crud.update_step(
-                db=db,
-                step_id=data_capture_step.id,
-                status=StepStatus.COMPLETED,
-                completeness_score=score.overall,
-                duration_ms=raw.duration_ms,
-                provider_run_id=raw.provider_run_id,
-                metadata_json=step_metadata,
-            )
-
-            # Record usage
-            await usage_crud.record_usage(
-                db=db,
-                run_id=run.id,
-                step_id=data_capture_step.id,
-                adapter_name=adapter_name,
-                operation="data_capture",
-                request_count=1,
-                super_id=run.super_id,
-            )
+                await fresh_db.commit()
 
             return (parsed, score, validation.passed), None
 
         except Exception as e:
-            logger.error(f"Adapter {adapter_name} failed: {e}", exc_info=True)
-            await data_capture_step_crud.update_step(
-                db=db,
-                step_id=data_capture_step.id,
-                status=StepStatus.FAILED,
-                error_message=str(e),
+            logger.error(
+                f"Adapter {adapter_name} failed during DB storage: {e}", exc_info=True
             )
+            async with AsyncSessionLocal() as err_db:
+                try:
+                    await data_capture_step_crud.update_step(
+                        db=err_db,
+                        step_id=step_id,
+                        status=StepStatus.FAILED,
+                        error_message=str(e),
+                    )
+                    await err_db.commit()
+                except Exception as db_err:
+                    logger.error(f"Failed to record step failure: {db_err}")
             return None, f"exception: {e}"
 
     def _merge_parsed_results(
