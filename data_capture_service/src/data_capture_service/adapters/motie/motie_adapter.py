@@ -31,6 +31,7 @@ from data_capture_service.adapters.base import (
 )
 from data_capture_service.config import settings
 from data_capture_service.crud import motie_project_crud
+from data_capture_service.db import AsyncSessionLocal
 from data_capture_service.services.field_registry import (
     compute_completeness_score,
     compute_field_presence,
@@ -157,6 +158,56 @@ class MotieAdapter:
     def __init__(self, client: Optional[MotieClient] = None):
         self.client = client or motie_client
 
+    # --- DB helpers: use short-lived sessions to avoid stale connections ---
+
+    async def _db_get_project(self, domain: str):
+        """Look up a MotieScraperProject by domain using a fresh session."""
+        try:
+            async with AsyncSessionLocal() as db:
+                return await motie_project_crud.get_by_domain(db, domain)
+        except Exception as e:
+            logger.warning(f"Failed to look up Motie project for {domain}: {e}")
+            return None
+
+    async def _db_create_project(self, domain: str, motie_project_id: str, name: str):
+        """Create a MotieScraperProject using a fresh session."""
+        try:
+            async with AsyncSessionLocal() as db:
+                try:
+                    project = await motie_project_crud.create(
+                        db=db,
+                        domain=domain,
+                        motie_project_id=motie_project_id,
+                        motie_project_name=name,
+                    )
+                    await db.commit()
+                    return project
+                except IntegrityError:
+                    await db.rollback()
+                    project = await motie_project_crud.get_by_domain(db, domain)
+                    if project:
+                        logger.info(
+                            f"Concurrent create detected, reusing project "
+                            f"{project.motie_project_id} for {domain}"
+                        )
+                    return project
+        except Exception as e:
+            logger.warning(f"Failed to store Motie project for {domain}: {e}")
+            return None
+
+    async def _db_update_deployment(self, project, **kwargs):
+        """Update deployment info on a MotieScraperProject using a fresh session."""
+        if not project:
+            return
+        try:
+            async with AsyncSessionLocal() as db:
+                await motie_project_crud.update_deployment(
+                    db=db, project_id=project.id, **kwargs
+                )
+                await db.commit()
+        except Exception as e:
+            logger.warning(f"Failed to update deployment for project {project.id}: {e}")
+
     def build_retry_prompt(
         self,
         missing_fields: List[str],
@@ -227,24 +278,18 @@ class MotieAdapter:
         start_time = time.time()
         domain = _extract_domain(request.url)
 
-        # Get DB session from request metadata
-        db: Optional[AsyncSession] = None
-        if request.metadata:
-            db = request.metadata.get("db")
+        # Use fresh DB sessions for each DB operation to avoid stale
+        # connections during long-running Motie polls.  The pipeline's
+        # session may be idle for 30+ minutes, which PgBouncer/Supabase
+        # will kill.
+        db: Optional[AsyncSession] = None  # kept for signature compat; unused
 
         # --- Retry with custom prompt: invoke new session on existing project ---
         if request.prompt:
             return await self._handle_retry(request, db, domain, start_time)
 
         # --- Look up existing project (Flow D routing) ---
-        project = None
-        if db:
-            try:
-                project = await motie_project_crud.get_by_domain(db, domain)
-            except Exception as e:
-                logger.warning(
-                    f"Failed to look up Motie project for domain {domain}: {e}"
-                )
+        project = await self._db_get_project(domain)
 
         # --- Flow B: Call deployed endpoint (known domain) ---
         if (
@@ -422,24 +467,11 @@ class MotieAdapter:
             logger.info(f"Created Motie project {motie_project_id} for {domain}")
 
             # Store in DB
-            if db:
-                try:
-                    project = await motie_project_crud.create(
-                        db=db,
-                        domain=domain,
-                        motie_project_id=motie_project_id,
-                        motie_project_name=project_name,
-                    )
-                except IntegrityError:
-                    # Concurrent request already created it — re-read
-                    await db.rollback()
-                    project = await motie_project_crud.get_by_domain(db, domain)
-                    if project:
-                        motie_project_id = project.motie_project_id
-                        logger.info(
-                            f"Concurrent create detected, reusing project "
-                            f"{motie_project_id} for {domain}"
-                        )
+            project = await self._db_create_project(
+                domain, motie_project_id, project_name
+            )
+            if project:
+                motie_project_id = project.motie_project_id
 
         # Steps 2–8: Invoke, deploy, discover, call
         return await self._invoke_deploy_call(
@@ -484,12 +516,7 @@ class MotieAdapter:
         )
 
         # Mark deployment as needing repair in DB
-        if db and project:
-            await motie_project_crud.update_deployment(
-                db=db,
-                project_id=project.id,
-                deployment_status="repairing",
-            )
+        await self._db_update_deployment(project, deployment_status="repairing")
 
         # Build repair prompt — give the agent context about what went wrong
         repair_prompt = (
@@ -555,25 +582,16 @@ class MotieAdapter:
         logger.info(f"{flow_label}: agent session completed: {session_id}")
 
         # Update DB with session ID
-        if db and project:
-            await motie_project_crud.update_deployment(
-                db=db,
-                project_id=project.id,
-                last_session_id=session_id,
-            )
+        await self._db_update_deployment(project, last_session_id=session_id)
 
         # Step 3: Deploy the project
         deploy_resp = await self.client.deploy(motie_project_id)
         deployment_id = deploy_resp.deployment_id
         logger.info(f"{flow_label}: deployment started: {deployment_id}")
 
-        if db and project:
-            await motie_project_crud.update_deployment(
-                db=db,
-                project_id=project.id,
-                deployment_id=deployment_id,
-                deployment_status="deploying",
-            )
+        await self._db_update_deployment(
+            project, deployment_id=deployment_id, deployment_status="deploying"
+        )
 
         # Step 4: Poll deployment until deployed
         deployment = await poll_deployment(self.client, deployment_id)
@@ -612,15 +630,13 @@ class MotieAdapter:
             )
 
         # Step 6: Update DB with deployment info
-        if db and project:
-            await motie_project_crud.update_deployment(
-                db=db,
-                project_id=project.id,
-                api_url=api_url,
-                route_path=route_path,
-                deployment_id=deployment_id,
-                deployment_status="deployed",
-            )
+        await self._db_update_deployment(
+            project,
+            api_url=api_url,
+            route_path=route_path,
+            deployment_id=deployment_id,
+            deployment_status="deployed",
+        )
 
         # Step 7: Call the deployed endpoint
         data = await self.client.call_deployed_endpoint(
@@ -669,13 +685,8 @@ class MotieAdapter:
         logger.info(f"Retry: invoking new session for {domain} with custom prompt")
 
         # Find existing project
-        project = None
+        project = await self._db_get_project(domain)
         motie_project_id = None
-        if db:
-            try:
-                project = await motie_project_crud.get_by_domain(db, domain)
-            except Exception:
-                pass
 
         if project:
             motie_project_id = project.motie_project_id
