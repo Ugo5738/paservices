@@ -12,8 +12,12 @@ from fastapi.responses import JSONResponse
 
 from .config import settings
 from .routers.adapter_router import router as adapter_router
-from .routers.health_router import router as health_router
+from .routers.ai_fetchers_router import router as ai_fetchers_router
+from .routers.build_flags_router import router as build_flags_router
 from .routers.data_capture_router import router as data_capture_router
+from .routers.fetcher_builds_router import router as fetcher_builds_router
+from .routers.fetchers_router import router as fetchers_router
+from .routers.health_router import router as health_router
 from .utils.logging_config import LoggingMiddleware, logger, setup_logging
 from .utils.rate_limiting import setup_rate_limiting
 
@@ -31,9 +35,15 @@ async def lifespan(app: FastAPI):
     app.state.startup_time = time.time()
 
     # Log adapter and provider status
-    logger.info(f"Firecrawl baseline provider: {'enabled' if settings.firecrawl_enabled() else 'disabled'}")
-    logger.info(f"Motie adapter: {'enabled' if settings.motie_enabled() else 'disabled'}")
-    logger.info(f"Validation gate: {'enabled' if settings.VALIDATION_GATE_ENABLED else 'disabled'}")
+    logger.info(
+        f"Firecrawl baseline provider: {'enabled' if settings.firecrawl_enabled() else 'disabled'}"
+    )
+    logger.info(
+        f"Motie adapter: {'enabled' if settings.motie_enabled() else 'disabled'}"
+    )
+    logger.info(
+        f"Validation gate: {'enabled' if settings.VALIDATION_GATE_ENABLED else 'disabled'}"
+    )
     logger.info(
         f"Completeness thresholds: accept={settings.COMPLETENESS_ACCEPT_THRESHOLD}, "
         f"fallback={settings.COMPLETENESS_FALLBACK_THRESHOLD}"
@@ -86,6 +96,12 @@ setup_rate_limiting(app)
 app.include_router(health_router, tags=["Health"])
 app.include_router(data_capture_router, tags=["DataCapture"])
 app.include_router(adapter_router, tags=["Adapters"])
+
+# V2 primitive endpoints (n8n-driven orchestration)
+app.include_router(fetchers_router)
+app.include_router(ai_fetchers_router)
+app.include_router(fetcher_builds_router)
+app.include_router(build_flags_router)
 
 
 # --- Exception Handlers ---
