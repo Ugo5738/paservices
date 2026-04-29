@@ -99,6 +99,7 @@ async def run_fetcher_endpoint(
         db=db,
         fetcher=fetcher,
         listing_url=request.url,
+        super_id=str(request.super_id) if request.super_id else None,
         extra_params=request.extra_params,
         timeout=request.timeout,
     )

@@ -47,6 +47,12 @@ class FetcherLookupResponse(BaseModel):
 class FetcherRunRequest(BaseModel):
     fetcher_id: UUID
     url: str
+    super_id: Optional[UUID] = Field(
+        default=None,
+        description="Required for source_type='proxy' fetchers (paservices internal "
+        "services expect a fresh super_id per call). Ignored for source_type='motie' "
+        "since deployed Motie endpoints do not understand the concept.",
+    )
     extra_params: Optional[Dict[str, Any]] = None
     timeout: float = Field(default=60.0, gt=0)
 

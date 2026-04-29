@@ -95,10 +95,17 @@ async def run_fetcher(
     db: AsyncSession,
     fetcher: Fetcher,
     listing_url: str,
+    super_id: Optional[str] = None,
     extra_params: Optional[Dict[str, Any]] = None,
     timeout: float = 60.0,
 ) -> FetcherRunResult:
-    """Invoke a single fetcher against a URL. Returns the outcome verbatim."""
+    """Invoke a single fetcher against a URL. Returns the outcome verbatim.
+
+    super_id is auto-injected into the body for source_type='proxy' fetchers
+    (paservices internal services require it). Skipped for source_type='motie'
+    since deployed Motie endpoints don't understand it. extra_params can still
+    override or supplement either path.
+    """
     start = time.time()
     api_url = await fetcher_crud.resolve_api_url(db, fetcher)
     if not api_url:
@@ -116,7 +123,16 @@ async def run_fetcher(
 
     target = f"{api_url.rstrip('/')}{fetcher.route_path}"
     method = (fetcher.http_method or "GET").upper()
-    params = _inject_url(fetcher.param_schema or {}, listing_url, extra_params)
+
+    # Auto-inject super_id for paservices proxy targets. extra_params still wins
+    # if the caller explicitly sets a different super_id.
+    merged_extra: Dict[str, Any] = {}
+    if fetcher.source_type == "proxy" and super_id:
+        merged_extra["super_id"] = super_id
+    if extra_params:
+        merged_extra.update(extra_params)
+
+    params = _inject_url(fetcher.param_schema or {}, listing_url, merged_extra)
 
     if fetcher.source_type == "motie":
         headers = await _build_motie_headers()
