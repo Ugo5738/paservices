@@ -3,13 +3,19 @@ Motie agent prompt templates for build and repair sessions.
 
 Centralizing the prompts here keeps them out of router code and makes them easy
 to iterate on without touching control flow.
+
+The wording mirrors the V1 DEFAULT_MOTIE_PROMPT in
+data_capture_service.adapters.motie.motie_adapter — that prompt has historically
+produced working FastAPI scrapers (e.g. the deployed purplebricks scraper). We
+deliberately do not say "FastAPI scraper" in the opening line because the V1
+"Build a scraper" wording is what's been working in production.
 """
 
 from typing import Any, Dict, Optional
 
-# Default field list — the schema we want every coded property fetcher to extract.
-# Mirrors the Motie adapter's DEFAULT_MOTIE_PROMPT for parity with the existing
-# adapter's expectations.
+# Default field list — matches V1's DEFAULT_MOTIE_PROMPT. Field names use the
+# user-facing labels Motie's agent will see; CANONICAL_TO_PROMPT_KEY in the
+# motie_adapter does the reverse mapping for repair prompts.
 PROPERTY_FIELDS = (
     "Address (Road name), Floorplan(s) Images URL(s), Image(s) URL(s) (ALL, High Res), "
     "Source URL, Price, Address (Town), Bedrooms (number), Estate Agent Name, "
@@ -29,17 +35,17 @@ def build_initial_prompt(
     extra_context: Optional[str] = None,
 ) -> str:
     """
-    Prompt for an initial build (Flow A — first scraper for this domain).
-
-    benchmark_fields, when supplied, are AI-fetcher (e.g. Firecrawl) results
-    that show what data the page actually contains — gives the agent a
-    concrete extraction target.
+    Prompt for an initial build. Matches V1's DEFAULT_MOTIE_PROMPT body verbatim
+    so we ride the same agent behaviour that produced today's working scrapers,
+    with the target URL prepended so the agent has a concrete page to reason
+    against. benchmark_fields, when supplied, are AI-fetcher (e.g. Firecrawl)
+    results that confirm specific fields exist on this URL.
     """
     sections = [
         f"Target URL: {url}",
         "",
-        "Build a FastAPI scraper for this property listing website. "
-        "The scraper should accept a `listing_url` query parameter and extract "
+        "Build a scraper for this property listing website. "
+        "The scraper should accept a listing_url query parameter and extract "
         "all property details from the page at that URL.",
         "",
         "Extract these fields and return them as a JSON object. "
@@ -72,23 +78,27 @@ def build_repair_prompt(
     extra_context: Optional[str] = None,
 ) -> str:
     """
-    Prompt for a repair session on an existing project (Flow E — fix broken scraper).
+    Prompt for a repair session on an existing project.
 
-    Emphasizes that the agent has access to the prior code in the project and
-    should fix it rather than rewrite from scratch.
+    Emphasises that the agent has access to the prior code in the project and
+    should fix it rather than rewrite from scratch. Matches V1's repair-prompt
+    style (same field list, plain listing_url query param, no FastAPI mention).
     """
     sections = [
-        f"The deployed scraper for this domain is failing.",
+        "The deployed scraper for this property listing website is failing or "
+        "returning errors.",
         "",
         f"Failing URL: {url}",
         f"Error: {failing_error}",
         "",
-        "Please review the existing scraper code in this project, identify what's "
-        "broken, and fix it so this URL extracts cleanly.",
+        "Please review the existing scraper code in this project, identify what "
+        "is broken, and fix it so this URL extracts cleanly.",
         "",
-        "The scraper should accept a `listing_url` query parameter and extract "
-        "all property details from the page. Return a JSON object with these fields "
-        "(null where not present):",
+        "The scraper should accept a listing_url query parameter and extract "
+        "all property details from the page at that URL.",
+        "",
+        "Extract these fields and return them as a JSON object. If a detail "
+        "isn't present on the page, put null as the value:",
         "",
         PROPERTY_FIELDS,
     ]
