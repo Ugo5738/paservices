@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.adapters.motie.motie_parser import parse_motie_result
+from data_capture_service.config import settings
 from data_capture_service.crud import fetcher_crud
 from data_capture_service.db import get_db
 from data_capture_service.schemas.v2_schemas import (
@@ -157,9 +158,11 @@ async def validate_fetched_data(
     missing = [f for f, p in presence.items() if not p]
     missing_critical = get_missing_critical_fields(presence)
 
-    # Pass condition: every Priority 0 field is present.
-    p0_present = score.priority_scores.get(0, 0.0)
-    passed = p0_present >= 0.999
+    # Pass condition: weighted completeness score >= ACCEPT_THRESHOLD (default 0.85).
+    # Mirrors the legacy data_capture_pipeline accept logic. Tier weights live in
+    # services.field_registry.PRIORITY_WEIGHTS (P0=1.0, P1=0.8, ..., P5=0.1) so a
+    # missing low-priority field doesn't automatically fail validation.
+    passed = score.overall >= settings.COMPLETENESS_ACCEPT_THRESHOLD
 
     return FetcherValidateResponse(
         passed=passed,
