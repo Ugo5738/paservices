@@ -51,18 +51,28 @@ async def run_ai_fetcher(
     parent_run_id: Optional[UUID] = Query(
         default=None,
         description="Group this attempt with siblings under a parent for "
-        "multishot loops (e.g. WF B). Omit for single-shot.",
+        "multishot loops (e.g. WF B). Omit on the first attempt; subsequent "
+        "attempts pass the first attempt's run_id here.",
     ),
     attempt_number: int = Query(default=1, ge=1),
+    loop_start: bool = Query(
+        default=False,
+        description="Set true on the FIRST attempt of a multishot loop so the "
+        "row persists as 'draft' (returnable for later promote-winner) instead "
+        "of 'final'. Subsequent attempts use parent_run_id instead.",
+    ),
     db: AsyncSession = Depends(get_db),
 ):
     """
     Run an AI fetcher adapter against a URL.
 
-    Single-shot: no looping, no retries — the parent (e.g. WF B) drives multishot.
-    Always writes a fetcher_runs row. status='draft' if parent_run_id is set
-    (so the parent can promote a winner via /ai-fetchers/promote-winner).
-    Otherwise status='final'.
+    Single-shot (no parent_run_id, loop_start=false): row is persisted as 'final'.
+    Multishot first attempt (loop_start=true): row is persisted as 'draft'; its
+    run_id becomes the group identifier subsequent attempts pass as parent_run_id.
+    Multishot child attempt (parent_run_id set): row is persisted as 'draft'.
+
+    The parent (e.g. WF B) ends the loop by calling /ai-fetchers/promote-winner
+    with parent_run_id and the chosen winner_run_id.
     """
     try:
         ai_row, impl = await ai_fetcher_registry.load_by_name(db, adapter)
@@ -74,6 +84,7 @@ async def run_ai_fetcher(
 
     super_id_str = str(request.super_id) if request.super_id else None
     domain = extract_domain(request.url)
+    in_loop = parent_run_id is not None or loop_start
 
     try:
         raw = await impl.fetch_raw(
@@ -91,29 +102,32 @@ async def run_ai_fetcher(
         )
     except Exception as e:
         logger.error(f"AI fetcher {adapter} fetch_raw exception: {e}", exc_info=True)
-        run = await fetcher_audit.record_loop_attempt(
-            db,
-            kind=FetcherRunKind.AI.value,
-            vendor=adapter,
-            url=request.url,
-            domain=domain,
-            parent_run_id=parent_run_id,
-            attempt_number=attempt_number,
-            super_id=request.super_id,
-            ai_fetcher_id=ai_row.id,
-            error_message=str(e),
-            succeeded=False,
-        ) if parent_run_id is not None else await fetcher_audit.record_single_shot_run(
-            db,
-            kind=FetcherRunKind.AI.value,
-            vendor=adapter,
-            url=request.url,
-            domain=domain,
-            super_id=request.super_id,
-            ai_fetcher_id=ai_row.id,
-            error_message=str(e),
-            succeeded=False,
-        )
+        if in_loop:
+            run = await fetcher_audit.record_loop_attempt(
+                db,
+                kind=FetcherRunKind.AI.value,
+                vendor=adapter,
+                url=request.url,
+                domain=domain,
+                parent_run_id=parent_run_id,
+                attempt_number=attempt_number,
+                super_id=request.super_id,
+                ai_fetcher_id=ai_row.id,
+                error_message=str(e),
+                succeeded=False,
+            )
+        else:
+            run = await fetcher_audit.record_single_shot_run(
+                db,
+                kind=FetcherRunKind.AI.value,
+                vendor=adapter,
+                url=request.url,
+                domain=domain,
+                super_id=request.super_id,
+                ai_fetcher_id=ai_row.id,
+                error_message=str(e),
+                succeeded=False,
+            )
         await db.commit()
         return AIFetcherRunResponse(
             adapter=adapter,
@@ -147,7 +161,7 @@ async def run_ai_fetcher(
         succeeded=succeeded,
     )
 
-    if parent_run_id is not None:
+    if in_loop:
         run = await fetcher_audit.record_loop_attempt(
             db,
             parent_run_id=parent_run_id,

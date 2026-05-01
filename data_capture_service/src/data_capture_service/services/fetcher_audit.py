@@ -108,6 +108,10 @@ async def record_loop_attempt(
     Status defaults to 'draft' on success (so a winner can later be promoted)
     and 'failed' otherwise. Use promote_winner_in_group to flip the chosen
     attempt to 'final' and supersede the rest.
+
+    When `parent_run_id` is None this is the first attempt in a group; its
+    own `id` becomes the group identifier that subsequent attempts pass as
+    parent_run_id and that promote_winner_in_group uses to find siblings.
     """
     status = FetcherRunStatus.DRAFT.value if succeeded else FetcherRunStatus.FAILED.value
     return await fetcher_run_crud.record(

@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.models.fetcher_run import (
@@ -115,12 +115,20 @@ async def mark_superseded_in_group(
 ) -> int:
     """
     Mark every draft in the group as superseded EXCEPT exclude_id (the winner).
+
+    The "group" is identified by parent_run_id. WF B's first-attempt row has
+    parent_run_id IS NULL but its own id is what later attempts use as
+    parent_run_id, so to catch it we also match rows where id = parent_run_id.
+
     Returns the number of rows updated.
     """
     result = await db.execute(
         update(FetcherRun)
         .where(
-            FetcherRun.parent_run_id == parent_run_id,
+            or_(
+                FetcherRun.parent_run_id == parent_run_id,
+                FetcherRun.id == parent_run_id,
+            ),
             FetcherRun.id != exclude_id,
             FetcherRun.status == FetcherRunStatus.DRAFT.value,
         )
