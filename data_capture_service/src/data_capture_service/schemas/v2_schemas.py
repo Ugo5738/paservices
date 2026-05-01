@@ -66,6 +66,10 @@ class FetcherRunResponse(BaseModel):
     error_message: Optional[str] = None
     duration_ms: int = 0
     is_metered: bool = False
+    run_id: Optional[UUID] = Field(
+        default=None,
+        description="fetcher_runs row written for this attempt.",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -135,6 +139,29 @@ class AIFetcherRunResponse(BaseModel):
     completeness_score: Optional[float] = None
     duration_ms: Optional[int] = None
     error_message: Optional[str] = None
+    # V2 audit-trail handles for the parent (e.g. WF B) to promote/supersede.
+    run_id: Optional[UUID] = Field(
+        default=None,
+        description="fetcher_runs row written for this attempt.",
+    )
+    parent_run_id: Optional[UUID] = Field(
+        default=None,
+        description="parent_run_id grouping multishot iterations for promotion.",
+    )
+    attempt_number: int = 1
+
+
+class AIFetcherPromoteRequest(BaseModel):
+    """Promote one draft attempt to final and supersede the rest in its group."""
+
+    parent_run_id: UUID
+    winner_run_id: UUID
+
+
+class AIFetcherPromoteResponse(BaseModel):
+    parent_run_id: UUID
+    winner_run_id: UUID
+    superseded_count: int
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -223,6 +250,128 @@ class MotiePublishResponse(BaseModel):
     project_uuid: UUID
     motie_project_id: str
     api_url: str
+    fetchers: List[MotiePublishedFetcher]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V2 Motie build orchestrator (encapsulated session+deploy)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class MotieBuildStartRequest(BaseModel):
+    url: str
+    domain: Optional[str] = None
+    prompt_kind: str = Field(
+        default="build",
+        description="'build' (initial) or 'repair'.",
+    )
+    failing_error: Optional[str] = None
+    benchmark_fields: Optional[Dict[str, Any]] = None
+    missing_fields: Optional[List[str]] = None
+    missing_critical_fields: Optional[List[str]] = None
+    extra_prompt_context: Optional[str] = None
+    parent_build_id: Optional[UUID] = Field(
+        default=None,
+        description="Set by W3 for repair iterations to chain builds.",
+    )
+
+
+class MotieBuildStartResponse(BaseModel):
+    build_id: UUID
+    project_uuid: UUID
+    motie_project_id: str
+    domain: str
+    url: str
+    state: str
+    session_id: Optional[str] = None
+    attempt_number: int
+    parent_build_id: Optional[UUID] = None
+    created_new_project: bool = False
+
+
+class MotieBuildStatusResponse(BaseModel):
+    build_id: UUID
+    project_uuid: UUID
+    motie_project_id: str
+    domain: str
+    url: str
+    state: str  # session_running | deploying | deployed | session_failed | deployment_failed
+    session_id: Optional[str] = None
+    deployment_id: Optional[str] = None
+    api_url: Optional[str] = None
+    attempt_number: int
+    parent_build_id: Optional[UUID] = None
+    benchmark_score: Optional[float] = None
+    error_message: Optional[str] = None
+    is_terminal: bool
+
+
+class MotieBuildScoreRequest(BaseModel):
+    build_id: UUID
+    super_id: Optional[UUID] = Field(
+        default=None,
+        description="Caller-minted super_id used for the AI-fetcher benchmark call.",
+    )
+
+
+class MotieBuildScoreResponse(BaseModel):
+    build_id: UUID
+    candidate_score: float
+    baseline_score: float
+    relative_score: float
+    threshold: float
+    passed: bool
+    missing_fields: List[str] = Field(default_factory=list)
+    missing_critical_fields: List[str] = Field(default_factory=list)
+    extra_in_candidate: List[str] = Field(default_factory=list)
+    matched_fields: List[str] = Field(default_factory=list)
+    candidate_priority_scores: Dict[int, float] = Field(default_factory=dict)
+    baseline_priority_scores: Dict[int, float] = Field(default_factory=dict)
+    baseline_run_id: Optional[UUID] = None
+    candidate_run_id: Optional[UUID] = None
+    baseline_fields: Optional[Dict[str, Any]] = None
+
+
+class MotieArtefactRoute(BaseModel):
+    route_path: str
+    http_method: str
+    param_schema: Dict[str, Any]
+    summary: Optional[str] = None
+
+
+class MotieBuildArtefactResponse(BaseModel):
+    """Output of /motie/publish — the artefact for WF C to register."""
+
+    build_id: UUID
+    project_uuid: UUID
+    motie_project_id: str
+    domain: str
+    api_url: str
+    routes: List[MotieArtefactRoute]
+    benchmark_score: Optional[float] = None
+    is_metered: bool = False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /fetchers/register (WF C inserts the registry row from the artefact)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class FetcherRegisterRequest(BaseModel):
+    """
+    Insert (or update) a registry row from a build artefact. WF C calls this
+    after WF3 publishes a Motie deployment and produces the artefact.
+    """
+
+    domain: str
+    motie_project_uuid: UUID
+    routes: List[MotieArtefactRoute]
+    is_metered: bool = False
+    build_score: Optional[float] = None
+    metadata_json: Optional[Dict[str, Any]] = None
+
+
+class FetcherRegisterResponse(BaseModel):
     fetchers: List[MotiePublishedFetcher]
 
 

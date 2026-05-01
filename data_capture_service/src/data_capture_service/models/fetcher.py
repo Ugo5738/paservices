@@ -15,6 +15,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     String,
@@ -61,6 +62,12 @@ class Fetcher(Base):
         String(32), nullable=False, default="active"
     )  # 'active' | 'disabled'
     metadata_json = Column(JSONB, nullable=True)
+    # Build-time score (set when WF C registers a freshly-built fetcher).
+    # Compares the new coded fetcher's output against the AI-fetcher baseline;
+    # later runs can use it as a drift reference. NULL for proxy fetchers and
+    # for legacy rows seeded before the score column existed.
+    build_score = Column(Float, nullable=True)
+    build_scored_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

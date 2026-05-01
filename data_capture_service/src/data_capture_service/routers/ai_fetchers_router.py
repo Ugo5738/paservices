@@ -1,41 +1,41 @@
 """
 V2 primitive endpoints for AI fetchers.
 
-POST /ai-fetchers/{adapter}/run — invoke a registered AI fetcher adapter
+POST /ai-fetchers/{adapter}/run     — invoke a registered AI fetcher adapter
+POST /ai-fetchers/promote-winner    — flip one draft attempt to final, supersede the rest
 
-The adapter slot is pluggable: 'firecrawl' is the only registered adapter today.
-Adding a new AI fetcher (BrightData, Gemini, etc.) is a new entry in
-_AI_ADAPTERS plus the adapter implementation behind DataCaptureAdapter Protocol.
+Adapter selection is DB-driven via ai_fetcher_registry — adding a new vendor
+(BrightData, Gemini, ChatGPT, ...) is one INSERT into data_capture.ai_fetchers,
+no router code change. There is no `if name == "firecrawl"` branch anywhere.
+
+Every call writes a `data_capture.fetcher_runs` row so WF B's multishot loop
+has visible interim attempts (rule 5: interim vs final state).
 """
 
 import logging
-from typing import Dict
+from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from data_capture_service.adapters.base import DataCaptureAdapter, DataCaptureRequest
-from data_capture_service.adapters.firecrawl import firecrawl_adapter
-from data_capture_service.config import settings
+from data_capture_service.adapters.base import DataCaptureRequest
+from data_capture_service.db import get_db
+from data_capture_service.models.fetcher_run import FetcherRunKind, FetcherRunStatus
 from data_capture_service.schemas.v2_schemas import (
+    AIFetcherPromoteRequest,
+    AIFetcherPromoteResponse,
     AIFetcherRunRequest,
     AIFetcherRunResponse,
 )
+from data_capture_service.services import (
+    ai_fetcher_registry,
+    fetcher_audit,
+)
 from data_capture_service.utils.security import validate_token
+from data_capture_service.utils.url_utils import extract_domain
 
 logger = logging.getLogger(__name__)
-
-# Registered AI fetcher adapters. Keys are the {adapter} slug used in URLs.
-_AI_ADAPTERS: Dict[str, DataCaptureAdapter] = {
-    "firecrawl": firecrawl_adapter,
-}
-
-
-def _adapter_enabled(name: str) -> bool:
-    if name == "firecrawl":
-        return settings.firecrawl_enabled()
-    # Future adapters carry their own enable flag.
-    return True
-
 
 router = APIRouter(
     prefix="/ai-fetchers",
@@ -45,25 +45,35 @@ router = APIRouter(
 
 
 @router.post("/{adapter}/run", response_model=AIFetcherRunResponse)
-async def run_ai_fetcher(adapter: str, request: AIFetcherRunRequest):
+async def run_ai_fetcher(
+    adapter: str,
+    request: AIFetcherRunRequest,
+    parent_run_id: Optional[UUID] = Query(
+        default=None,
+        description="Group this attempt with siblings under a parent for "
+        "multishot loops (e.g. WF B). Omit for single-shot.",
+    ),
+    attempt_number: int = Query(default=1, ge=1),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Run an AI fetcher adapter against a URL.
 
     Single-shot: no looping, no retries — the parent (e.g. WF B) drives multishot.
-    No fail branch in the contract: the response always carries whatever was
-    captured. Score and presence are returned so the parent can decide what to
-    do next.
+    Always writes a fetcher_runs row. status='draft' if parent_run_id is set
+    (so the parent can promote a winner via /ai-fetchers/promote-winner).
+    Otherwise status='final'.
     """
-    if adapter not in _AI_ADAPTERS:
-        raise HTTPException(
-            404,
-            f"AI fetcher '{adapter}' not registered. Available: {list(_AI_ADAPTERS)}",
-        )
-    if not _adapter_enabled(adapter):
-        raise HTTPException(503, f"AI fetcher '{adapter}' is disabled")
+    try:
+        ai_row, impl = await ai_fetcher_registry.load_by_name(db, adapter)
+    except ai_fetcher_registry.AIFetcherNotRegistered as e:
+        available = await ai_fetcher_registry.list_enabled_names(db)
+        raise HTTPException(404, f"{e}. Enabled: {available}")
+    except ai_fetcher_registry.AIFetcherDisabled as e:
+        raise HTTPException(503, str(e))
 
-    impl = _AI_ADAPTERS[adapter]
     super_id_str = str(request.super_id) if request.super_id else None
+    domain = extract_domain(request.url)
 
     try:
         raw = await impl.fetch_raw(
@@ -81,17 +91,73 @@ async def run_ai_fetcher(adapter: str, request: AIFetcherRunRequest):
         )
     except Exception as e:
         logger.error(f"AI fetcher {adapter} fetch_raw exception: {e}", exc_info=True)
+        run = await fetcher_audit.record_loop_attempt(
+            db,
+            kind=FetcherRunKind.AI.value,
+            vendor=adapter,
+            url=request.url,
+            domain=domain,
+            parent_run_id=parent_run_id,
+            attempt_number=attempt_number,
+            super_id=request.super_id,
+            ai_fetcher_id=ai_row.id,
+            error_message=str(e),
+            succeeded=False,
+        ) if parent_run_id is not None else await fetcher_audit.record_single_shot_run(
+            db,
+            kind=FetcherRunKind.AI.value,
+            vendor=adapter,
+            url=request.url,
+            domain=domain,
+            super_id=request.super_id,
+            ai_fetcher_id=ai_row.id,
+            error_message=str(e),
+            succeeded=False,
+        )
+        await db.commit()
         return AIFetcherRunResponse(
             adapter=adapter,
             url=request.url,
             status="failed",
             error_message=str(e),
+            run_id=run.id,
+            parent_run_id=parent_run_id,
+            attempt_number=attempt_number,
         )
 
     parsed = await impl.parse(raw)
     score = await impl.score(parsed)
-
     status_str = raw.status.value if hasattr(raw.status, "value") else str(raw.status)
+    succeeded = status_str == "success"
+
+    run_kwargs = dict(
+        kind=FetcherRunKind.AI.value,
+        vendor=adapter,
+        url=request.url,
+        domain=domain,
+        super_id=request.super_id,
+        ai_fetcher_id=ai_row.id,
+        completeness_score=score.overall,
+        payload_json=raw.payload,
+        fields_json=parsed.fields,
+        field_presence_json=parsed.field_presence,
+        missing_fields_json=parsed.missing_fields,
+        error_message=raw.error_message or parsed.error_message,
+        duration_ms=raw.duration_ms,
+        succeeded=succeeded,
+    )
+
+    if parent_run_id is not None:
+        run = await fetcher_audit.record_loop_attempt(
+            db,
+            parent_run_id=parent_run_id,
+            attempt_number=attempt_number,
+            **run_kwargs,
+        )
+    else:
+        run = await fetcher_audit.record_single_shot_run(db, **run_kwargs)
+
+    await db.commit()
 
     return AIFetcherRunResponse(
         adapter=adapter,
@@ -104,4 +170,30 @@ async def run_ai_fetcher(adapter: str, request: AIFetcherRunRequest):
         completeness_score=score.overall,
         duration_ms=raw.duration_ms,
         error_message=raw.error_message or parsed.error_message,
+        run_id=run.id,
+        parent_run_id=parent_run_id,
+        attempt_number=attempt_number,
+    )
+
+
+@router.post("/promote-winner", response_model=AIFetcherPromoteResponse)
+async def promote_winner(
+    request: AIFetcherPromoteRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Promote one draft attempt to 'final' and mark its sibling drafts as
+    'superseded'. Used by WF B at the end of its multishot loop to record
+    which attempt became the canonical AI-fetcher result for the URL.
+    """
+    superseded = await fetcher_audit.promote_winner_in_group(
+        db,
+        parent_run_id=request.parent_run_id,
+        winner_run_id=request.winner_run_id,
+    )
+    await db.commit()
+    return AIFetcherPromoteResponse(
+        parent_run_id=request.parent_run_id,
+        winner_run_id=request.winner_run_id,
+        superseded_count=superseded,
     )

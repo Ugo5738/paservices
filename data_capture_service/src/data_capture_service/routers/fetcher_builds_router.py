@@ -1,14 +1,19 @@
 """
-V2 primitive endpoints for Motie-based coded fetcher builds.
+V2 Fetcher Build endpoints (Motie).
 
-POST /fetcher-builds/motie/build              — create project (if needed) + invoke session
-GET  /fetcher-builds/motie/session/{id}       — poll session status
-POST /fetcher-builds/motie/deploy             — deploy the project
-GET  /fetcher-builds/motie/deployment/{id}    — poll deployment status
-POST /fetcher-builds/motie/publish            — write deployed routes into fetchers registry
-GET  /fetcher-builds/motie/projects/{uuid}    — current project state + Motie agent status
+n8n only sees an encapsulated build state machine. Motie's 4-step protocol
+(invoke → poll session → deploy → poll deployment) is hidden inside the
+data-capture service.
 
-n8n drives the polling loops; the service exposes single-shot calls only.
+POST /fetcher-builds/motie/build/start         — kick off invoke (or repair); creates motie_builds row
+GET  /fetcher-builds/motie/build/{id}/status   — advance state machine + return current state
+POST /fetcher-builds/motie/build/{id}/score    — run AI fetcher + deployed scraper, score, save
+POST /fetcher-builds/motie/build/{id}/publish  — return the registry artefact (NO DB write)
+GET  /fetcher-builds/motie/projects/{uuid}     — current project state + Motie agent status
+
+The legacy single-step endpoints (/build, /session, /deploy, /deployment, /publish)
+remain on the same router for now to avoid breaking the V1 deployed n8n while WF3
+is migrated; they are flagged as deprecated.
 """
 
 import logging
@@ -16,17 +21,34 @@ from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from data_capture_service.adapters.base import DataCaptureRequest
 from data_capture_service.adapters.motie.motie_client import motie_client
 from data_capture_service.config import settings
-from data_capture_service.crud import fetcher_crud, motie_project_crud
+from data_capture_service.crud import (
+    ai_fetcher_crud,
+    fetcher_crud,
+    motie_build_crud,
+    motie_project_crud,
+)
 from data_capture_service.db import get_db
+from data_capture_service.models.fetcher_run import FetcherRunKind
+from data_capture_service.models.motie_build import (
+    MotieBuildPromptKind,
+    MotieBuildState,
+)
 from data_capture_service.models.motie_scraper_project import MotieScraperProject
 from data_capture_service.schemas.v2_schemas import (
+    MotieArtefactRoute,
+    MotieBuildArtefactResponse,
     MotieBuildRequest,
     MotieBuildResponse,
+    MotieBuildScoreRequest,
+    MotieBuildScoreResponse,
+    MotieBuildStartRequest,
+    MotieBuildStartResponse,
+    MotieBuildStatusResponse,
     MotieDeploymentStatusResponse,
     MotieDeployRequest,
     MotieDeployResponse,
@@ -36,10 +58,17 @@ from data_capture_service.schemas.v2_schemas import (
     MotiePublishResponse,
     MotieSessionStatusResponse,
 )
+from data_capture_service.services import (
+    ai_fetcher_registry,
+    fetcher_audit,
+    motie_build_orchestrator,
+    scoring,
+)
 from data_capture_service.services.motie_prompts import (
     build_initial_prompt,
     build_repair_prompt,
 )
+from data_capture_service.services.thresholds import BUILD_PUBLISH_THRESHOLD
 from data_capture_service.utils.security import validate_token
 from data_capture_service.utils.url_utils import extract_domain
 
@@ -63,18 +92,40 @@ def _project_name_for(domain: str) -> str:
     return f"data-capture-{domain}"
 
 
-@router.post("/build", response_model=MotieBuildResponse, status_code=202)
-async def build_or_repair(
-    request: MotieBuildRequest,
+def _build_status_response(build) -> MotieBuildStatusResponse:
+    return MotieBuildStatusResponse(
+        build_id=build.id,
+        project_uuid=build.project_uuid,
+        motie_project_id="",  # filled below
+        domain=build.domain,
+        url=build.url,
+        state=build.state,
+        session_id=build.session_id,
+        deployment_id=build.deployment_id,
+        api_url=build.api_url,
+        attempt_number=build.attempt_number,
+        parent_build_id=build.parent_build_id,
+        benchmark_score=build.benchmark_score,
+        error_message=build.error_message,
+        is_terminal=build.is_terminal(),
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# V2 encapsulated build (state machine inside the service)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post("/build/start", response_model=MotieBuildStartResponse, status_code=202)
+async def start_build(
+    request: MotieBuildStartRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Create a Motie project for the URL's domain (if none exists yet) and invoke
-    an agent session. Returns project + session id immediately — caller polls
-    /fetcher-builds/motie/session/{id} until terminal.
+    Kick off a Motie build (initial or repair).
 
-    `prompt_kind='build'`  → initial build prompt (uses benchmark_fields if given)
-    `prompt_kind='repair'` → repair prompt referencing failing_error
+    Encapsulates rule 7 — the caller polls /build/{id}/status to advance the
+    state machine instead of orchestrating Motie's session+deployment APIs.
     """
     _ensure_motie_enabled()
 
@@ -82,57 +133,394 @@ async def build_or_repair(
     if not domain:
         raise HTTPException(400, "Could not derive domain from url")
 
-    # 1) Ensure we have a Motie project for this domain.
-    project = await motie_project_crud.get_by_domain(db, domain)
-    created_new = False
+    if request.prompt_kind not in (
+        MotieBuildPromptKind.BUILD.value,
+        MotieBuildPromptKind.REPAIR.value,
+    ):
+        raise HTTPException(
+            400, f"prompt_kind must be 'build' or 'repair', got '{request.prompt_kind}'"
+        )
 
-    if not project:
-        # Create on Motie first, then mirror in our DB.
-        project_name = _project_name_for(domain)
-        try:
-            create_resp = await motie_client.create_project(
-                name=project_name,
-                description=f"Property data capture scraper for {domain}",
-            )
-        except Exception as e:
-            logger.error(f"Motie create_project failed: {e}", exc_info=True)
-            raise HTTPException(502, f"Motie create_project failed: {e}")
+    project, created_new = await motie_build_orchestrator.ensure_project_for_domain(
+        db, domain
+    )
 
-        try:
-            project = await motie_project_crud.create(
-                db=db,
-                domain=domain,
-                motie_project_id=create_resp.id,
-                motie_project_name=project_name,
+    if not created_new:
+        busy, agent_status, active_session_id = await motie_build_orchestrator.project_is_busy(
+            project
+        )
+        if busy:
+            raise HTTPException(
+                409,
+                f"Motie project {project.motie_project_id} is busy "
+                f"(agent_status={agent_status}, active_session={active_session_id}). "
+                "Try again later.",
             )
-            await db.commit()
-            created_new = True
-        except IntegrityError:
-            await db.rollback()
-            project = await motie_project_crud.get_by_domain(db, domain)
-            if not project:
-                raise HTTPException(
-                    500, f"Race creating MotieScraperProject for {domain}"
-                )
+
+    # Build the prompt — diff-aware for repairs so the score actually moves.
+    if request.prompt_kind == MotieBuildPromptKind.REPAIR.value:
+        if not request.failing_error:
+            raise HTTPException(
+                400, "failing_error is required for prompt_kind='repair'"
+            )
+        prompt = build_repair_prompt(
+            url=request.url,
+            failing_error=request.failing_error,
+            missing_fields=request.missing_fields,
+            missing_critical_fields=request.missing_critical_fields,
+            benchmark_fields=request.benchmark_fields,
+            extra_context=request.extra_prompt_context,
+        )
     else:
-        # Active project exists — guard against Motie's one-session-per-project lock.
+        prompt = build_initial_prompt(
+            url=request.url,
+            benchmark_fields=request.benchmark_fields,
+            extra_context=request.extra_prompt_context,
+        )
+
+    try:
+        build = await motie_build_orchestrator.start_build(
+            db,
+            project=project,
+            domain=domain,
+            url=request.url,
+            prompt=prompt,
+            prompt_kind=request.prompt_kind,
+            parent_build_id=request.parent_build_id,
+            metadata_json={"created_new_project": created_new},
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Motie build start failed: {e}", exc_info=True)
+        raise HTTPException(502, f"Motie build start failed: {e}")
+
+    await db.commit()
+
+    return MotieBuildStartResponse(
+        build_id=build.id,
+        project_uuid=project.id,
+        motie_project_id=project.motie_project_id,
+        domain=domain,
+        url=request.url,
+        state=build.state,
+        session_id=build.session_id,
+        attempt_number=build.attempt_number,
+        parent_build_id=build.parent_build_id,
+        created_new_project=created_new,
+    )
+
+
+@router.get("/build/{build_id}/status", response_model=MotieBuildStatusResponse)
+async def get_build_status(
+    build_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Advance the state machine by one Motie poll and return current state.
+    Idempotent — calling on a terminal build returns immediately.
+    """
+    _ensure_motie_enabled()
+    build = await motie_build_crud.get_by_id(db, build_id)
+    if not build:
+        raise HTTPException(404, f"motie_build {build_id} not found")
+
+    if not build.is_terminal():
+        build = await motie_build_orchestrator.advance(db, build)
+        await db.commit()
+        # Refresh after commit so any state-machine writes are reflected.
+        build = await motie_build_crud.get_by_id(db, build_id)
+
+    project = await db.get(MotieScraperProject, build.project_uuid)
+    motie_project_id = project.motie_project_id if project else ""
+
+    resp = _build_status_response(build)
+    resp.motie_project_id = motie_project_id
+    return resp
+
+
+@router.post("/build/{build_id}/score", response_model=MotieBuildScoreResponse)
+async def score_build(
+    build_id: UUID,
+    request: MotieBuildScoreRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Run the default-baseline AI fetcher AND the freshly-deployed Motie
+    scraper against the build's URL, then score Motie's output against the
+    baseline.
+
+    This is the W3 internal scoring step — vendor-agnostic via
+    ai_fetcher_registry. The baseline is whatever AI fetcher row has
+    is_default_baseline=true (today: Firecrawl). Score gets written to the
+    motie_builds row for the repair-loop decision.
+    """
+    if request.build_id != build_id:
+        raise HTTPException(400, "build_id in path and body must match")
+
+    build = await motie_build_crud.get_by_id(db, build_id)
+    if not build:
+        raise HTTPException(404, f"motie_build {build_id} not found")
+    if build.state != MotieBuildState.DEPLOYED.value:
+        raise HTTPException(
+            409,
+            f"motie_build {build_id} is in state '{build.state}'; can only score "
+            "after state='deployed'.",
+        )
+    if not build.api_url:
+        raise HTTPException(
+            500, f"motie_build {build_id} is deployed but has no api_url"
+        )
+
+    # 1. Run the default-baseline AI fetcher to capture the ground-truth fields
+    #    on the same URL. Persisted as a build_benchmark fetcher_runs row.
+    try:
+        ai_row, ai_adapter = await ai_fetcher_registry.load_default_baseline(db)
+    except ai_fetcher_registry.AIFetcherNotRegistered as e:
+        raise HTTPException(503, str(e))
+
+    super_id_str = str(request.super_id) if request.super_id else None
+    baseline_raw = await ai_adapter.fetch_raw(
+        DataCaptureRequest(
+            url=build.url,
+            super_id=super_id_str,
+            adapter_name=ai_row.name,
+        )
+    )
+    baseline_parsed = await ai_adapter.parse(baseline_raw)
+    baseline_score_obj = await ai_adapter.score(baseline_parsed)
+    baseline_status = (
+        baseline_raw.status.value
+        if hasattr(baseline_raw.status, "value")
+        else str(baseline_raw.status)
+    )
+
+    baseline_run = await fetcher_audit.record_single_shot_run(
+        db,
+        kind=FetcherRunKind.BUILD_BENCHMARK.value,
+        vendor=ai_row.name,
+        url=build.url,
+        domain=build.domain,
+        super_id=request.super_id,
+        ai_fetcher_id=ai_row.id,
+        motie_build_id=build.id,
+        completeness_score=baseline_score_obj.overall,
+        payload_json=baseline_raw.payload,
+        fields_json=baseline_parsed.fields,
+        field_presence_json=baseline_parsed.field_presence,
+        missing_fields_json=baseline_parsed.missing_fields,
+        succeeded=baseline_status == "success",
+        error_message=baseline_raw.error_message or baseline_parsed.error_message,
+        duration_ms=baseline_raw.duration_ms,
+        metadata_json={"role": "build_benchmark"},
+    )
+
+    # 2. Call the deployed Motie scraper on the same URL.
+    candidate_payload: Dict[str, Any] = {}
+    candidate_error: str | None = None
+    try:
+        # Discover the route from the OpenAPI spec — avoids hardcoding.
+        spec = await motie_client.get_openapi_spec(build.api_url)
+        first_route = next(iter(_routes_from_openapi(spec)), None)
+        if first_route is None:
+            raise RuntimeError(
+                f"No callable routes in OpenAPI spec at {build.api_url}"
+            )
+        candidate_payload = await motie_client.call_deployed_endpoint(
+            api_url=build.api_url,
+            route_path=first_route["path"],
+            listing_url=build.url,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Motie scoring run failed: {e}", exc_info=True)
+        candidate_error = str(e)
+
+    # 3. Parse Motie payload via the registry (same parser /fetchers/validate uses).
+    from data_capture_service.services import parser_registry
+
+    motie_parser = parser_registry.get("motie")
+    if motie_parser is None:
+        raise HTTPException(500, "motie parser missing from parser_registry")
+
+    if candidate_payload:
         try:
-            current = await motie_client.get_project(project.motie_project_id)
-            if current.agent_status and current.agent_status != "idle":
-                raise HTTPException(
-                    409,
-                    f"Motie project {project.motie_project_id} is busy "
-                    f"(agent_status={current.agent_status}, "
-                    f"active_session={current.active_session_id}). Try again later.",
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.warning(
-                f"Could not fetch Motie project status for {project.motie_project_id}: {e}"
+            candidate_fields, image_urls, floorplan_urls = motie_parser(
+                candidate_payload, build.url
+            )
+            if image_urls and "image_urls" not in candidate_fields:
+                candidate_fields["image_urls"] = image_urls
+            if floorplan_urls and "floorplan_urls" not in candidate_fields:
+                candidate_fields["floorplan_urls"] = floorplan_urls
+        except Exception as e:  # noqa: BLE001
+            candidate_fields = {}
+            candidate_error = (candidate_error or "") + f" parse_failed: {e}"
+    else:
+        candidate_fields = {}
+
+    # 4. Score candidate vs baseline (vendor-agnostic — no Motie/Firecrawl
+    #    references in scoring.py).
+    result = scoring.score_against_baseline(
+        candidate_fields=candidate_fields,
+        baseline_fields=baseline_parsed.fields or {},
+    )
+
+    candidate_run = await fetcher_audit.record_single_shot_run(
+        db,
+        kind=FetcherRunKind.BUILD_BENCHMARK.value,
+        vendor="motie",
+        url=build.url,
+        domain=build.domain,
+        super_id=request.super_id,
+        motie_build_id=build.id,
+        completeness_score=result.candidate_score,
+        payload_json=candidate_payload or None,
+        fields_json=candidate_fields or None,
+        succeeded=bool(candidate_fields) and candidate_error is None,
+        error_message=candidate_error,
+        metadata_json={"role": "build_candidate"},
+    )
+
+    diff_payload = {
+        "missing_in_candidate": result.diff.missing_in_candidate,
+        "extra_in_candidate": result.diff.extra_in_candidate,
+        "matched": result.diff.matched,
+        "missing_critical_in_candidate": result.missing_critical_in_candidate,
+    }
+    await motie_build_crud.update_state(
+        db,
+        build_id,
+        benchmark_score=result.candidate_score,
+        benchmark_diff_json=diff_payload,
+    )
+    await db.commit()
+
+    passed = result.candidate_score >= BUILD_PUBLISH_THRESHOLD
+
+    return MotieBuildScoreResponse(
+        build_id=build_id,
+        candidate_score=result.candidate_score,
+        baseline_score=result.baseline_score,
+        relative_score=result.relative_score,
+        threshold=BUILD_PUBLISH_THRESHOLD,
+        passed=passed,
+        missing_fields=result.diff.missing_in_candidate,
+        missing_critical_fields=result.missing_critical_in_candidate,
+        extra_in_candidate=result.diff.extra_in_candidate,
+        matched_fields=result.diff.matched,
+        candidate_priority_scores=result.candidate_priority_scores,
+        baseline_priority_scores=result.baseline_priority_scores,
+        baseline_run_id=baseline_run.id,
+        candidate_run_id=candidate_run.id,
+        baseline_fields=baseline_parsed.fields,
+    )
+
+
+@router.post("/build/{build_id}/publish", response_model=MotieBuildArtefactResponse)
+async def publish_build_artefact(
+    build_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Return the registry artefact for a deployed build — does NOT write the
+    fetchers row.
+
+    Per Rolf's clarification: W3 publishes the Fetcher *on Motie* (which is
+    the deploy step, completed before this endpoint is reachable). Adding the
+    Fetcher to OUR Db is a separate parent-workflow concern (WF C calls
+    /fetchers/register with the artefact this endpoint returns).
+    """
+    build = await motie_build_crud.get_by_id(db, build_id)
+    if not build:
+        raise HTTPException(404, f"motie_build {build_id} not found")
+    if build.state != MotieBuildState.DEPLOYED.value or not build.api_url:
+        raise HTTPException(
+            409,
+            f"motie_build {build_id} is in state '{build.state}'; "
+            "can only publish after state='deployed' with an api_url.",
+        )
+
+    project = await db.get(MotieScraperProject, build.project_uuid)
+    if project is None:
+        raise HTTPException(
+            404, f"MotieScraperProject {build.project_uuid} not found"
+        )
+
+    try:
+        spec = await motie_client.get_openapi_spec(build.api_url)
+    except Exception as e:  # noqa: BLE001
+        logger.error(f"Failed to fetch OpenAPI spec from {build.api_url}: {e}")
+        raise HTTPException(502, f"Failed to fetch OpenAPI spec: {e}")
+
+    routes_raw = _routes_from_openapi(spec)
+    if not routes_raw:
+        raise HTTPException(
+            422,
+            f"No callable routes in OpenAPI spec at {build.api_url}",
+        )
+
+    routes = [
+        MotieArtefactRoute(
+            route_path=r["path"],
+            http_method=r["method"],
+            param_schema=r["param_schema"],
+            summary=r.get("summary"),
+        )
+        for r in routes_raw
+    ]
+
+    return MotieBuildArtefactResponse(
+        build_id=build.id,
+        project_uuid=project.id,
+        motie_project_id=project.motie_project_id,
+        domain=build.domain,
+        api_url=build.api_url,
+        routes=routes,
+        benchmark_score=build.benchmark_score,
+        is_metered=False,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Legacy single-step endpoints (still wired so the V1 deployed n8n keeps
+# working until WF3 is migrated to the encapsulated /build/start flow above).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/build",
+    response_model=MotieBuildResponse,
+    status_code=202,
+    deprecated=True,
+)
+async def build_or_repair_legacy(
+    request: MotieBuildRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    DEPRECATED: prefer POST /fetcher-builds/motie/build/start which returns a
+    `build_id` and encapsulates session+deploy in a single status endpoint.
+
+    Kept for the existing WF3 JSON until that workflow is migrated.
+    """
+    _ensure_motie_enabled()
+
+    domain = (request.domain or extract_domain(request.url)).lower()
+    if not domain:
+        raise HTTPException(400, "Could not derive domain from url")
+
+    project, created_new = await motie_build_orchestrator.ensure_project_for_domain(
+        db, domain
+    )
+
+    if not created_new:
+        busy, agent_status, active_session_id = await motie_build_orchestrator.project_is_busy(
+            project
+        )
+        if busy:
+            raise HTTPException(
+                409,
+                f"Motie project {project.motie_project_id} is busy "
+                f"(agent_status={agent_status}, active_session={active_session_id}).",
             )
 
-    # 2) Build the prompt.
     if request.prompt_kind == "repair":
         if not request.failing_error:
             raise HTTPException(
@@ -155,7 +543,6 @@ async def build_or_repair(
             400, f"prompt_kind must be 'build' or 'repair', got '{request.prompt_kind}'"
         )
 
-    # 3) Invoke the agent session.
     try:
         invoke = await motie_client.invoke(
             project_id=project.motie_project_id, prompt=prompt
@@ -178,8 +565,9 @@ async def build_or_repair(
     )
 
 
-@router.get("/session/{session_id}", response_model=MotieSessionStatusResponse)
+@router.get("/session/{session_id}", response_model=MotieSessionStatusResponse, deprecated=True)
 async def get_session_status(session_id: str):
+    """DEPRECATED: prefer GET /fetcher-builds/motie/build/{id}/status."""
     _ensure_motie_enabled()
     try:
         s = await motie_client.get_session(session_id)
@@ -196,11 +584,12 @@ async def get_session_status(session_id: str):
     )
 
 
-@router.post("/deploy", response_model=MotieDeployResponse, status_code=202)
-async def deploy_project(
+@router.post("/deploy", response_model=MotieDeployResponse, status_code=202, deprecated=True)
+async def deploy_project_legacy(
     request: MotieDeployRequest,
     db: AsyncSession = Depends(get_db),
 ):
+    """DEPRECATED: encapsulated by GET /fetcher-builds/motie/build/{id}/status."""
     _ensure_motie_enabled()
 
     project = await db.get(MotieScraperProject, request.project_uuid)
@@ -232,11 +621,12 @@ async def deploy_project(
     )
 
 
-@router.get("/deployment/{deployment_id}", response_model=MotieDeploymentStatusResponse)
-async def get_deployment_status(
+@router.get("/deployment/{deployment_id}", response_model=MotieDeploymentStatusResponse, deprecated=True)
+async def get_deployment_status_legacy(
     deployment_id: str,
     db: AsyncSession = Depends(get_db),
 ):
+    """DEPRECATED: encapsulated by GET /fetcher-builds/motie/build/{id}/status."""
     _ensure_motie_enabled()
     try:
         d = await motie_client.get_deployment(deployment_id)
@@ -244,7 +634,6 @@ async def get_deployment_status(
         logger.error(f"Motie get_deployment failed: {e}", exc_info=True)
         raise HTTPException(502, f"Motie get_deployment failed: {e}")
 
-    # When the deployment reports 'deployed' with an api_url, sync our project row.
     if d.status and d.status.lower() == "deployed" and d.api_url and d.project_id:
         project = await motie_project_crud.get_by_project_id(db, d.project_id)
         if project:
@@ -268,53 +657,18 @@ async def get_deployment_status(
     )
 
 
-def _routes_from_openapi(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Extract (route_path, http_method, url_param_info) from an OpenAPI spec."""
-    found: List[Dict[str, Any]] = []
-    paths = spec.get("paths", {}) or {}
-    for path, methods in paths.items():
-        if not isinstance(methods, dict):
-            continue
-        for method_name, op in methods.items():
-            if method_name.lower() not in ("get", "post"):
-                continue
-            if not isinstance(op, dict):
-                continue
-            url_param: Dict[str, Any] = {
-                "url_param": "listing_url",
-                "url_location": "query",
-            }
-            # Inspect parameters list for a url-shaped query/body param.
-            params = op.get("parameters") or []
-            for p in params:
-                pname = (p.get("name") or "").lower()
-                if pname in ("listing_url", "url", "property_url", "page_url"):
-                    url_param = {
-                        "url_param": p.get("name"),
-                        "url_location": (p.get("in") or "query").lower(),
-                    }
-                    break
-            found.append(
-                {
-                    "path": path,
-                    "method": method_name.upper(),
-                    "param_schema": url_param,
-                    "summary": op.get("summary"),
-                }
-            )
-    return found
-
-
-@router.post("/publish", response_model=MotiePublishResponse)
-async def publish_project_routes(
+@router.post("/publish", response_model=MotiePublishResponse, deprecated=True)
+async def publish_project_routes_legacy(
     request: MotiePublishRequest,
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Read the deployed project's OpenAPI spec and register every callable route
-    in the fetchers table so /fetchers/lookup picks them up.
+    DEPRECATED: V2 splits this into:
+      - POST /fetcher-builds/motie/build/{id}/publish  — return artefact (no DB write)
+      - POST /fetchers/register                        — WF C inserts the registry row
 
-    No Motie API call — this is a pure registry write step.
+    This legacy endpoint still writes the row directly so the existing WF3
+    keeps working. Remove once WF3 is migrated to the encapsulated flow.
     """
     project = await db.get(MotieScraperProject, request.project_uuid)
     if not project:
@@ -322,7 +676,9 @@ async def publish_project_routes(
             404, f"MotieScraperProject {request.project_uuid} not found"
         )
     if not project.api_url:
-        raise HTTPException(409, f"Project {project.id} has no api_url — deploy first")
+        raise HTTPException(
+            409, f"Project {project.id} has no api_url — deploy first"
+        )
 
     domain = (request.domain or project.domain).lower()
 
@@ -368,6 +724,42 @@ async def publish_project_routes(
         api_url=project.api_url,
         fetchers=published,
     )
+
+
+def _routes_from_openapi(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Extract (route_path, http_method, url_param_info) from an OpenAPI spec."""
+    found: List[Dict[str, Any]] = []
+    paths = spec.get("paths", {}) or {}
+    for path, methods in paths.items():
+        if not isinstance(methods, dict):
+            continue
+        for method_name, op in methods.items():
+            if method_name.lower() not in ("get", "post"):
+                continue
+            if not isinstance(op, dict):
+                continue
+            url_param: Dict[str, Any] = {
+                "url_param": "listing_url",
+                "url_location": "query",
+            }
+            params = op.get("parameters") or []
+            for p in params:
+                pname = (p.get("name") or "").lower()
+                if pname in ("listing_url", "url", "property_url", "page_url"):
+                    url_param = {
+                        "url_param": p.get("name"),
+                        "url_location": (p.get("in") or "query").lower(),
+                    }
+                    break
+            found.append(
+                {
+                    "path": path,
+                    "method": method_name.upper(),
+                    "param_schema": url_param,
+                    "summary": op.get("summary"),
+                }
+            )
+    return found
 
 
 @router.get("/projects/{project_uuid}", response_model=MotieProjectStatusResponse)

@@ -1,14 +1,14 @@
 """
-Validation Gate — compares adapter output against Firecrawl baseline.
+Validation Gate — V1 presence-check used by data_capture_pipeline.
+
+NOTE: This is the V1 pipeline's gate (presence check on P0 fields). V2
+primitives use services.thresholds (VALIDATE_PASS_THRESHOLD) directly via
+/fetchers/validate. This module is kept while V1 endpoints are still wired
+in main.py; remove after V1 cutover.
 
 Current implementation: PRESENCE-CHECK ONLY.
 Checks Priority 0 fields (images, price, address) that the baseline
 detected as present and verifies the adapter also found them.
-
-Future enhancements (documented, not implemented):
-- Field-by-field diff (compare actual values, not just presence)
-- Content similarity scoring (fuzzy match address strings, etc.)
-- Image URL resolution validation (check if high-res URLs actually resolve)
 """
 
 import logging

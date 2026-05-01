@@ -74,6 +74,7 @@ def build_repair_prompt(
     url: str,
     failing_error: str,
     missing_fields: Optional[Any] = None,
+    missing_critical_fields: Optional[Any] = None,
     benchmark_fields: Optional[Dict[str, Any]] = None,
     extra_context: Optional[str] = None,
 ) -> str:
@@ -83,6 +84,10 @@ def build_repair_prompt(
     Emphasises that the agent has access to the prior code in the project and
     should fix it rather than rewrite from scratch. Matches V1's repair-prompt
     style (same field list, plain listing_url query param, no FastAPI mention).
+
+    `missing_critical_fields` (P0 + P1) gets called out *before* the long
+    list, because that's the diff that actually moves the score for the
+    next build attempt.
     """
     sections = [
         "The deployed scraper for this property listing website is failing or "
@@ -96,12 +101,25 @@ def build_repair_prompt(
         "",
         "The scraper should accept a listing_url query parameter and extract "
         "all property details from the page at that URL.",
-        "",
-        "Extract these fields and return them as a JSON object. If a detail "
-        "isn't present on the page, put null as the value:",
-        "",
-        PROPERTY_FIELDS,
     ]
+
+    if missing_critical_fields:
+        sections.append("")
+        sections.append(
+            "PRIORITY: the previous build did NOT capture these essential "
+            f"fields, which the AI fetcher confirmed ARE on this page: "
+            f"{list(missing_critical_fields)}. Fix extraction for these first."
+        )
+
+    sections.extend(
+        [
+            "",
+            "Extract these fields and return them as a JSON object. If a detail "
+            "isn't present on the page, put null as the value:",
+            "",
+            PROPERTY_FIELDS,
+        ]
+    )
 
     if missing_fields:
         sections.append("")
