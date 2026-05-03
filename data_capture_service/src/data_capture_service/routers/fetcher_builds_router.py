@@ -17,7 +17,7 @@ is migrated; they are flagged as deprecated.
 """
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -726,8 +726,30 @@ async def publish_project_routes_legacy(
     )
 
 
+_URL_PARAM_NAMES = frozenset(
+    {
+        "listing_url",
+        "url",
+        "property_url",
+        "page_url",
+        "target_url",
+    }
+)
+
+
 def _routes_from_openapi(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Extract (route_path, http_method, url_param_info) from an OpenAPI spec."""
+    """
+    Extract registerable (route_path, http_method, url_param_info) tuples.
+
+    Only routes that declare a URL-shaped parameter (in query, path, or
+    requestBody) are returned. This filters out FastAPI meta routes like
+    /health, /openapi.json, /docs, /redoc, and any future Motie-built
+    endpoints that don't take a property URL — they have no place in the
+    fetcher registry.
+
+    Recognised URL parameter names (case-insensitive): listing_url, url,
+    property_url, page_url, target_url.
+    """
     found: List[Dict[str, Any]] = []
     paths = spec.get("paths", {}) or {}
     for path, methods in paths.items():
@@ -738,24 +760,47 @@ def _routes_from_openapi(spec: Dict[str, Any]) -> List[Dict[str, Any]]:
                 continue
             if not isinstance(op, dict):
                 continue
-            url_param: Dict[str, Any] = {
-                "url_param": "listing_url",
-                "url_location": "query",
-            }
-            params = op.get("parameters") or []
-            for p in params:
+
+            url_param_info: Optional[Dict[str, Any]] = None
+
+            # 1. parameters[] — query / path / header
+            for p in op.get("parameters") or []:
                 pname = (p.get("name") or "").lower()
-                if pname in ("listing_url", "url", "property_url", "page_url"):
-                    url_param = {
+                if pname in _URL_PARAM_NAMES:
+                    url_param_info = {
                         "url_param": p.get("name"),
                         "url_location": (p.get("in") or "query").lower(),
                     }
                     break
+
+            # 2. requestBody schema properties — body
+            if url_param_info is None:
+                req_body = op.get("requestBody") or {}
+                content = req_body.get("content") or {}
+                for ct_obj in content.values():
+                    if not isinstance(ct_obj, dict):
+                        continue
+                    schema = ct_obj.get("schema") or {}
+                    props = schema.get("properties") or {}
+                    for prop_name in props.keys():
+                        if prop_name.lower() in _URL_PARAM_NAMES:
+                            url_param_info = {
+                                "url_param": prop_name,
+                                "url_location": "body",
+                            }
+                            break
+                    if url_param_info is not None:
+                        break
+
+            if url_param_info is None:
+                # Route doesn't accept a property URL — skip it.
+                continue
+
             found.append(
                 {
                     "path": path,
                     "method": method_name.upper(),
-                    "param_schema": url_param,
+                    "param_schema": url_param_info,
                     "summary": op.get("summary"),
                 }
             )
