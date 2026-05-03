@@ -42,47 +42,135 @@ from data_capture_service.models.motie_scraper_project import MotieScraperProjec
 logger = logging.getLogger(__name__)
 
 
-def _project_name_for(domain: str) -> str:
-    """Mirrors the convention used in the V1 fetcher_builds_router."""
-    return f"data-capture-{domain}"
-
-
-async def ensure_project_for_domain(
-    db: AsyncSession, domain: str
-) -> tuple[MotieScraperProject, bool]:
+class MotieProjectBusy(Exception):
     """
-    Fetch the MotieScraperProject for a domain, creating it on Motie + locally
-    if missing. Returns (project, created_new).
+    Raised by ensure_project_for_domain when the active project for a
+    domain is busy on Motie's side and spawn_new_on_busy=False.
 
-    Honours rule 8 (one project per domain) — the unique constraint on
-    motie_scraper_projects.domain enforces this at the DB layer; we just
-    surface the racy create_new=False path here.
+    The router translates this to HTTP 409. Carries enough detail for
+    callers (and the Respond Busy node in WF3) to surface a useful error.
     """
-    project = await motie_project_crud.get_by_domain(db, domain)
-    if project is not None:
-        return project, False
 
-    project_name = _project_name_for(domain)
+    def __init__(
+        self,
+        project: "MotieScraperProject",
+        agent_status: Optional[str],
+        active_session_id: Optional[str],
+    ) -> None:
+        self.project = project
+        self.agent_status = agent_status
+        self.active_session_id = active_session_id
+        super().__init__(
+            f"Motie project {project.motie_project_id} for {project.domain} is "
+            f"busy (agent_status={agent_status}, "
+            f"active_session={active_session_id})."
+        )
+
+
+def _project_name_for(domain: str, suffix: Optional[str] = None) -> str:
+    """
+    Generate a human-readable Motie project name for a domain.
+
+    Multiple Motie projects can exist for the same domain over time
+    (orchestrator spawns a fresh one when an existing project's session
+    is locked); we differentiate them with a UTC-timestamp suffix on the
+    second-and-later invocations so the Motie dashboard stays readable.
+    """
+    base = f"data-capture-{domain}"
+    if suffix is None:
+        return base
+    return f"{base}-{suffix}"
+
+
+def _timestamp_suffix() -> str:
+    """Compact UTC timestamp suitable for project name suffix."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+async def _create_new_project(
+    db: AsyncSession, domain: str, *, with_suffix: bool
+) -> MotieScraperProject:
+    """Create a fresh Motie project on their side and mirror in our DB."""
+    project_name = _project_name_for(
+        domain, suffix=_timestamp_suffix() if with_suffix else None
+    )
     create_resp = await motie_client.create_project(
         name=project_name,
         description=f"Property data capture scraper for {domain}",
     )
+    project = await motie_project_crud.create(
+        db=db,
+        domain=domain,
+        motie_project_id=create_resp.id,
+        motie_project_name=project_name,
+    )
+    await db.flush()
+    logger.info(
+        f"Created new Motie project for {domain}: name={project_name}, "
+        f"motie_project_id={create_resp.id}"
+    )
+    return project
 
-    try:
-        project = await motie_project_crud.create(
-            db=db,
-            domain=domain,
-            motie_project_id=create_resp.id,
-            motie_project_name=project_name,
-        )
-        await db.flush()
-        return project, True
-    except IntegrityError:
-        await db.rollback()
-        existing = await motie_project_crud.get_by_domain(db, domain)
-        if existing is None:
-            raise
-        return existing, False
+
+async def ensure_project_for_domain(
+    db: AsyncSession,
+    domain: str,
+    *,
+    spawn_new_on_busy: bool = False,
+) -> tuple[MotieScraperProject, bool]:
+    """
+    Return a Motie project we can start a new session on. Returns
+    (project, created_new).
+
+    Default (spawn_new_on_busy=False) preserves Rolf's "one project per
+    domain" rule:
+      1. No active project exists for this domain → create one.
+      2. An active project exists and Motie says it's idle → reuse it.
+         Building on the same project lets future sessions read prior
+         code (the cheapest, highest-quality path).
+      3. An active project exists but Motie says it's busy → raise
+         MotieProjectBusy. The router translates this to HTTP 409 so
+         WF3 (or a manual caller) can back off and retry later.
+
+    Recovery path when a session is genuinely stuck on Motie's side:
+    deactivate the affected project via
+    POST /fetcher-builds/motie/projects/{uuid}/deactivate. The partial
+    unique index permits creating a fresh active project for the domain
+    immediately afterwards.
+
+    spawn_new_on_busy=True (testing-only opt-in) skips the 409 path and
+    creates a brand-new Motie project even when one is already busy.
+    Production callers should leave the default; this keeps the schema
+    "one active project per domain" invariant (enforced by the partial
+    unique index) intact.
+    """
+    project = await motie_project_crud.get_by_domain(db, domain)
+
+    if project is None:
+        new_proj = await _create_new_project(db, domain, with_suffix=False)
+        return new_proj, True
+
+    busy, agent_status, active_session_id = await project_is_busy(project)
+    if not busy:
+        return project, False
+
+    if not spawn_new_on_busy:
+        raise MotieProjectBusy(project, agent_status, active_session_id)
+
+    logger.info(
+        f"Motie project {project.motie_project_id} for {domain} is busy "
+        f"(agent_status={agent_status}, session={active_session_id}); "
+        "spawn_new_on_busy=True → creating a fresh project for this build "
+        "(testing path only)."
+    )
+    # Deactivate the busy project so the partial-unique index permits the
+    # new row, and so the fetcher-registry replacement points at the new
+    # project rather than the stuck one.
+    await motie_project_crud.deactivate(db, project.id)
+    new_proj = await _create_new_project(db, domain, with_suffix=True)
+    return new_proj, True
 
 
 async def project_is_busy(

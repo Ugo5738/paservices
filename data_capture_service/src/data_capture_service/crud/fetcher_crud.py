@@ -141,21 +141,28 @@ async def upsert_motie_fetcher(
     metadata_json: Optional[Dict[str, Any]] = None,
 ) -> Fetcher:
     """
-    Insert a Motie fetcher row, or update the existing one for this
-    (project, route) pair.
+    Insert a Motie fetcher row, or replace the existing one for this
+    (domain, route_path) pair.
 
-    Used by /fetcher-builds/motie/publish after a successful deploy.
+    Dedupes by (domain, route_path) — NOT by (motie_project_uuid, route_path) —
+    so when a newer Motie project produces a deployment for the same domain
+    and route, its motie_project_uuid replaces the old one in the registry.
+    The old project's deployment is left alive on Motie's side but no longer
+    referenced from /fetchers/lookup.
+
+    Used by POST /fetchers/register after a successful build artefact lands.
     """
     result = await db.execute(
         select(Fetcher).where(
-            Fetcher.motie_project_uuid == motie_project_uuid,
+            Fetcher.domain == domain,
             Fetcher.route_path == route_path,
+            Fetcher.source_type == "motie",
         )
     )
     existing = result.scalars().first()
 
     if existing:
-        existing.domain = domain
+        existing.motie_project_uuid = motie_project_uuid
         existing.http_method = http_method
         if param_schema is not None:
             existing.param_schema = param_schema
@@ -166,7 +173,9 @@ async def upsert_motie_fetcher(
         await db.flush()
         await db.refresh(existing)
         logger.info(
-            f"Updated Motie fetcher: domain={domain}, route={route_path}, id={existing.id}"
+            f"Replaced Motie fetcher project pointer: domain={domain}, "
+            f"route={route_path}, id={existing.id}, "
+            f"new_project_uuid={motie_project_uuid}"
         )
         return existing
 

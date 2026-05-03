@@ -1,9 +1,11 @@
 """
 Model for tracking Motie v2 scraper projects and their deployed endpoints.
 
-Maps domains to Motie project IDs and deployed API URLs so we can route
-known domains to deployed scrapers (fast, cheap) and only use the agent
-for new domains or repairs.
+Each row is one *attempt* against a domain on Motie's side. A domain can
+have many rows over time (the orchestrator spawns a fresh Motie project
+when an existing one's session is busy or stuck). The "current" project
+for a domain is the one whose deployment is referenced by the active
+fetchers row — that mapping lives in the fetchers table, not here.
 """
 
 import uuid
@@ -16,17 +18,15 @@ from data_capture_service.models.base import Base
 
 class MotieScraperProject(Base):
     """
-    Tracks domain → Motie project/deployment mappings.
-
-    When a scraper is built and deployed for a domain via Motie v2,
-    we store the project_id and api_url here so future requests for
-    that domain can call the deployed endpoint directly.
+    Tracks Motie project/deployment attempts. Many rows per domain are
+    allowed (e.g. when a previous project's session is stuck on Motie's
+    side and we spawn a fresh one to keep building).
     """
 
     __tablename__ = "motie_scraper_projects"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    domain = Column(String(512), nullable=False, unique=True, index=True)
+    domain = Column(String(512), nullable=False, index=True)
     motie_project_id = Column(String(256), nullable=False)
     motie_project_name = Column(String(512), nullable=True)
     api_url = Column(String(2048), nullable=True)

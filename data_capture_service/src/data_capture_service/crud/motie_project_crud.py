@@ -17,14 +17,43 @@ logger = logging.getLogger(__name__)
 
 
 async def get_by_domain(db: AsyncSession, domain: str) -> Optional[MotieScraperProject]:
-    """Look up a Motie scraper project by domain."""
+    """
+    Return the most recently-used active Motie project for a domain.
+
+    Multiple active rows per domain are allowed — this returns the one with
+    the latest updated_at, which is typically the project the orchestrator
+    last touched (build started, status polled, etc.). Callers should still
+    probe Motie's live agent_status to confirm it's idle before invoking
+    a new session; if it's busy, the orchestrator can fall through to
+    creating a fresh project rather than blocking.
+    """
     result = await db.execute(
-        select(MotieScraperProject).where(
+        select(MotieScraperProject)
+        .where(
             MotieScraperProject.domain == domain,
             MotieScraperProject.is_active == True,  # noqa: E712
         )
+        .order_by(
+            MotieScraperProject.updated_at.desc(),
+            MotieScraperProject.created_at.desc(),
+        )
     )
     return result.scalars().first()
+
+
+async def list_by_domain(
+    db: AsyncSession, domain: str, active_only: bool = True
+) -> list[MotieScraperProject]:
+    """Return all (active) Motie projects for a domain, newest first."""
+    stmt = select(MotieScraperProject).where(MotieScraperProject.domain == domain)
+    if active_only:
+        stmt = stmt.where(MotieScraperProject.is_active == True)  # noqa: E712
+    stmt = stmt.order_by(
+        MotieScraperProject.updated_at.desc(),
+        MotieScraperProject.created_at.desc(),
+    )
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
 
 
 async def get_by_project_id(

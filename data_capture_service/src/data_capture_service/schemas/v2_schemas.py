@@ -388,6 +388,18 @@ class MotieProjectStatusResponse(BaseModel):
     is_active: bool
 
 
+class MotieProjectDeactivateResponse(BaseModel):
+    """Output of POST /fetcher-builds/motie/projects/{uuid}/deactivate."""
+
+    project_uuid: UUID
+    motie_project_id: str
+    domain: str
+    is_active: bool
+    motie_agent_status: Optional[str] = None
+    motie_active_session_id: Optional[str] = None
+    note: str
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # /build-flags
 # ─────────────────────────────────────────────────────────────────────────────

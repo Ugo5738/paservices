@@ -52,6 +52,7 @@ from data_capture_service.schemas.v2_schemas import (
     MotieDeploymentStatusResponse,
     MotieDeployRequest,
     MotieDeployResponse,
+    MotieProjectDeactivateResponse,
     MotieProjectStatusResponse,
     MotiePublishedFetcher,
     MotiePublishRequest,
@@ -141,21 +142,24 @@ async def start_build(
             400, f"prompt_kind must be 'build' or 'repair', got '{request.prompt_kind}'"
         )
 
-    project, created_new = await motie_build_orchestrator.ensure_project_for_domain(
-        db, domain
-    )
-
-    if not created_new:
-        busy, agent_status, active_session_id = await motie_build_orchestrator.project_is_busy(
-            project
+    # Honour Rolf's "one active project per domain" rule by default.
+    # If the active project is busy on Motie's side, the orchestrator raises
+    # MotieProjectBusy → 409, and WF3's Respond Busy branch resets the
+    # build_flag back to pending for retry. Recovery from a genuinely stuck
+    # session: POST /fetcher-builds/motie/projects/{uuid}/deactivate.
+    try:
+        project, created_new = await motie_build_orchestrator.ensure_project_for_domain(
+            db, domain, spawn_new_on_busy=False
         )
-        if busy:
-            raise HTTPException(
-                409,
-                f"Motie project {project.motie_project_id} is busy "
-                f"(agent_status={agent_status}, active_session={active_session_id}). "
-                "Try again later.",
-            )
+    except motie_build_orchestrator.MotieProjectBusy as exc:
+        raise HTTPException(
+            409,
+            f"Motie project {exc.project.motie_project_id} is busy "
+            f"(agent_status={exc.agent_status}, "
+            f"active_session={exc.active_session_id}). "
+            "Try again later, or deactivate the stuck project via "
+            f"POST /fetcher-builds/motie/projects/{exc.project.id}/deactivate.",
+        )
 
     # Build the prompt — diff-aware for repairs so the score actually moves.
     if request.prompt_kind == MotieBuildPromptKind.REPAIR.value:
@@ -506,20 +510,17 @@ async def build_or_repair_legacy(
     if not domain:
         raise HTTPException(400, "Could not derive domain from url")
 
-    project, created_new = await motie_build_orchestrator.ensure_project_for_domain(
-        db, domain
-    )
-
-    if not created_new:
-        busy, agent_status, active_session_id = await motie_build_orchestrator.project_is_busy(
-            project
+    try:
+        project, created_new = await motie_build_orchestrator.ensure_project_for_domain(
+            db, domain, spawn_new_on_busy=False
         )
-        if busy:
-            raise HTTPException(
-                409,
-                f"Motie project {project.motie_project_id} is busy "
-                f"(agent_status={agent_status}, active_session={active_session_id}).",
-            )
+    except motie_build_orchestrator.MotieProjectBusy as exc:
+        raise HTTPException(
+            409,
+            f"Motie project {exc.project.motie_project_id} is busy "
+            f"(agent_status={exc.agent_status}, "
+            f"active_session={exc.active_session_id}).",
+        )
 
     if request.prompt_kind == "repair":
         if not request.failing_error:
@@ -840,4 +841,69 @@ async def get_project_state(
         motie_agent_status=motie_agent_status or None,
         motie_active_session_id=motie_active_session_id or None,
         is_active=project.is_active,
+    )
+
+
+@router.post(
+    "/projects/{project_uuid}/deactivate",
+    response_model=MotieProjectDeactivateResponse,
+)
+async def deactivate_project(
+    project_uuid: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Mark a Motie project inactive in our DB so a fresh project can take its
+    place for the same domain.
+
+    Use case: a Motie session has become orphaned/stuck and the public Motie
+    API exposes no session-cancel endpoint. Deactivating the project in our
+    DB releases the slot enforced by the partial unique index
+    (uq_motie_scraper_projects_active_domain), letting the next /build/start
+    create a new project for the domain instead of returning 409.
+
+    Side effects:
+      - data_capture.motie_scraper_projects.is_active flipped to false.
+      - Motie's deployed endpoint (if any) is left alive on Motie's side
+        (we have no way to delete a project with an active session).
+      - Any data_capture.fetchers row pointing at this project keeps
+        pointing at it until the next successful build's /fetchers/register
+        replaces the pointer (dedupe is by domain+route_path).
+
+    Idempotent: deactivating an already-inactive project is a no-op.
+    """
+    project = await db.get(MotieScraperProject, project_uuid)
+    if not project:
+        raise HTTPException(404, f"MotieScraperProject {project_uuid} not found")
+
+    motie_agent_status: Optional[str] = None
+    motie_active_session_id: Optional[str] = None
+    try:
+        live = await motie_client.get_project(project.motie_project_id)
+        motie_agent_status = live.agent_status or None
+        motie_active_session_id = live.active_session_id or None
+    except Exception as e:  # noqa: BLE001
+        logger.warning(
+            f"Could not probe Motie status during deactivate for "
+            f"{project.motie_project_id}: {e}"
+        )
+
+    if project.is_active:
+        await motie_project_crud.deactivate(db, project.id)
+        await db.commit()
+        note = (
+            "Deactivated. Next /build/start for this domain will create a "
+            "fresh Motie project."
+        )
+    else:
+        note = "Already inactive; no change."
+
+    return MotieProjectDeactivateResponse(
+        project_uuid=project.id,
+        motie_project_id=project.motie_project_id,
+        domain=project.domain,
+        is_active=False,
+        motie_agent_status=motie_agent_status,
+        motie_active_session_id=motie_active_session_id,
+        note=note,
     )
