@@ -1,4 +1,5 @@
 import json
+from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -10,8 +11,10 @@ from .db import AsyncSessionLocal
 from .tools import v2_tools
 from .tools.auth_helper import get_m2m_token
 from .tools.n8n_service_tools import (
+    trigger_data_capture_via_n8n,
     trigger_floorplan_via_n8n,
     trigger_image_condition_via_n8n,
+    trigger_orchestrator_via_n8n,
 )
 from .tools.n8n_tools import (
     get_property_analysis_result,
@@ -39,7 +42,10 @@ mcp = FastMCP(name=settings.PROJECT_NAME)
 #                                 get_property_analysis_result_tool
 #   Helpers:                      create_super_id_tool
 #   Downstream-only triggers:     trigger_floorplan_tool, trigger_image_condition_tool
-#   Legacy:                       trigger_full_property_analysis_tool
+#   Legacy / deprecated:          trigger_full_property_analysis_tool,
+#                                 analyze_property_tool,
+#                                 trigger_orchestrated_analysis_tool,
+#                                 trigger_data_capture_tool
 # ---------------------------------------------------------------------------
 
 
@@ -556,8 +562,15 @@ async def trigger_full_property_analysis_tool(
     super_id: str = "",
     external_callback_url: str = "",
 ) -> str:
-    """[Legacy] Trigger the full property analysis workflow via the old SuperSami trigger.
-    Prefer full_analysis_primary_tool() for new usage."""
+    """[DEPRECATED] Trigger the full property analysis workflow via the old SuperSami trigger.
+
+    Use full_analysis_primary_tool() instead for V2-architecture-aligned routing.
+    Kept for backwards compatibility with existing callers.
+    """
+    logger.warning(
+        "trigger_full_property_analysis_tool is deprecated; "
+        "prefer full_analysis_primary_tool"
+    )
     if not property_url:
         return "❌ Error: property_url is required"
 
@@ -574,3 +587,138 @@ async def trigger_full_property_analysis_tool(
             ),
         )
         return f"✅ Analysis started: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def analyze_property_tool(
+    property_url: str = "",
+    super_id: str = "",
+) -> str:
+    """[DEPRECATED] Run the complete property analysis pipeline for a listing URL.
+
+    Use full_analysis_primary_tool() instead. This tool hardcodes vendor
+    selection by domain string (rule-3 violation: it picks
+    'data_capture_rightmove' for rightmove.co.uk and 'data_capture_motie'
+    otherwise) and routes through the deprecated Orchestrator V2.
+    Kept for backwards compatibility with existing callers.
+
+    Returns a super_id. Use get_property_analysis_result_tool(super_id) to poll.
+    """
+    logger.warning(
+        "analyze_property_tool is deprecated (rule-3 vendor coupling); "
+        "prefer full_analysis_primary_tool"
+    )
+    if not property_url:
+        return "❌ Error: property_url is required"
+
+    domain = urlparse(property_url).netloc.lower().replace("www.", "")
+    if "rightmove.co.uk" in domain:
+        data_capture_service = "data_capture_rightmove"
+    else:
+        data_capture_service = "data_capture_motie"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_orchestrator_via_n8n(
+            client=client,
+            property_url=property_url,
+            services=[
+                data_capture_service,
+                "floorplan_analysis",
+                "image_condition_analysis",
+            ],
+            super_id=super_id if super_id else None,
+        )
+        return f"✅ Full analysis started: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def trigger_orchestrated_analysis_tool(
+    property_url: str = "",
+    services_json: str = "",
+    service_params_json: str = "",
+    super_id: str = "",
+) -> str:
+    """[DEPRECATED] Trigger an orchestrated analysis with a custom combination of services.
+
+    Use full_analysis_primary_tool() instead — same shape, but routes through
+    Orchestrator V3 (V2 architecture, vendor-agnostic registry) instead of the
+    deprecated Orchestrator V2 (vendor-coupled routing).
+    Kept for backwards compatibility with existing callers.
+
+    services_json: JSON array of service names, e.g. '["data_capture_motie", "floorplan_analysis"]'.
+    Valid service names: data_capture_motie, data_capture_rightmove, floorplan_analysis, image_condition_analysis.
+    """
+    logger.warning(
+        "trigger_orchestrated_analysis_tool is deprecated (V1 orchestrator); "
+        "prefer full_analysis_primary_tool"
+    )
+    if not property_url:
+        return "❌ Error: property_url is required"
+    if not services_json:
+        return "❌ Error: services_json is required"
+
+    try:
+        services = json.loads(services_json)
+    except json.JSONDecodeError:
+        return "❌ Error: services_json is not valid JSON"
+
+    service_params = None
+    if service_params_json:
+        try:
+            service_params = json.loads(service_params_json)
+        except json.JSONDecodeError:
+            return "❌ Error: service_params_json is not valid JSON"
+
+    async with httpx.AsyncClient() as client:
+        result = await trigger_orchestrator_via_n8n(
+            client=client,
+            property_url=property_url,
+            services=services,
+            service_params=service_params,
+            super_id=super_id if super_id else None,
+        )
+        return f"✅ Orchestrated analysis triggered: {json.dumps(result)}"
+
+
+@mcp.tool()
+async def trigger_data_capture_tool(
+    url: str = "",
+    super_id: str = "",
+    skip_baseline: str = "",
+) -> str:
+    """[DEPRECATED] Trigger property data capture for a listing URL with vendor-by-domain routing.
+
+    Use fetch_with_pre_built_tool() (registry-driven, vendor-agnostic) or
+    motie_fetch_tool() / firecrawl_fetch_tool() (explicit vendor) instead.
+    This tool hardcodes 'rightmove → rightmove proxy, else → Motie' which
+    violates the V2 vendor-agnostic-registry principle.
+    Kept for backwards compatibility with existing callers.
+    """
+    logger.warning(
+        "trigger_data_capture_tool is deprecated (rule-3 vendor coupling); "
+        "prefer fetch_with_pre_built_tool, motie_fetch_tool, or firecrawl_fetch_tool"
+    )
+    if not url:
+        return "❌ Error: url is required"
+
+    domain = urlparse(url).netloc.lower().replace("www.", "")
+    if "rightmove.co.uk" in domain:
+        async with httpx.AsyncClient() as client:
+            result = await trigger_orchestrator_via_n8n(
+                client=client,
+                property_url=url,
+                services=["data_capture_rightmove"],
+                super_id=super_id if super_id else None,
+            )
+            return f"✅ Data capture triggered: {json.dumps(result)}"
+    else:
+        async with httpx.AsyncClient() as client:
+            result = await trigger_data_capture_via_n8n(
+                client=client,
+                url=url,
+                super_id=super_id if super_id else None,
+                skip_baseline=(
+                    skip_baseline.lower() == "true" if skip_baseline else False
+                ),
+            )
+            return f"✅ Data capture triggered: {json.dumps(result)}"
