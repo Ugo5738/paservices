@@ -213,16 +213,79 @@ def _extract_floorplan_urls(data: Dict[str, Any]) -> List[str]:
     return urls
 
 
+def _find_results_array(payload: Dict[str, Any]) -> List[Any]:
+    """
+    Locate the `results: [...]` array inside the payload. Handles three
+    common wrappings:
+
+    1. Direct: payload itself has `results` at top level (proxy raw response).
+    2. Snapshot wrapper: `payload.data.results` — what status_notifier
+       writes to S3 ({super_id, context, status, summary, metadata, data}).
+    3. n8n Extract Canonical Fields wrapper: `payload.fields.results`.
+
+    Returns the first non-empty list found; otherwise an empty list.
+    """
+    for path in (
+        ("results",),
+        ("data", "results"),
+        ("fields", "results"),
+        ("payload", "results"),
+        ("payload", "data", "results"),
+        ("payload", "fields", "results"),
+    ):
+        cur: Any = payload
+        for key in path:
+            if isinstance(cur, dict):
+                cur = cur.get(key)
+            else:
+                cur = None
+                break
+        if isinstance(cur, list) and cur:
+            return cur
+    return []
+
+
+def _find_inner_envelope(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Locate the inner rightmove envelope (the one with property_id /
+    property_url at top level) under any of the known wrappers. Falls
+    back to the payload itself if no wrapper is detected.
+    """
+    for path in (
+        ("data",),
+        ("fields",),
+        ("payload", "data"),
+        ("payload", "fields"),
+        ("payload",),
+    ):
+        cur: Any = payload
+        for key in path:
+            if isinstance(cur, dict):
+                cur = cur.get(key)
+            else:
+                cur = None
+                break
+        if isinstance(cur, dict) and (
+            "property_url" in cur or "property_id" in cur or "results" in cur
+        ):
+            return cur
+    return payload
+
+
 def _walk_results(payload: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Yield each `raw_data.data` block from `results[*]`, regardless of
     api_endpoint. Some Rightmove envelopes wrap one more level:
     raw_data → {data: {...}}; some are direct: raw_data → {...}.
+
+    Searches multiple wrapper paths via `_find_results_array` so the
+    parser works whether it's fed:
+      - the raw proxy response ({results: [...]})
+      - a status_notifier snapshot ({data: {results: [...]}})
+      - an n8n Extract Canonical Fields output ({fields: {results: [...]}})
     """
     out: List[Dict[str, Any]] = []
-    results = payload.get("results")
-    if not isinstance(results, list):
-        return out
+    results = _find_results_array(payload)
     for item in results:
         if not isinstance(item, dict):
             continue
@@ -260,18 +323,34 @@ def parse_rightmove_result(
             if not into.get(k):
                 into[k] = v
 
-    # Top-level metadata
-    if isinstance(payload.get("property_url"), str):
-        fields["source_url"] = payload["property_url"]
-        fields.setdefault("rightmove_url", payload["property_url"])
-    if "property_id" in payload:
-        fields.setdefault("property_id", payload["property_id"])
+    # Top-level metadata — look in the inner envelope (handles snapshot /
+    # n8n wrappers as well as the bare proxy response shape).
+    inner = _find_inner_envelope(payload)
+    if isinstance(inner.get("property_url"), str):
+        fields["source_url"] = inner["property_url"]
+        fields.setdefault("rightmove_url", inner["property_url"])
+    if "property_id" in inner:
+        fields.setdefault("property_id", inner["property_id"])
 
     # Walk results
     blocks = _walk_results(payload)
-    if not blocks and isinstance(payload.get("data"), dict):
-        # Single-block fallback (e.g. test fixtures without the results wrapper)
-        blocks = [payload["data"]]
+    if not blocks:
+        # Single-block fallback (e.g. test fixtures without the results wrapper).
+        # Try common wrapper paths plus the raw payload itself.
+        for candidate in (inner, payload.get("data"), payload):
+            if isinstance(candidate, dict) and any(
+                k in candidate
+                for k in (
+                    "identifier",
+                    "bedrooms",
+                    "bathrooms",
+                    "address",
+                    "prices",
+                    "price",
+                )
+            ):
+                blocks = [candidate]
+                break
 
     for block in blocks:
         _merge(fields, _canonicalise_detail_block(block))
