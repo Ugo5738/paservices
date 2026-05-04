@@ -202,15 +202,26 @@ async def validate_fetched_data(
     if request.fields is not None:
         fields = dict(request.fields)
     elif request.raw_payload is not None:
-        # Pick parser via registry. Default to whichever parser the caller
-        # named via adapter_name; if none, try the fetcher_id's source_type;
-        # finally fall back to motie for backwards compatibility.
+        # Pick parser via registry. Resolution order:
+        #   1. caller-supplied request.adapter_name (explicit override)
+        #   2. fetcher.metadata_json["parser_name"] (registered hint —
+        #      e.g. the rightmove proxy fetcher carries parser_name="rightmove"
+        #      so its non-Motie response shape is parsed correctly)
+        #   3. fetcher.source_type — works for source_type='motie' since we
+        #      have a "motie" parser; falls through for 'proxy' since proxy
+        #      fetchers vary by vendor
+        #   4. final fallback: 'motie' (backwards-compatible default)
         adapter_name = (request.adapter_name or "").lower() or None
 
         if adapter_name is None and request.fetcher_id is not None:
             fetcher = await fetcher_crud.get_by_id(db, request.fetcher_id)
-            if fetcher and fetcher.source_type == "motie":
-                adapter_name = "motie"
+            if fetcher:
+                meta = fetcher.metadata_json or {}
+                hinted = (meta.get("parser_name") or "").lower() or None
+                if hinted and parser_registry.get(hinted) is not None:
+                    adapter_name = hinted
+                elif fetcher.source_type == "motie":
+                    adapter_name = "motie"
 
         adapter_name = adapter_name or "motie"
         parser = parser_registry.get(adapter_name)
@@ -255,6 +266,7 @@ async def validate_fetched_data(
         priority_scores=score.priority_scores,
         missing_fields=missing,
         missing_critical_fields=missing_critical,
+        fields=fields,
     )
 
 

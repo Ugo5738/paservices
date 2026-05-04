@@ -115,6 +115,10 @@ class FetcherValidateResponse(BaseModel):
     priority_scores: Dict[int, float] = Field(default_factory=dict)
     missing_fields: List[str] = Field(default_factory=list)
     missing_critical_fields: List[str] = Field(default_factory=list)
+    # Parsed canonical fields — populated when the caller passed `raw_payload`
+    # and the service ran a parser on it. Lets WF1 return the parsed data
+    # to its caller without having to redo extraction in n8n.
+    fields: Optional[Dict[str, Any]] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────

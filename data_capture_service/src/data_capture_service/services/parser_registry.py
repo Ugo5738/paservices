@@ -15,6 +15,9 @@ import logging
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from data_capture_service.adapters.motie.motie_parser import parse_motie_result
+from data_capture_service.adapters.rightmove.rightmove_parser import (
+    parse_rightmove_result,
+)
 from data_capture_service.services.baseline_provider import (
     parse_markdown_for_field_presence,
 )
@@ -55,6 +58,7 @@ def _firecrawl_parser(
 _PARSERS: Dict[str, ParserFn] = {
     "motie": parse_motie_result,
     "firecrawl": _firecrawl_parser,
+    "rightmove": parse_rightmove_result,
 }
 
 
