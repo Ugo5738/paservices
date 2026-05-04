@@ -179,6 +179,35 @@ class Settings(BaseSettings):
         description="Webhook URL for the v2 orchestrator n8n workflow (handles sequential dependencies)",
     )
 
+    # ---- V2 architecture endpoints (used by the new spec MCP tools) ----
+    # Direct data-capture-service URL — for primitives that don't need to go
+    # through n8n (e.g. /fetcher-builds/motie/build/start, /fetchers listing).
+    DATA_CAPTURE_SERVICE_URL: str = Field(
+        "https://data-capture.supersami.com/api/v1",
+        validation_alias="PA_MCP_DATA_CAPTURE_SERVICE_URL",
+        description="Base URL for the Data Capture Service (V2). Used by per-vendor and observability tools.",
+    )
+    N8N_WF1_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_WF1_URL",
+        description="WF1 (coded fetcher path) webhook. Calls registry → run → validate.",
+    )
+    N8N_WF2_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_WF2_URL",
+        description="WF2 (single-shot Firecrawl AI fetcher) webhook.",
+    )
+    N8N_WFB_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_WFB_URL",
+        description="WF B (multishot AI fetcher) webhook. Used by fetch_with_ai_tool.",
+    )
+    N8N_ORCHESTRATOR_V3_URL: str = Field(
+        "",
+        validation_alias="PA_MCP_N8N_ORCHESTRATOR_V3_URL",
+        description="Webhook for Orchestrator V3 (V2-architecture entry point).",
+    )
+
     @field_validator("METADATA_JSON_RESPONSE", mode="before")
     @classmethod
     def parse_json(cls, value: Any) -> Any:

@@ -39,6 +39,13 @@ class FetcherLookupResponse(BaseModel):
     fetcher: Optional[FetcherInfo] = None
 
 
+class FetcherListResponse(BaseModel):
+    """Output of GET /fetchers — registered fetchers, optionally filtered."""
+
+    fetchers: List[FetcherInfo]
+    total: int
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # /fetchers/run
 # ─────────────────────────────────────────────────────────────────────────────

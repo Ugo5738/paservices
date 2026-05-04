@@ -1,6 +1,7 @@
 """
 V2 primitive endpoints for coded fetchers.
 
+GET  /fetchers           — list registered fetchers (filterable by domain/source_type)
 POST /fetchers/lookup    — registry lookup by URL/domain
 POST /fetchers/run       — invoke a registered fetcher against a URL
 POST /fetchers/validate  — validate captured data against the baseline schema
@@ -13,8 +14,9 @@ audit row (rule 5).
 
 import logging
 from datetime import datetime, timezone
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.crud import fetcher_crud
@@ -22,6 +24,7 @@ from data_capture_service.db import get_db
 from data_capture_service.models.fetcher_run import FetcherRunKind
 from data_capture_service.schemas.v2_schemas import (
     FetcherInfo,
+    FetcherListResponse,
     FetcherLookupRequest,
     FetcherLookupResponse,
     FetcherRegisterRequest,
@@ -66,6 +69,37 @@ async def _build_info(db: AsyncSession, fetcher) -> FetcherInfo:
         status=fetcher.status,
         motie_project_uuid=fetcher.motie_project_uuid,
     )
+
+
+@router.get("", response_model=FetcherListResponse)
+async def list_fetchers(
+    domain: Optional[str] = Query(
+        default=None,
+        description="Filter to fetchers covering this domain (case-insensitive).",
+    ),
+    source_type: Optional[str] = Query(
+        default=None,
+        description="Filter by source_type ('motie' | 'proxy').",
+    ),
+    status: Optional[str] = Query(
+        default=None,
+        description="Filter by status ('active' | 'disabled'). Defaults to all.",
+    ),
+    limit: int = Query(default=100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    List registered fetchers, optionally filtered by domain / source_type / status.
+
+    Used by pa_mcp's `list_pre_built_fetchers_tool` so MCP agents can introspect
+    which scrapers are registered for which domains. Returns metadata only —
+    same shape as `/fetchers/lookup`'s `fetcher` field, just one per row.
+    """
+    rows = await fetcher_crud.list_filtered(
+        db, domain=domain, source_type=source_type, status=status, limit=limit
+    )
+    fetchers = [await _build_info(db, f) for f in rows]
+    return FetcherListResponse(fetchers=fetchers, total=len(fetchers))
 
 
 @router.post("/lookup", response_model=FetcherLookupResponse)

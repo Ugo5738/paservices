@@ -39,6 +39,32 @@ async def get_first_active_by_domain(
     return fetchers[0] if fetchers else None
 
 
+async def list_filtered(
+    db: AsyncSession,
+    domain: Optional[str] = None,
+    source_type: Optional[str] = None,
+    status: Optional[str] = None,
+    limit: int = 100,
+) -> List[Fetcher]:
+    """
+    List fetchers matching the given filters.
+
+    Used by pa_mcp's `list_pre_built_fetchers_tool` to enumerate registered
+    scrapers — agents can ask "what Motie fetchers exist?" or "what fetchers
+    cover example.com?" without needing to know about source_type internals.
+    """
+    stmt = select(Fetcher)
+    if domain is not None:
+        stmt = stmt.where(Fetcher.domain == domain.lower())
+    if source_type is not None:
+        stmt = stmt.where(Fetcher.source_type == source_type)
+    if status is not None:
+        stmt = stmt.where(Fetcher.status == status)
+    stmt = stmt.order_by(Fetcher.domain.asc(), Fetcher.created_at.asc()).limit(limit)
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
 async def get_by_id(db: AsyncSession, fetcher_id: UUID) -> Optional[Fetcher]:
     result = await db.execute(select(Fetcher).where(Fetcher.id == fetcher_id))
     return result.scalars().first()

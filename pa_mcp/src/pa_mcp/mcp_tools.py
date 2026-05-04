@@ -1,5 +1,4 @@
 import json
-from urllib.parse import urlparse
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -8,12 +7,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from .config import settings
 from .crud import upsert_analysis_result
 from .db import AsyncSessionLocal
+from .tools import v2_tools
 from .tools.auth_helper import get_m2m_token
 from .tools.n8n_service_tools import (
-    trigger_data_capture_via_n8n,
     trigger_floorplan_via_n8n,
     trigger_image_condition_via_n8n,
-    trigger_orchestrator_via_n8n,
 )
 from .tools.n8n_tools import (
     get_property_analysis_result,
@@ -26,75 +24,278 @@ mcp = FastMCP(name=settings.PROJECT_NAME)
 
 
 # ---------------------------------------------------------------------------
-# V2 Orchestrated Tools (primary agent interface)
+# Tools (current set)
+# ---------------------------------------------------------------------------
+# Layout follows the V2 proposal's MCP tools section:
+#
+#   Bottom layer (per-vendor):    firecrawl_fetch_tool, motie_fetch_tool,
+#                                 motie_build_tool
+#   Middle layer (reusable):      fetch_with_pre_built_tool, fetch_with_ai_tool,
+#                                 build_fetcher_tool
+#   Top layer (full workflows):   full_analysis_primary_tool,
+#                                 full_analysis_fallback_tool
+#   Observability:                list_pre_built_fetchers_tool,
+#                                 get_fetcher_build_status_tool,
+#                                 get_property_analysis_result_tool
+#   Helpers:                      create_super_id_tool
+#   Downstream-only triggers:     trigger_floorplan_tool, trigger_image_condition_tool
+#   Legacy:                       trigger_full_property_analysis_tool
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# Bottom-layer tools — per-vendor primitives (full agent control over which
+# specific vendor is used). Per Rolf's V2 spec.
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
-async def analyze_property_tool(
-    property_url: str = "",
+async def firecrawl_fetch_tool(
+    url: str = "",
     super_id: str = "",
+    prompt: str = "",
 ) -> str:
-    """Run the complete property analysis pipeline for a listing URL.
+    """Single-shot Firecrawl AI fetch for a URL.
 
-    This triggers all services in the correct order:
-    1. Capture property data from the listing
-    2. Extract floorplan and image URLs from captured data
-    3. Run floorplan analysis and image condition analysis in parallel
+    Use when you specifically want Firecrawl (no domain registry lookup, no
+    multishot, no fallback). Returns parsed property fields, presence map,
+    completeness score, and a `run_id` for the audit trail.
 
-    Returns a super_id. Use get_property_analysis_result_tool(super_id) to
-    poll progress and retrieve the final combined result.
+    Optional `prompt` overrides the default Firecrawl extraction prompt.
+
+    Single attempt; for multishot quality use fetch_with_ai_tool.
     """
-    if not property_url:
-        return "❌ Error: property_url is required"
-
-    # Auto-pick data capture adapter based on domain
-    domain = urlparse(property_url).netloc.lower().replace("www.", "")
-    if "rightmove.co.uk" in domain:
-        data_capture_service = "data_capture_rightmove"
-    else:
-        data_capture_service = "data_capture_motie"
-
+    if not url:
+        return "❌ Error: url is required"
     async with httpx.AsyncClient() as client:
-        result = await trigger_orchestrator_via_n8n(
-            client=client,
-            property_url=property_url,
-            services=[
-                data_capture_service,
-                "floorplan_analysis",
-                "image_condition_analysis",
-            ],
-            super_id=super_id if super_id else None,
-        )
-        return f"✅ Full analysis started: {json.dumps(result)}"
+        try:
+            result = await v2_tools.firecrawl_fetch(
+                client,
+                url=url,
+                super_id=super_id or None,
+                prompt=prompt or None,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("firecrawl_fetch_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
 
 
 @mcp.tool()
-async def trigger_orchestrated_analysis_tool(
-    property_url: str = "",
-    services_json: str = "",
-    service_params_json: str = "",
+async def motie_fetch_tool(
+    url: str = "",
     super_id: str = "",
 ) -> str:
-    """Trigger an orchestrated analysis with a custom combination of services.
+    """Call the deployed Motie scraper registered for the URL's domain.
 
-    services_json: JSON array of service names, e.g. '["data_capture_motie", "floorplan_analysis"]'.
-    Valid service names: data_capture_motie, data_capture_rightmove, floorplan_analysis, image_condition_analysis.
+    Looks up the registered fetcher; if it is a Motie source, runs it and
+    returns the captured payload. If no Motie fetcher exists for the domain,
+    returns `error: no_fetcher_for_domain` so the caller can fall back to
+    motie_build_tool or fetch_with_ai_tool.
+    """
+    if not url:
+        return "❌ Error: url is required"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.motie_fetch(
+                client, url=url, super_id=super_id or None
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("motie_fetch_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
 
-    service_params_json: Optional JSON object with per-service params, e.g.
-    '{"floorplan_analysis": {"property_id": "123", "floorplans": {"fp1": {"url": "..."}}}, "image_condition_analysis": {"image_urls": ["..."]}}'.
 
-    Returns a super_id. Use get_property_analysis_result_tool(super_id) to poll progress.
+@mcp.tool()
+async def motie_build_tool(
+    url: str = "",
+    prompt_kind: str = "build",
+    failing_error: str = "",
+    benchmark_fields_json: str = "",
+) -> str:
+    """Trigger Motie's agent to build a new scraper for the URL's domain.
+
+    Returns immediately with `build_id` and `state: session_running`. Poll
+    progress with get_fetcher_build_status_tool(build_id) until terminal
+    (`deployed` | `session_failed` | `deployment_failed`).
+
+    For an end-to-end build that scores, publishes, and registers the result
+    in one call use build_fetcher_tool instead.
+
+    `prompt_kind` is `build` (initial) or `repair` (existing project).
+    `failing_error` is required when `prompt_kind="repair"`.
+    `benchmark_fields_json` (optional) is the AI-fetcher reference data dict.
+    """
+    if not url:
+        return "❌ Error: url is required"
+    benchmark_fields = None
+    if benchmark_fields_json:
+        try:
+            benchmark_fields = json.loads(benchmark_fields_json)
+        except json.JSONDecodeError:
+            return "❌ Error: benchmark_fields_json is not valid JSON"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.motie_build_start(
+                client,
+                url=url,
+                prompt_kind=prompt_kind or "build",
+                failing_error=failing_error or None,
+                benchmark_fields=benchmark_fields,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("motie_build_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+# ---------------------------------------------------------------------------
+# Middle-layer tools — reusable flows
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def fetch_with_pre_built_tool(
+    url: str = "",
+    super_id: str = "",
+) -> str:
+    """Try registered pre-built fetchers in order until one passes.
+
+    Vendor-agnostic: the registry decides which fetcher to use for the URL's
+    domain. Returns `status: "no_fetcher"` if no domain match, `status: "pass"`
+    when a fetcher's output meets the validation threshold, or `status: "fail"`
+    if it ran but the captured data was below threshold.
+
+    Backed by WF1.
+    """
+    if not url:
+        return "❌ Error: url is required"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.fetch_with_pre_built(
+                client, url=url, super_id=super_id or None
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("fetch_with_pre_built_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+@mcp.tool()
+async def fetch_with_ai_tool(
+    url: str = "",
+    super_id: str = "",
+) -> str:
+    """Try AI fetchers via the multishot path (WF B).
+
+    Runs Attempt 1 (default prompt), validates against the schema; if not
+    passed, runs Attempt 2 (focused prompt with missing fields), then picks
+    the higher-scoring of the two. Returns the winner's data + `attempts: []`
+    showing both runs for diagnostics.
+
+    Use when you specifically want AI extraction quality (e.g. domain has no
+    pre-built fetcher yet, or pre-built returned weak data).
+    """
+    if not url:
+        return "❌ Error: url is required"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.fetch_with_ai(
+                client, url=url, super_id=super_id or None
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("fetch_with_ai_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+@mcp.tool()
+async def build_fetcher_tool(
+    url: str = "",
+    super_id: str = "",
+    poll_interval: str = "15",
+    poll_timeout: str = "1800",
+) -> str:
+    """End-to-end fetcher build for a new domain.
+
+    Kicks off Motie's agent build, polls until terminal, scores the deployed
+    scraper against the AI-fetcher baseline, publishes the artefact, and
+    registers the resulting routes in the fetcher registry. After this
+    completes successfully the domain is queryable via list_pre_built_fetchers_tool
+    and runnable via fetch_with_pre_built_tool.
+
+    `poll_interval` (sec, default 15) — between status checks.
+    `poll_timeout` (sec, default 1800 = 30min) — total wait before giving up.
+
+    This is a long-running call (typical 5–15 min). Consider using
+    motie_build_tool + get_fetcher_build_status_tool if you want to
+    drive polling yourself.
+    """
+    if not url:
+        return "❌ Error: url is required"
+    try:
+        interval = float(poll_interval) if poll_interval else 15.0
+        timeout = float(poll_timeout) if poll_timeout else 1800.0
+    except ValueError:
+        return "❌ Error: poll_interval and poll_timeout must be numbers"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.build_fetcher(
+                client,
+                url=url,
+                super_id=super_id or None,
+                poll_interval=interval,
+                poll_timeout=timeout,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("build_fetcher_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+# ---------------------------------------------------------------------------
+# Top-layer tools — full workflows
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def full_analysis_primary_tool(
+    property_url: str = "",
+    services_json: str = "",
+    super_id: str = "",
+    callback_url: str = "",
+    service_params_json: str = "",
+) -> str:
+    """Run the complete property analysis pipeline (V2 orchestrator).
+
+    Sends the URL through Orchestrator V3 which:
+      1. Calls WF A — tries the registered pre-built fetcher first, falls
+         through to AI fetcher if the coded path is missing or weak.
+      2. Forwards the capture result to your `callback_url`.
+      3. Fans out to floorplan/image-condition analysis as requested.
+
+    `services_json` is a JSON array of service names. Defaults to all three:
+    `["data_capture","floorplan_analysis","image_condition_analysis"]`.
+    Backwards-compatible aliases `data_capture_motie` / `data_capture_rightmove`
+    are also accepted but route through the same V2 fetcher registry.
+
+    Returns 202 immediately with a super_id. Poll progress with
+    get_property_analysis_result_tool(super_id), or set `callback_url` to
+    receive the final result asynchronously.
     """
     if not property_url:
         return "❌ Error: property_url is required"
-    if not services_json:
-        return "❌ Error: services_json is required"
 
-    try:
-        services = json.loads(services_json)
-    except json.JSONDecodeError:
-        return "❌ Error: services_json is not valid JSON"
+    services = (
+        ["data_capture", "floorplan_analysis", "image_condition_analysis"]
+        if not services_json
+        else None
+    )
+    if services is None:
+        try:
+            services = json.loads(services_json)
+        except json.JSONDecodeError:
+            return "❌ Error: services_json is not valid JSON"
 
     service_params = None
     if service_params_json:
@@ -104,52 +305,132 @@ async def trigger_orchestrated_analysis_tool(
             return "❌ Error: service_params_json is not valid JSON"
 
     async with httpx.AsyncClient() as client:
-        result = await trigger_orchestrator_via_n8n(
-            client=client,
-            property_url=property_url,
-            services=services,
-            service_params=service_params,
-            super_id=super_id if super_id else None,
-        )
-        return f"✅ Orchestrated analysis triggered: {json.dumps(result)}"
+        try:
+            result = await v2_tools.full_analysis_primary(
+                client,
+                property_url=property_url,
+                services=services,
+                super_id=super_id or None,
+                callback_url=callback_url or None,
+                service_params=service_params,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error("full_analysis_primary_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
 
 
 @mcp.tool()
-async def trigger_data_capture_tool(
-    url: str = "",
+async def full_analysis_fallback_tool(
+    property_url: str = "",
     super_id: str = "",
-    skip_baseline: str = "",
+    callback_url: str = "",
 ) -> str:
-    """Trigger property data capture for a listing URL.
-    Automatically picks the best adapter based on the domain (Rightmove vs other).
-    Returns a super_id for tracking. Use get_property_analysis_result_tool(super_id) to poll.
-    """
-    if not url:
-        return "❌ Error: url is required"
+    """AI-fetcher-first analysis: skip pre-built attempt, force multishot AI,
+    queue a coded-fetcher build for the next request.
 
-    # Auto-pick adapter based on domain
-    domain = urlparse(url).netloc.lower().replace("www.", "")
-    if "rightmove.co.uk" in domain:
-        # Use orchestrator with rightmove adapter
-        async with httpx.AsyncClient() as client:
-            result = await trigger_orchestrator_via_n8n(
-                client=client,
-                property_url=url,
-                services=["data_capture_rightmove"],
-                super_id=super_id if super_id else None,
+    Use when:
+      - The domain is brand-new (no registered fetcher yet).
+      - You want the higher-quality multishot AI extraction over a quick
+        coded-fetcher result.
+
+    Returns the AI fetcher's data immediately, plus a `build_queued` flag
+    confirming a build_flag was enqueued for WF C to pick up.
+    """
+    if not property_url:
+        return "❌ Error: property_url is required"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.full_analysis_fallback(
+                client,
+                property_url=property_url,
+                super_id=super_id or None,
+                callback_url=callback_url or None,
             )
-            return f"✅ Data capture triggered: {json.dumps(result)}"
-    else:
-        async with httpx.AsyncClient() as client:
-            result = await trigger_data_capture_via_n8n(
-                client=client,
-                url=url,
-                super_id=super_id if super_id else None,
-                skip_baseline=(
-                    skip_baseline.lower() == "true" if skip_baseline else False
-                ),
+        except Exception as exc:  # noqa: BLE001
+            logger.error("full_analysis_fallback_tool failed: %s", exc, exc_info=True)
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+# ---------------------------------------------------------------------------
+# Observability tools
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool()
+async def list_pre_built_fetchers_tool(
+    domain: str = "",
+    source_type: str = "",
+    status: str = "",
+) -> str:
+    """List registered pre-built fetchers, optionally filtered.
+
+    `domain` (optional) — exact match on the fetcher's domain (case-insensitive).
+    `source_type` (optional) — `motie` or `proxy`.
+    `status` (optional) — `active` or `disabled`. Default: all.
+
+    Returns each fetcher's id, domain, source_type, route_path, http_method,
+    api_url, param_schema, status. Useful for agents to discover what's
+    available before deciding between motie_fetch_tool, fetch_with_pre_built_tool,
+    or motie_build_tool.
+    """
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.list_fetchers(
+                client,
+                domain=domain or None,
+                source_type=source_type or None,
+                status=status or None,
             )
-            return f"✅ Data capture triggered: {json.dumps(result)}"
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "list_pre_built_fetchers_tool failed: %s", exc, exc_info=True
+            )
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+@mcp.tool()
+async def get_fetcher_build_status_tool(build_id: str = "") -> str:
+    """Poll the status of an in-progress Motie fetcher build.
+
+    Returns build_id, state, session_id, deployment_id, api_url (when
+    deployed), benchmark_score (when scored), error_message, is_terminal.
+
+    Used after motie_build_tool() returns a build_id, or to inspect
+    historical build attempts.
+    """
+    if not build_id:
+        return "❌ Error: build_id is required"
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await v2_tools.get_motie_build_status(client, build_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "get_fetcher_build_status_tool failed: %s", exc, exc_info=True
+            )
+            return f"❌ Error: {exc}"
+    return json.dumps(result)
+
+
+@mcp.tool()
+async def get_property_analysis_result_tool(super_id: str = "") -> str:
+    """Fetch the status and results for an analysis run by super_id.
+
+    Returns per-service status via latest_status_by_context and the final_result
+    when all services have completed."""
+    if not super_id:
+        return "❌ Error: super_id is required. Call create_super_id_tool() first."
+    result = await get_property_analysis_result(super_id)
+    if result:
+        return json.dumps(result)
+    return f'{{"super_id": "{super_id}", "status": "pending"}}'
+
+
+# ---------------------------------------------------------------------------
+# Downstream-only triggers (kept; analysis services need direct access)
+# ---------------------------------------------------------------------------
 
 
 @mcp.tool()
@@ -222,90 +503,17 @@ async def trigger_image_condition_tool(
         return f"✅ Image condition analysis triggered: {json.dumps(result)}"
 
 
-@mcp.tool()
-async def get_property_analysis_result_tool(super_id: str = "") -> str:
-    """Fetch the status and results for an analysis run by super_id.
-
-    Returns per-service status via latest_status_by_context and the final_result
-    when all services have completed."""
-    if not super_id:
-        return "❌ Error: super_id is required. Call create_super_id_tool() first."
-
-    result = await get_property_analysis_result(super_id)
-    if result:
-        return json.dumps(result)
-    return f'{{"super_id": "{super_id}", "status": "pending"}}'
-
-
 # ---------------------------------------------------------------------------
-# Legacy tools
+# Helpers + legacy
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
-async def trigger_full_property_analysis_tool(
-    property_url: str = "",
-    workflow_callback_url: str = "",
-    super_id: str = "",
-    external_callback_url: str = "",
-) -> str:
-    """[Legacy] Trigger the full property analysis workflow via the old SuperSami trigger.
-    Prefer analyze_property_tool() for new usage."""
-    if not property_url:
-        return "❌ Error: property_url is required"
-
-    async with httpx.AsyncClient() as client:
-        result = await start_property_analysis_via_n8n(
-            client=client,
-            property_url=property_url,
-            workflow_callback_url=(
-                workflow_callback_url if workflow_callback_url else None
-            ),
-            super_id=(super_id if super_id else None),
-            external_callback_url=(
-                external_callback_url if external_callback_url else None
-            ),
-        )
-        return f"✅ Analysis started: {json.dumps(result)}"
-
-
-# @mcp.tool()
-# async def trigger_rightmove_capture_tool(
-#     property_url: str = "",
-#     super_id: str = "",
-# ) -> str:
-#     """[Legacy] Trigger Rightmove data capture via its dedicated n8n workflow."""
-#     ...
-
-
-# ---------------------------------------------------------------------------
-# Direct API tools (commented out — use orchestrated tools above instead)
-# ---------------------------------------------------------------------------
-
-
-# @mcp.tool()
-# async def capture_property_data_tool(url, super_id, skip_baseline): ...
-# @mcp.tool()
-# async def capture_property_with_motie_tool(url, super_id): ...
-# @mcp.tool()
-# async def check_property_fields_tool(url): ...
-# @mcp.tool()
-# async def get_capture_run_status_tool(run_id): ...
-# @mcp.tool()
-# async def get_capture_run_result_tool(run_id): ...
-# @mcp.tool()
-# async def retry_capture_run_tool(run_id): ...
-# @mcp.tool()
-# async def trigger_floorplan_analysis_tool(floorplan_key, ...): ...
 @mcp.tool()
 async def create_super_id_tool() -> str:
     """Create a new super_id for tracking a property analysis session.
     Call this FIRST before using any other tool. The returned super_id links
     all service results (data capture, floorplan analysis, image condition analysis)
-    together under one session.
-
-    Flow: create_super_id_tool() → pass super_id to analyze_property_tool(),
-    trigger_floorplan_tool(), trigger_image_condition_tool(), etc."""
+    together under one session."""
     try:
         async with httpx.AsyncClient() as client:
             token = await get_m2m_token(client)
@@ -341,5 +549,28 @@ async def create_super_id_tool() -> str:
     return json.dumps({"super_id": super_id, "status": "created"})
 
 
-# @mcp.tool()
-# async def list_properties_tool(...): ...
+@mcp.tool()
+async def trigger_full_property_analysis_tool(
+    property_url: str = "",
+    workflow_callback_url: str = "",
+    super_id: str = "",
+    external_callback_url: str = "",
+) -> str:
+    """[Legacy] Trigger the full property analysis workflow via the old SuperSami trigger.
+    Prefer full_analysis_primary_tool() for new usage."""
+    if not property_url:
+        return "❌ Error: property_url is required"
+
+    async with httpx.AsyncClient() as client:
+        result = await start_property_analysis_via_n8n(
+            client=client,
+            property_url=property_url,
+            workflow_callback_url=(
+                workflow_callback_url if workflow_callback_url else None
+            ),
+            super_id=(super_id if super_id else None),
+            external_callback_url=(
+                external_callback_url if external_callback_url else None
+            ),
+        )
+        return f"✅ Analysis started: {json.dumps(result)}"
