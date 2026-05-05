@@ -29,29 +29,43 @@ mcp = FastMCP(name=settings.PROJECT_NAME)
 # ---------------------------------------------------------------------------
 # Tools (current set)
 # ---------------------------------------------------------------------------
-# Layout follows the V2 proposal's MCP tools section:
+# Grouped by what an external agent (ChatGPT, Claude, etc.) is trying to do:
 #
-#   Bottom layer (per-vendor):    firecrawl_fetch_tool, motie_fetch_tool,
-#                                 motie_build_tool
-#   Middle layer (reusable):      fetch_with_pre_built_tool, fetch_with_ai_tool,
-#                                 build_fetcher_tool
-#   Top layer (full workflows):   full_analysis_primary_tool,
-#                                 full_analysis_fallback_tool
-#   Observability:                list_pre_built_fetchers_tool,
-#                                 get_fetcher_build_status_tool,
-#                                 get_property_analysis_result_tool
-#   Helpers:                      create_super_id_tool
-#   Downstream-only triggers:     trigger_floorplan_tool, trigger_image_condition_tool
-#   Legacy / deprecated:          trigger_full_property_analysis_tool,
-#                                 analyze_property_tool,
-#                                 trigger_orchestrated_analysis_tool,
-#                                 trigger_data_capture_tool
+#   Common case — full property analysis:
+#     run_property_analysis_tool         (registry-first, AI fallback)
+#     analyze_new_domain_property_tool   (force AI now + queue a coded build)
+#     get_property_analysis_result_tool  (poll by super_id)
+#
+#   Just capture data, no downstream services:
+#     fetch_with_registered_fetcher_tool (use the coded fetcher if registered)
+#     fetch_with_ai_tool                 (multishot AI extraction)
+#     firecrawl_fetch_tool               (single-shot Firecrawl, no fallback)
+#     motie_fetch_tool                   (specific vendor: deployed Motie fetcher)
+#
+#   Manage / inspect coded fetchers:
+#     list_registered_fetchers_tool      (which domains we already support)
+#     build_fetcher_tool                 (end-to-end build for a new domain)
+#     get_fetcher_build_status_tool      (poll an in-progress build)
+#     motie_build_tool                   (vendor-specific: kick a Motie build)
+#
+#   Helpers:
+#     create_super_id_tool               (start a session — call this FIRST)
+#
+#   Downstream-only triggers (when you already have media to analyse):
+#     trigger_floorplan_tool
+#     trigger_image_condition_tool
+#
+#   Legacy / deprecated (banner in the description tells the agent to switch):
+#     trigger_full_property_analysis_tool
+#     analyze_property_tool
+#     trigger_orchestrated_analysis_tool
+#     trigger_data_capture_tool
 # ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
-# Bottom-layer tools — per-vendor primitives (full agent control over which
-# specific vendor is used). Per Rolf's V2 spec.
+# Vendor-specific primitives — call these when you specifically want one
+# vendor (no registry lookup, no fallback).
 # ---------------------------------------------------------------------------
 
 
@@ -61,15 +75,18 @@ async def firecrawl_fetch_tool(
     super_id: str = "",
     prompt: str = "",
 ) -> str:
-    """Single-shot Firecrawl AI fetch for a URL.
+    """Single-shot Firecrawl AI extraction for a property URL.
 
-    Use when you specifically want Firecrawl (no domain registry lookup, no
-    multishot, no fallback). Returns parsed property fields, presence map,
-    completeness score, and a `run_id` for the audit trail.
+    Calls the Firecrawl FIRE-1 agent directly — no domain registry lookup,
+    no multishot, no fallback to other vendors. Returns parsed property
+    fields, a presence map, a completeness score, and a `run_id` for the
+    audit trail.
 
-    Optional `prompt` overrides the default Firecrawl extraction prompt.
+    Optional `prompt` overrides the default extraction prompt.
 
-    Single attempt; for multishot quality use fetch_with_ai_tool.
+    Single attempt only — for higher-quality multishot extraction (two
+    attempts with focused retry, picks the better result), use
+    `fetch_with_ai_tool`.
     """
     if not url:
         return "❌ Error: url is required"
@@ -92,12 +109,15 @@ async def motie_fetch_tool(
     url: str = "",
     super_id: str = "",
 ) -> str:
-    """Call the deployed Motie scraper registered for the URL's domain.
+    """Run the deployed Motie-built fetcher for this URL's domain.
 
-    Looks up the registered fetcher; if it is a Motie source, runs it and
-    returns the captured payload. If no Motie fetcher exists for the domain,
-    returns `error: no_fetcher_for_domain` so the caller can fall back to
-    motie_build_tool or fetch_with_ai_tool.
+    Motie is the AI-coding-agent vendor we use to autogenerate property
+    fetchers. If a Motie fetcher has already been built and registered
+    for this domain, this runs it and returns the captured fields.
+
+    Returns `error: no_fetcher_for_domain` if there is no Motie fetcher
+    registered for the domain — in that case use `build_fetcher_tool`
+    (end-to-end build) or `fetch_with_ai_tool` (one-shot AI extraction).
     """
     if not url:
         return "❌ Error: url is required"
@@ -119,18 +139,23 @@ async def motie_build_tool(
     failing_error: str = "",
     benchmark_fields_json: str = "",
 ) -> str:
-    """Trigger Motie's agent to build a new scraper for the URL's domain.
+    """Kick off a Motie agent run to build a new fetcher for this URL's domain.
 
     Returns immediately with `build_id` and `state: session_running`. Poll
-    progress with get_fetcher_build_status_tool(build_id) until terminal
+    progress with `get_fetcher_build_status_tool(build_id)` until terminal
     (`deployed` | `session_failed` | `deployment_failed`).
 
-    For an end-to-end build that scores, publishes, and registers the result
-    in one call use build_fetcher_tool instead.
+    For a one-call end-to-end build that scores, publishes, and registers
+    the result automatically, use `build_fetcher_tool` instead.
 
-    `prompt_kind` is `build` (initial) or `repair` (existing project).
-    `failing_error` is required when `prompt_kind="repair"`.
-    `benchmark_fields_json` (optional) is the AI-fetcher reference data dict.
+    `prompt_kind`:
+      - `build` (default) — initial build for a brand-new domain.
+      - `repair` — fix an existing fetcher that's failing; requires
+        `failing_error` describing what went wrong.
+
+    `benchmark_fields_json` (optional) is a JSON dict of reference fields
+    extracted by the AI fetcher — Motie uses these to verify the fetcher
+    it builds actually returns the right shape.
     """
     if not url:
         return "❌ Error: url is required"
@@ -156,23 +181,25 @@ async def motie_build_tool(
 
 
 # ---------------------------------------------------------------------------
-# Middle-layer tools — reusable flows
+# Reusable capture flows — vendor-agnostic.
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
-async def fetch_with_pre_built_tool(
+async def fetch_with_registered_fetcher_tool(
     url: str = "",
     super_id: str = "",
 ) -> str:
-    """Try registered pre-built fetchers in order until one passes.
+    """Capture property data using whichever coded fetcher is registered for
+    this URL's domain.
 
-    Vendor-agnostic: the registry decides which fetcher to use for the URL's
-    domain. Returns `status: "no_fetcher"` if no domain match, `status: "pass"`
-    when a fetcher's output meets the validation threshold, or `status: "fail"`
-    if it ran but the captured data was below threshold.
-
-    Backed by WF1.
+    Vendor-agnostic — the system picks which fetcher to run based on the
+    URL's domain. Returns:
+      - `status: "no_fetcher"` — no fetcher registered for this domain
+        (try `analyze_new_domain_property_tool` or `build_fetcher_tool`)
+      - `status: "pass"` — captured data met the quality threshold
+      - `status: "fail"` — fetcher ran but the captured data was below
+        threshold (consider AI extraction via `fetch_with_ai_tool`)
     """
     if not url:
         return "❌ Error: url is required"
@@ -182,7 +209,9 @@ async def fetch_with_pre_built_tool(
                 client, url=url, super_id=super_id or None
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("fetch_with_pre_built_tool failed: %s", exc, exc_info=True)
+            logger.error(
+                "fetch_with_registered_fetcher_tool failed: %s", exc, exc_info=True
+            )
             return f"❌ Error: {exc}"
     return json.dumps(result)
 
@@ -192,15 +221,16 @@ async def fetch_with_ai_tool(
     url: str = "",
     super_id: str = "",
 ) -> str:
-    """Try AI fetchers via the multishot path (WF B).
+    """Capture property data with AI multishot extraction.
 
-    Runs Attempt 1 (default prompt), validates against the schema; if not
-    passed, runs Attempt 2 (focused prompt with missing fields), then picks
-    the higher-scoring of the two. Returns the winner's data + `attempts: []`
-    showing both runs for diagnostics.
+    Two-attempt strategy: runs the default extraction prompt first; if the
+    output doesn't meet the quality threshold, runs a second focused prompt
+    naming the missing fields, then returns whichever attempt scored higher.
+    Response includes both `data` (the winner) and `attempts: [...]` so the
+    caller can inspect both runs for diagnostics.
 
-    Use when you specifically want AI extraction quality (e.g. domain has no
-    pre-built fetcher yet, or pre-built returned weak data).
+    Use when you want AI-extraction quality directly — e.g. the domain has
+    no registered fetcher yet, or a registered fetcher returned weak data.
     """
     if not url:
         return "❌ Error: url is required"
@@ -222,20 +252,20 @@ async def build_fetcher_tool(
     poll_interval: str = "15",
     poll_timeout: str = "1800",
 ) -> str:
-    """End-to-end fetcher build for a new domain.
+    """End-to-end coded-fetcher build for a brand-new domain.
 
-    Kicks off Motie's agent build, polls until terminal, scores the deployed
-    scraper against the AI-fetcher baseline, publishes the artefact, and
-    registers the resulting routes in the fetcher registry. After this
-    completes successfully the domain is queryable via list_pre_built_fetchers_tool
-    and runnable via fetch_with_pre_built_tool.
+    One call kicks off the build, polls until terminal, scores the deployed
+    fetcher against an AI baseline, publishes the artefact, and registers
+    the resulting routes. After it completes successfully the domain is
+    listed by `list_registered_fetchers_tool` and runnable via
+    `fetch_with_registered_fetcher_tool`.
 
     `poll_interval` (sec, default 15) — between status checks.
     `poll_timeout` (sec, default 1800 = 30min) — total wait before giving up.
 
-    This is a long-running call (typical 5–15 min). Consider using
-    motie_build_tool + get_fetcher_build_status_tool if you want to
-    drive polling yourself.
+    Long-running (typical 5–15 min, sometimes longer). If you'd rather drive
+    polling yourself, use `motie_build_tool` + `get_fetcher_build_status_tool`
+    instead.
     """
     if not url:
         return "❌ Error: url is required"
@@ -260,34 +290,47 @@ async def build_fetcher_tool(
 
 
 # ---------------------------------------------------------------------------
-# Top-layer tools — full workflows
+# Top-level entry points — full property analysis pipelines.
+# These are what an external agent (ChatGPT, Claude) will use 90% of the time.
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
-async def full_analysis_primary_tool(
+async def run_property_analysis_tool(
     property_url: str = "",
     services_json: str = "",
     super_id: str = "",
     callback_url: str = "",
     service_params_json: str = "",
 ) -> str:
-    """Run the complete property analysis pipeline (V2 orchestrator).
+    """Run the full property analysis pipeline for a listing URL.
 
-    Sends the URL through Orchestrator V3 which:
-      1. Calls WF A — tries the registered pre-built fetcher first, falls
-         through to AI fetcher if the coded path is missing or weak.
-      2. Forwards the capture result to your `callback_url`.
-      3. Fans out to floorplan/image-condition analysis as requested.
+    This is the default end-to-end entry point. The system:
+      1. Tries the registered coded fetcher for the URL's domain first.
+      2. Falls through to AI extraction if no coded fetcher exists or the
+         coded fetcher returned weak data.
+      3. Forwards the captured property data to your `callback_url` (if
+         supplied) and to the result store.
+      4. Fans out to floorplan analysis and image-condition analysis on the
+         captured media (when those services are requested).
 
-    `services_json` is a JSON array of service names. Defaults to all three:
-    `["data_capture","floorplan_analysis","image_condition_analysis"]`.
-    Backwards-compatible aliases `data_capture_motie` / `data_capture_rightmove`
-    are also accepted but route through the same V2 fetcher registry.
+    `services_json` (optional) — JSON array of services to run. Defaults to
+    all three: `["data_capture","floorplan_analysis","image_condition_analysis"]`.
+    Pass a subset (e.g. `["data_capture"]`) to skip downstream services.
+    Legacy aliases `data_capture_motie` / `data_capture_rightmove` are also
+    accepted; both route through the vendor-agnostic fetcher registry.
 
-    Returns 202 immediately with a super_id. Poll progress with
-    get_property_analysis_result_tool(super_id), or set `callback_url` to
-    receive the final result asynchronously.
+    `service_params_json` (optional) — per-service parameter overrides.
+
+    `super_id` (optional) — supply one from `create_super_id_tool` if you
+    want to attach this analysis to an existing session; otherwise one is
+    generated for you and returned.
+
+    `callback_url` (optional) — final results are POSTed here when ready.
+
+    Returns 202 immediately with a `super_id`. Poll progress with
+    `get_property_analysis_result_tool(super_id)`, or set `callback_url`
+    to receive the final result asynchronously.
     """
     if not property_url:
         return "❌ Error: property_url is required"
@@ -321,27 +364,33 @@ async def full_analysis_primary_tool(
                 service_params=service_params,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("full_analysis_primary_tool failed: %s", exc, exc_info=True)
+            logger.error(
+                "run_property_analysis_tool failed: %s", exc, exc_info=True
+            )
             return f"❌ Error: {exc}"
     return json.dumps(result)
 
 
 @mcp.tool()
-async def full_analysis_fallback_tool(
+async def analyze_new_domain_property_tool(
     property_url: str = "",
     super_id: str = "",
     callback_url: str = "",
 ) -> str:
-    """AI-fetcher-first analysis: skip pre-built attempt, force multishot AI,
-    queue a coded-fetcher build for the next request.
+    """Analyse a property on a domain that doesn't have a coded fetcher yet.
 
-    Use when:
-      - The domain is brand-new (no registered fetcher yet).
-      - You want the higher-quality multishot AI extraction over a quick
-        coded-fetcher result.
+    Skips the registry lookup and goes straight to multishot AI extraction
+    so you get usable data right now. As a side-effect, queues a build
+    request so the system can autogenerate a coded fetcher for this domain
+    in the background — next time the same domain is analysed, the cheaper
+    coded path will already exist.
 
-    Returns the AI fetcher's data immediately, plus a `build_queued` flag
-    confirming a build_flag was enqueued for WF C to pick up.
+    Use this when you know the domain is new (e.g. a portal we haven't
+    onboarded), or when you specifically want AI-quality extraction over
+    a quick coded-fetcher result.
+
+    Returns the AI extraction result immediately, plus `build_queued: true`
+    confirming the coded-fetcher build was queued.
     """
     if not property_url:
         return "❌ Error: property_url is required"
@@ -354,32 +403,38 @@ async def full_analysis_fallback_tool(
                 callback_url=callback_url or None,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error("full_analysis_fallback_tool failed: %s", exc, exc_info=True)
+            logger.error(
+                "analyze_new_domain_property_tool failed: %s", exc, exc_info=True
+            )
             return f"❌ Error: {exc}"
     return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
-# Observability tools
+# Inspection / discovery tools
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
-async def list_pre_built_fetchers_tool(
+async def list_registered_fetchers_tool(
     domain: str = "",
     source_type: str = "",
     status: str = "",
 ) -> str:
-    """List registered pre-built fetchers, optionally filtered.
+    """List the coded fetchers currently registered in the system.
 
-    `domain` (optional) — exact match on the fetcher's domain (case-insensitive).
-    `source_type` (optional) — `motie` or `proxy`.
-    `status` (optional) — `active` or `disabled`. Default: all.
+    Lets an agent discover which property domains we already support before
+    deciding whether to call `fetch_with_registered_fetcher_tool`,
+    `analyze_new_domain_property_tool`, or `build_fetcher_tool`.
+
+    Filters (all optional):
+      - `domain` — exact match on the fetcher's domain (case-insensitive).
+      - `source_type` — `motie` (Motie-built code) or `proxy` (a domain
+        proxy service like the Rightmove API wrapper).
+      - `status` — `active` or `disabled`. Defaults to all.
 
     Returns each fetcher's id, domain, source_type, route_path, http_method,
-    api_url, param_schema, status. Useful for agents to discover what's
-    available before deciding between motie_fetch_tool, fetch_with_pre_built_tool,
-    or motie_build_tool.
+    api_url, param_schema, and status.
     """
     async with httpx.AsyncClient() as client:
         try:
@@ -391,7 +446,7 @@ async def list_pre_built_fetchers_tool(
             )
         except Exception as exc:  # noqa: BLE001
             logger.error(
-                "list_pre_built_fetchers_tool failed: %s", exc, exc_info=True
+                "list_registered_fetchers_tool failed: %s", exc, exc_info=True
             )
             return f"❌ Error: {exc}"
     return json.dumps(result)
@@ -399,13 +454,15 @@ async def list_pre_built_fetchers_tool(
 
 @mcp.tool()
 async def get_fetcher_build_status_tool(build_id: str = "") -> str:
-    """Poll the status of an in-progress Motie fetcher build.
+    """Poll the status of an in-progress fetcher build.
 
-    Returns build_id, state, session_id, deployment_id, api_url (when
-    deployed), benchmark_score (when scored), error_message, is_terminal.
+    Returns `build_id`, `state`, `session_id`, `deployment_id`, `api_url`
+    (once deployed), `benchmark_score` (once scored), `error_message`,
+    `is_terminal`.
 
-    Used after motie_build_tool() returns a build_id, or to inspect
-    historical build attempts.
+    Use this after `motie_build_tool` returns a `build_id`, or to inspect
+    historical build attempts. Terminal states: `deployed`, `session_failed`,
+    `deployment_failed`.
     """
     if not build_id:
         return "❌ Error: build_id is required"
@@ -422,10 +479,22 @@ async def get_fetcher_build_status_tool(build_id: str = "") -> str:
 
 @mcp.tool()
 async def get_property_analysis_result_tool(super_id: str = "") -> str:
-    """Fetch the status and results for an analysis run by super_id.
+    """Fetch the status and results for an analysis run by `super_id`.
 
-    Returns per-service status via latest_status_by_context and the final_result
-    when all services have completed."""
+    `super_id` is the session ID returned by `run_property_analysis_tool`,
+    `analyze_new_domain_property_tool`, or `create_super_id_tool`.
+
+    Returns:
+      - `status` — `pending` while services are still running, `completed`
+        when all requested services have reported back.
+      - `latest_status_by_context` — per-service rollup
+        (`data_capture`, `floorplan_analysis`, `image_condition_analysis`).
+      - `final_result` — the merged property data, populated once data
+        capture completes; downstream service results are merged in as
+        they arrive.
+
+    Safe to poll repeatedly — typical end-to-end takes 30–90 seconds.
+    """
     if not super_id:
         return "❌ Error: super_id is required. Call create_super_id_tool() first."
     result = await get_property_analysis_result(super_id)
@@ -435,7 +504,9 @@ async def get_property_analysis_result_tool(super_id: str = "") -> str:
 
 
 # ---------------------------------------------------------------------------
-# Downstream-only triggers (kept; analysis services need direct access)
+# Downstream-only triggers — use these when you already have property media
+# (e.g. from a prior analysis or a manual upload) and just want one of the
+# downstream analysis services without re-capturing the listing.
 # ---------------------------------------------------------------------------
 
 
@@ -445,10 +516,16 @@ async def trigger_floorplan_tool(
     property_id: str = "",
     floorplans_json: str = "",
 ) -> str:
-    """Trigger floorplan analysis. Requires super_id, property_id, and a JSON object of floorplans
-    (e.g. '{"fp1": {"url": "https://..."}}').
-    Use create_super_id_tool() first to get a super_id if you don't have one.
-    Use get_property_analysis_result_tool(super_id) to poll."""
+    """Trigger floorplan analysis on a set of floorplan images.
+
+    Requires `super_id`, `property_id`, and `floorplans_json` — a JSON
+    object mapping floorplan keys to `{url}` dicts, e.g.
+    `'{"fp1": {"url": "https://..."}, "fp2": {"url": "https://..."}}'`.
+
+    Use `create_super_id_tool` first to get a `super_id` if you don't
+    already have one, and `get_property_analysis_result_tool` to poll
+    for the result.
+    """
     if not super_id:
         return "❌ Error: super_id is required. Call create_super_id_tool() first."
     if not property_id:
@@ -478,9 +555,15 @@ async def trigger_image_condition_tool(
     property_id: str = "",
     bedrooms: str = "",
 ) -> str:
-    """Trigger image condition analysis. Requires super_id and a JSON array of image URLs.
-    Use create_super_id_tool() first to get a super_id if you don't have one.
-    Use get_property_analysis_result_tool(super_id) to poll."""
+    """Trigger image condition analysis on a list of property image URLs.
+
+    Requires `super_id` and `image_urls_json` (JSON array of image URL
+    strings). Optional: `property_id`, `bedrooms`.
+
+    Use `create_super_id_tool` first to get a `super_id` if you don't
+    already have one, and `get_property_analysis_result_tool` to poll
+    for the result.
+    """
     if not super_id:
         return "❌ Error: super_id is required. Call create_super_id_tool() first."
     if not image_urls_json:
@@ -510,16 +593,26 @@ async def trigger_image_condition_tool(
 
 
 # ---------------------------------------------------------------------------
-# Helpers + legacy
+# Session helpers + legacy/deprecated tools
 # ---------------------------------------------------------------------------
 
 
 @mcp.tool()
 async def create_super_id_tool() -> str:
-    """Create a new super_id for tracking a property analysis session.
-    Call this FIRST before using any other tool. The returned super_id links
-    all service results (data capture, floorplan analysis, image condition analysis)
-    together under one session."""
+    """Create a new session ID (`super_id`) for tracking a property analysis.
+
+    A `super_id` is the system's session identifier — every analysis call
+    is tagged with one, and every result (data capture, floorplan analysis,
+    image condition analysis) is keyed by it so they can all be retrieved
+    together.
+
+    Most top-level tools (`run_property_analysis_tool`,
+    `analyze_new_domain_property_tool`) will create a `super_id` for you
+    automatically if you don't pass one. Call this tool explicitly when
+    you want to start a session up front (e.g. so you can pass the same
+    `super_id` to multiple downstream services that you want grouped under
+    one analysis).
+    """
     try:
         async with httpx.AsyncClient() as client:
             token = await get_m2m_token(client)
@@ -562,14 +655,14 @@ async def trigger_full_property_analysis_tool(
     super_id: str = "",
     external_callback_url: str = "",
 ) -> str:
-    """[DEPRECATED] Trigger the full property analysis workflow via the old SuperSami trigger.
+    """[DEPRECATED] Old entry point for full property analysis.
 
-    Use full_analysis_primary_tool() instead for V2-architecture-aligned routing.
-    Kept for backwards compatibility with existing callers.
+    Use `run_property_analysis_tool` instead. Kept for backwards
+    compatibility with existing callers.
     """
     logger.warning(
         "trigger_full_property_analysis_tool is deprecated; "
-        "prefer full_analysis_primary_tool"
+        "prefer run_property_analysis_tool"
     )
     if not property_url:
         return "❌ Error: property_url is required"
@@ -596,17 +689,17 @@ async def analyze_property_tool(
 ) -> str:
     """[DEPRECATED] Run the complete property analysis pipeline for a listing URL.
 
-    Use full_analysis_primary_tool() instead. This tool hardcodes vendor
-    selection by domain string (rule-3 violation: it picks
-    'data_capture_rightmove' for rightmove.co.uk and 'data_capture_motie'
-    otherwise) and routes through the deprecated Orchestrator V2.
-    Kept for backwards compatibility with existing callers.
+    Use `run_property_analysis_tool` instead. This older tool hardcodes
+    vendor selection by domain string (e.g. picks the Rightmove proxy for
+    rightmove.co.uk and Motie otherwise), bypassing the vendor-agnostic
+    fetcher registry. Kept for backwards compatibility with existing callers.
 
-    Returns a super_id. Use get_property_analysis_result_tool(super_id) to poll.
+    Returns a `super_id`. Use `get_property_analysis_result_tool(super_id)`
+    to poll for the result.
     """
     logger.warning(
-        "analyze_property_tool is deprecated (rule-3 vendor coupling); "
-        "prefer full_analysis_primary_tool"
+        "analyze_property_tool is deprecated (vendor-coupled routing); "
+        "prefer run_property_analysis_tool"
     )
     if not property_url:
         return "❌ Error: property_url is required"
@@ -640,17 +733,18 @@ async def trigger_orchestrated_analysis_tool(
 ) -> str:
     """[DEPRECATED] Trigger an orchestrated analysis with a custom combination of services.
 
-    Use full_analysis_primary_tool() instead — same shape, but routes through
-    Orchestrator V3 (V2 architecture, vendor-agnostic registry) instead of the
-    deprecated Orchestrator V2 (vendor-coupled routing).
-    Kept for backwards compatibility with existing callers.
+    Use `run_property_analysis_tool` instead — same shape, but uses the
+    current vendor-agnostic fetcher registry rather than the older
+    vendor-coupled routing this tool used. Kept for backwards compatibility.
 
-    services_json: JSON array of service names, e.g. '["data_capture_motie", "floorplan_analysis"]'.
-    Valid service names: data_capture_motie, data_capture_rightmove, floorplan_analysis, image_condition_analysis.
+    `services_json`: JSON array of service names, e.g.
+    `'["data_capture_motie", "floorplan_analysis"]'`. Valid names:
+    `data_capture_motie`, `data_capture_rightmove`, `floorplan_analysis`,
+    `image_condition_analysis`.
     """
     logger.warning(
-        "trigger_orchestrated_analysis_tool is deprecated (V1 orchestrator); "
-        "prefer full_analysis_primary_tool"
+        "trigger_orchestrated_analysis_tool is deprecated; "
+        "prefer run_property_analysis_tool"
     )
     if not property_url:
         return "❌ Error: property_url is required"
@@ -688,15 +782,15 @@ async def trigger_data_capture_tool(
 ) -> str:
     """[DEPRECATED] Trigger property data capture for a listing URL with vendor-by-domain routing.
 
-    Use fetch_with_pre_built_tool() (registry-driven, vendor-agnostic) or
-    motie_fetch_tool() / firecrawl_fetch_tool() (explicit vendor) instead.
-    This tool hardcodes 'rightmove → rightmove proxy, else → Motie' which
-    violates the V2 vendor-agnostic-registry principle.
-    Kept for backwards compatibility with existing callers.
+    Use `fetch_with_registered_fetcher_tool` (registry-driven, vendor-agnostic)
+    or `motie_fetch_tool` / `firecrawl_fetch_tool` (explicit vendor) instead.
+    This older tool hardcodes "rightmove → Rightmove proxy, else → Motie",
+    bypassing the vendor-agnostic registry. Kept for backwards compatibility.
     """
     logger.warning(
-        "trigger_data_capture_tool is deprecated (rule-3 vendor coupling); "
-        "prefer fetch_with_pre_built_tool, motie_fetch_tool, or firecrawl_fetch_tool"
+        "trigger_data_capture_tool is deprecated (vendor-coupled routing); "
+        "prefer fetch_with_registered_fetcher_tool, motie_fetch_tool, or "
+        "firecrawl_fetch_tool"
     )
     if not url:
         return "❌ Error: url is required"
