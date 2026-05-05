@@ -29,7 +29,8 @@ Rightmove fetcher row's metadata_json carries `parser_name: "rightmove"`
 so /fetchers/validate auto-picks this when called with that fetcher_id.
 """
 
-from typing import Any, Dict, List, Tuple
+import re
+from typing import Any, Dict, List, Optional, Tuple
 
 # Mapping from Rightmove camelCase / snake_case keys → canonical names.
 # Many Rightmove keys are camelCase in the raw API response; the proxy
@@ -213,6 +214,324 @@ def _extract_floorplan_urls(data: Dict[str, Any]) -> List[str]:
     return urls
 
 
+def _split_address(full_address: Any) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Best-effort split of Rightmove's free-form `address` / `displayAddress`
+    into (road, town). Rightmove typically formats it as
+    "<road>, <town>, <outcode>" — e.g. "Illey Lane, Halesowen, B62".
+    Anything that doesn't parse cleanly returns (None, None) so the caller
+    can keep the original full_address without polluting road/town.
+    """
+    if not isinstance(full_address, str) or not full_address.strip():
+        return None, None
+    parts = [p.strip() for p in full_address.split(",") if p.strip()]
+    if len(parts) >= 2:
+        return parts[0], parts[1]
+    return None, None
+
+
+def _extract_coordinates(data: Dict[str, Any]) -> Optional[Dict[str, float]]:
+    """
+    Pull lat/long from Rightmove's `location` block. Returns a small dict
+    {lat, lng} so the validator counts address_coordinates as present.
+    """
+    loc = data.get("location")
+    if not isinstance(loc, dict):
+        return None
+    lat = loc.get("latitude")
+    lng = loc.get("longitude")
+    if isinstance(lat, (int, float)) and isinstance(lng, (int, float)):
+        return {"lat": float(lat), "lng": float(lng)}
+    return None
+
+
+def _extract_created_date(data: Dict[str, Any]) -> Optional[str]:
+    """
+    Rightmove doesn't expose a clean ISO date. Best signals (in order):
+      1. analyticsInfo.added ("20250828" → "2025-08-28")
+      2. listingHistory.listingUpdateReason regex ("Added on 27/08/2025"
+         or "Reduced on 27/08/2025") — extract the date.
+      3. listingUpdateReason at the top level (same regex).
+    """
+    analytics = data.get("analyticsInfo")
+    if isinstance(analytics, dict):
+        added = analytics.get("added")
+        if isinstance(added, str) and len(added) == 8 and added.isdigit():
+            return f"{added[0:4]}-{added[4:6]}-{added[6:8]}"
+
+    candidates: List[str] = []
+    history = data.get("listingHistory")
+    if isinstance(history, dict):
+        for v in history.values():
+            if isinstance(v, str):
+                candidates.append(v)
+    if isinstance(data.get("listingUpdateReason"), str):
+        candidates.append(data["listingUpdateReason"])
+
+    for text in candidates:
+        m = re.search(r"(\d{2})/(\d{2})/(\d{4})", text)
+        if m:
+            d, mth, y = m.groups()
+            return f"{y}-{mth}-{d}"
+    return None
+
+
+def _extract_tenure(data: Dict[str, Any]) -> Optional[str]:
+    """
+    Rightmove's tenure lives under `salesInfo.tenureType` (BUY listings)
+    OR a top-level `tenure.tenureType` (newer schema). Either form.
+    """
+    for src in (data.get("tenure"), data.get("salesInfo")):
+        if isinstance(src, dict):
+            t = src.get("tenureDisplayType") or src.get("tenureType")
+            if isinstance(t, str) and t.strip():
+                return t
+    return None
+
+
+def _extract_size(data: Dict[str, Any]) -> Optional[str]:
+    """
+    Read `size.primary` if it's a real value (skip placeholders like
+    "Ask agent" — Rightmove uses these when the agent didn't supply
+    sq ft / m²).
+    """
+    size = data.get("size")
+    if isinstance(size, dict):
+        primary = size.get("primary")
+        if isinstance(primary, str) and primary.strip().lower() not in (
+            "",
+            "ask agent",
+            "ask",
+            "n/a",
+        ):
+            return primary
+    sizings = data.get("sizings")
+    if isinstance(sizings, list) and sizings:
+        first = sizings[0]
+        if isinstance(first, dict):
+            return first.get("primary") or first.get("displayValue")
+    return None
+
+
+def _alias_present(entry: Any) -> bool:
+    """
+    Rightmove feature entries are `[{alias, displayText}]` lists. An entry
+    counts as "present" when its alias is something other than 'ask' (the
+    placeholder for "agent didn't supply").
+    """
+    if isinstance(entry, list):
+        for it in entry:
+            if isinstance(it, dict):
+                alias = it.get("alias")
+                if isinstance(alias, str) and alias.lower() not in ("ask", ""):
+                    return True
+        return False
+    if isinstance(entry, dict):
+        alias = entry.get("alias")
+        return isinstance(alias, str) and alias.lower() not in ("ask", "")
+    if isinstance(entry, bool):
+        return entry
+    if isinstance(entry, str):
+        return entry.lower() not in ("ask", "")
+    return False
+
+
+def _alias_display(entry: Any) -> Optional[str]:
+    """First non-'ask' displayText from a Rightmove feature list/dict."""
+    if isinstance(entry, list):
+        for it in entry:
+            if isinstance(it, dict) and it.get("alias", "").lower() != "ask":
+                return it.get("displayText") or it.get("alias")
+        return None
+    if isinstance(entry, dict):
+        if entry.get("alias", "").lower() != "ask":
+            return entry.get("displayText") or entry.get("alias")
+    return None
+
+
+def _extract_features_cluster(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Rightmove `features` block has a fixed set of sub-keys (parking, garden,
+    accessibility, heating, electricity, water, sewerage, broadband, plus
+    nested `obligations` and `risks`). This pulls each one into a canonical
+    field, treating the 'ask agent' alias as missing.
+    """
+    out: Dict[str, Any] = {}
+    feats = data.get("features")
+    if not isinstance(feats, dict):
+        return out
+
+    # Direct boolean-ish features
+    for key, canon in (
+        ("parking", "parking"),
+        ("garden", "garden"),
+        ("accessibility", "accessibility"),
+        ("heating", "heating"),
+    ):
+        entry = feats.get(key)
+        if _alias_present(entry):
+            out[canon] = _alias_display(entry) or True
+
+    # Utilities — Rightmove splits across electricity/water/sewerage/broadband.
+    # Aggregate any that are populated into a small dict so the field counts
+    # as present once at least one utility is supplied.
+    utilities: Dict[str, Any] = {}
+    for k in ("electricity", "water", "sewerage", "broadband"):
+        if _alias_present(feats.get(k)):
+            v = _alias_display(feats.get(k))
+            if v:
+                utilities[k] = v
+    if utilities:
+        out["utilities"] = utilities
+
+    # Obligations: listed, restrictions, access (restrictive covenants etc.)
+    obligations = feats.get("obligations")
+    if isinstance(obligations, dict):
+        for src_key, canon in (
+            ("listed", "listed"),
+            ("restrictions", "restrictions"),
+            ("privateAccess", "access"),
+            ("requiredAccess", "access"),
+            ("rightsOfWay", "access"),
+        ):
+            v = obligations.get(src_key)
+            # Schema variant 1: {alias: "false"|"true", displayText: "Yes/No"}
+            if isinstance(v, dict):
+                alias = v.get("alias")
+                if isinstance(alias, str):
+                    out[canon] = v.get("displayText") or alias
+            # Schema variant 2: bool
+            elif isinstance(v, bool):
+                out[canon] = "Yes" if v else "No"
+
+    # Risks: flood_risk
+    risks = feats.get("risks")
+    if isinstance(risks, dict):
+        for k in ("floodRisk", "floodHistory", "floodDefences"):
+            entry = risks.get(k)
+            if _alias_present(entry):
+                disp = _alias_display(entry)
+                if disp and not out.get("flood_risk"):
+                    out["flood_risk"] = disp
+                    break
+        # Schema variant 2: floodSources list / floodedInLastFiveYears bool
+        if "flood_risk" not in out:
+            sources = risks.get("floodSources")
+            in_last_5 = risks.get("floodedInLastFiveYears")
+            if isinstance(sources, list) and sources:
+                out["flood_risk"] = ", ".join(str(s) for s in sources)
+            elif isinstance(in_last_5, bool):
+                out["flood_risk"] = "Flooded in last 5 years" if in_last_5 else "Not flooded in last 5 years"
+
+    return out
+
+
+def _extract_status_availability(data: Dict[str, Any]) -> Optional[str]:
+    """
+    `status.available` (bool) or `status.published` (bool). Map to a
+    short string the validator can count as present.
+    """
+    status = data.get("status")
+    if isinstance(status, dict):
+        if status.get("available") is True:
+            return "available"
+        if status.get("available") is False:
+            return "unavailable"
+        if status.get("published") is True:
+            return "published"
+        if status.get("archived") is True:
+            return "archived"
+        if isinstance(status.get("label"), str):
+            return status["label"]
+    return None
+
+
+def _extract_stations(data: Dict[str, Any]) -> Optional[List[Dict[str, Any]]]:
+    """
+    Pull nearby train stations from `stations[]` or `nearestStations[]`.
+    Returns up to the first 3 with name + distance so the field is
+    informative without being verbose.
+    """
+    for key in ("nearestStations", "stations"):
+        stations = data.get(key)
+        if isinstance(stations, list) and stations:
+            out: List[Dict[str, Any]] = []
+            for s in stations[:3]:
+                if not isinstance(s, dict):
+                    continue
+                name = s.get("station") or s.get("name")
+                dist = s.get("distance")
+                unit = s.get("unit") or "miles"
+                if name:
+                    entry: Dict[str, Any] = {"name": name}
+                    if isinstance(dist, (int, float)):
+                        entry["distance"] = round(float(dist), 2)
+                        entry["unit"] = unit
+                    out.append(entry)
+            if out:
+                return out
+    return None
+
+
+def _extract_video_urls(data: Dict[str, Any]) -> List[str]:
+    """Extract virtualTours[].uri / url — Rightmove serves these as MP4s."""
+    urls: List[str] = []
+    tours = data.get("virtualTours")
+    if isinstance(tours, list):
+        for t in tours:
+            if isinstance(t, dict):
+                u = t.get("uri") or t.get("url")
+                if isinstance(u, str) and u.startswith("http"):
+                    urls.append(u)
+            elif isinstance(t, str) and t.startswith("http"):
+                urls.append(t)
+    return urls
+
+
+def _extract_shared_ownership(data: Dict[str, Any]) -> Optional[bool]:
+    """
+    Read `sharedOwnership.sharedOwnershipFlag` (newer schema) or
+    `sharedOwnershipPercentage` non-null (older). Returns False so the
+    field is recorded as a real value when the listing is not shared
+    ownership — both states are informative.
+    """
+    so = data.get("sharedOwnership")
+    if isinstance(so, dict):
+        flag = so.get("sharedOwnershipFlag")
+        if isinstance(flag, bool):
+            return flag
+        if so.get("ownershipPercentage") is not None:
+            return True
+    sales = data.get("salesInfo")
+    if isinstance(sales, dict):
+        if sales.get("sharedOwnershipPercentage") is not None:
+            return True
+    return None
+
+
+def _extract_epcs(data: Dict[str, Any]) -> List[str]:
+    """
+    Pull EPC URLs from `epcs[]` or `epcGraphs[]` (both empty lists are
+    common — Rightmove only exposes EPC data when the agent uploaded it).
+    """
+    urls: List[str] = []
+    for key in ("epcs", "epcGraphs"):
+        items = data.get(key)
+        if isinstance(items, list):
+            for it in items:
+                if isinstance(it, dict):
+                    u = (
+                        it.get("url")
+                        or it.get("imageUrl")
+                        or it.get("originalUrl")
+                    )
+                    if isinstance(u, str) and u.startswith("http"):
+                        urls.append(u)
+                elif isinstance(it, str) and it.startswith("http"):
+                    urls.append(it)
+    return urls
+
+
 def _find_results_array(payload: Dict[str, Any]) -> List[Any]:
     """
     Locate the `results: [...]` array inside the payload. Handles three
@@ -315,6 +634,8 @@ def parse_rightmove_result(
     fields: Dict[str, Any] = {}
     image_urls: List[str] = []
     floorplan_urls: List[str] = []
+    video_urls: List[str] = []
+    epc_urls: List[str] = []
 
     def _merge(into: Dict[str, Any], src: Dict[str, Any]) -> None:
         for k, v in src.items():
@@ -367,20 +688,89 @@ def parse_rightmove_result(
         if agent_addr and not fields.get("agent_address"):
             fields["agent_address"] = agent_addr
 
-        # Images / floorplans (accumulate across blocks; dedupe later)
+        # Images / floorplans / videos / EPCs (accumulate across blocks;
+        # dedupe later).
         image_urls.extend(_extract_image_urls(block))
         floorplan_urls.extend(_extract_floorplan_urls(block))
+        video_urls.extend(_extract_video_urls(block))
+        epc_urls.extend(_extract_epcs(block))
 
-    # Dedupe while preserving order
+        # Coordinates
+        if not fields.get("address_coordinates"):
+            coords = _extract_coordinates(block)
+            if coords:
+                fields["address_coordinates"] = coords
+
+        # Created date — derived from analyticsInfo.added or listingHistory
+        if not fields.get("created_date"):
+            cd = _extract_created_date(block)
+            if cd:
+                fields["created_date"] = cd
+
+        # Tenure (FREEHOLD / LEASEHOLD / SHARE_OF_FREEHOLD …)
+        if not fields.get("tenure"):
+            tenure = _extract_tenure(block)
+            if tenure:
+                fields["tenure"] = tenure
+
+        # Size (skip Rightmove's "Ask agent" placeholder)
+        if not fields.get("size"):
+            size = _extract_size(block)
+            if size:
+                fields["size"] = size
+
+        # Status availability
+        if not fields.get("status_availability"):
+            sa = _extract_status_availability(block)
+            if sa:
+                fields["status_availability"] = sa
+
+        # Train stations nearby
+        if not fields.get("train_station_nearby"):
+            stations = _extract_stations(block)
+            if stations:
+                fields["train_station_nearby"] = stations
+
+        # Shared ownership flag (False is informative — record either way)
+        if "shared_ownership" not in fields:
+            so = _extract_shared_ownership(block)
+            if so is not None:
+                fields["shared_ownership"] = so
+
+        # Features cluster: garden, parking, accessibility, heating,
+        # utilities, listed, restrictions, access, flood_risk
+        feats = _extract_features_cluster(block)
+        for k, v in feats.items():
+            if v not in (None, "", []) and not fields.get(k):
+                fields[k] = v
+
+    # Address split — derive road / town from full_address when Rightmove
+    # didn't already supply them split. Doesn't overwrite explicit values.
+    full_addr = fields.get("full_address")
+    if full_addr and (not fields.get("address_road") or not fields.get("address_town")):
+        road, town = _split_address(full_addr)
+        if road and not fields.get("address_road"):
+            fields["address_road"] = road
+        if town and not fields.get("address_town"):
+            fields["address_town"] = town
+
+    # Dedupe media while preserving order
     image_urls = list(dict.fromkeys(image_urls))
     floorplan_urls = list(dict.fromkeys(floorplan_urls))
+    video_urls = list(dict.fromkeys(video_urls))
+    epc_urls = list(dict.fromkeys(epc_urls))
 
     # Surface media into fields too, so the validator's presence check
-    # for image_urls / floorplan_urls passes when arrays are non-empty.
+    # for image_urls / floorplan_urls / video_urls / epcs passes when
+    # arrays are non-empty.
     if image_urls and not fields.get("image_urls"):
         fields["image_urls"] = image_urls
     if floorplan_urls and not fields.get("floorplan_urls"):
         fields["floorplan_urls"] = floorplan_urls
+    if video_urls and not fields.get("video_urls"):
+        fields["video_urls"] = video_urls
+    if epc_urls and not fields.get("epcs"):
+        fields["epcs"] = epc_urls
 
     # Default source_url to the URL the caller passed if not already set
     if not fields.get("source_url"):
