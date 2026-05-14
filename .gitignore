@@ -67,4 +67,7 @@ output.txt
 
 # Exclude floor_plan_extractor local repo
 floor_plan_extractor/
+
+# n8n workflows live in the n8n instance; JSON exports are not version-controlled
+# (they contain environment-specific config and credential references)
 n8n_workflows/
