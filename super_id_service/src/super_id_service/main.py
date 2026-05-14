@@ -15,6 +15,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from .config import settings
 from .db import AsyncSessionLocal
 from .routers.health_router import router as health_router
+from .routers.metadata_router import router as metadata_router
 from .routers.super_id_router import router as super_id_router
 from .utils.logging_config import LoggingMiddleware, logger, setup_logging
 from .utils.rate_limiting import setup_rate_limiting
@@ -67,6 +68,7 @@ setup_rate_limiting(app)
 
 app.include_router(health_router, tags=["Health"])
 app.include_router(super_id_router, prefix="/super_ids", tags=["Super IDs (REST API)"])
+app.include_router(metadata_router, tags=["SuperID Metadata (activity + link records)"])
 
 
 # Resource Metadata

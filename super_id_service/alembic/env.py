@@ -9,6 +9,10 @@ from sqlalchemy.pool import NullPool
 # Import Base from the correct location in super_id_service
 from super_id_service.models.generated_super_id import Base, GeneratedSuperID
 
+# SuperID Metadata store models (chunk 2 — activity records, link records)
+from super_id_service.models.activity_record import ActivityRecord  # noqa: F401
+from super_id_service.models.link_record import LinkRecord  # noqa: F401
+
 # Import any additional models here if they are added later
 
 # Import service metadata to be used for migrations
