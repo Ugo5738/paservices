@@ -179,6 +179,20 @@ async def fetch_combined_property_data(
             detail="super_id is required to fetch combined property data.",
         )
 
+    # SuperID Metadata: record this use of the SuperID by the Rightmove
+    # coded fetcher. Non-blocking — failures are logged but don't kill the
+    # request (chunk 3 / docs/superid_data_capture_design.md section 3.3).
+    await super_id_service_client.record_activity(
+        super_id=request.super_id,
+        used_by="data_capture_rightmove_service",
+        source="wf_dc_a_cf/service_invocation/fetch_combined",
+        metadata={
+            "property_id": extracted_id or (
+                str(request.property_id) if request.property_id else None
+            ),
+        },
+    )
+
     callback_payload = (
         request.callback.model_dump(mode="json") if request.callback else None
     )

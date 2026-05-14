@@ -19,6 +19,9 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from data_capture_service.clients.super_id_service_client import (
+    super_id_service_client,
+)
 from data_capture_service.crud import fetcher_crud
 from data_capture_service.db import get_db
 from data_capture_service.models.fetcher_run import FetcherRunKind
@@ -137,6 +140,17 @@ async def run_fetcher_endpoint(
     if fetcher.status != "active":
         raise HTTPException(
             409, f"Fetcher {fetcher.id} is {fetcher.status}, not active"
+        )
+
+    # SuperID Metadata: record this use of the SuperID by the coded fetcher.
+    # Non-blocking — failures are logged but don't kill the request
+    # (chunk 3 / docs/superid_data_capture_design.md section 3.3).
+    if request.super_id:
+        await super_id_service_client.record_activity(
+            super_id=request.super_id,
+            used_by="coded_fetcher_service",
+            source="wf_dc_a_cf/service_invocation",
+            metadata={"fetcher_id": str(fetcher.id), "domain": fetcher.domain},
         )
 
     result = await run_fetcher(

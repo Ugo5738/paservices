@@ -140,5 +140,96 @@ class SuperIdServiceClient:
             )
 
 
+    async def record_activity(
+        self,
+        super_id: uuid.UUID,
+        used_by: str,
+        source: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Record an activity entry for a SuperID in the SuperID Metadata store.
+
+        Non-blocking: any failure (network, auth, permission, 5xx, …) is
+        logged and the method returns None. Activity records are
+        observability metadata; losing one record must not break the
+        operational path of the analysis.
+
+        See docs/superid_principles.md section 5 and
+        docs/superid_data_capture_design.md section 3.3.
+        """
+        payload: Dict[str, Any] = {
+            "super_id": str(super_id),
+            "used_by": used_by,
+            "source": source,
+        }
+        if metadata is not None:
+            payload["metadata"] = metadata
+        try:
+            headers = await auth_service_client.get_auth_header()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/activity_records",
+                    json=payload,
+                    headers=headers,
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.warning(
+                "Failed to record activity for super_id=%s used_by=%s source=%s: %s",
+                super_id,
+                used_by,
+                source,
+                e,
+            )
+            return None
+
+    async def record_link(
+        self,
+        super_id_a: uuid.UUID,
+        super_id_b: uuid.UUID,
+        created_by: str,
+        source: str,
+        metadata: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Record a link entry in the SuperID Metadata store between two SuperIDs.
+
+        Bidirectional: super_id_a / super_id_b order is not semantically
+        meaningful. Non-blocking by design (see `record_activity`).
+        """
+        payload: Dict[str, Any] = {
+            "super_id_a": str(super_id_a),
+            "super_id_b": str(super_id_b),
+            "created_by": created_by,
+            "source": source,
+        }
+        if metadata is not None:
+            payload["metadata"] = metadata
+        try:
+            headers = await auth_service_client.get_auth_header()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{self.base_url}/link_records",
+                    json=payload,
+                    headers=headers,
+                    timeout=10.0,
+                )
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            logger.warning(
+                "Failed to record link super_id_a=%s super_id_b=%s created_by=%s source=%s: %s",
+                super_id_a,
+                super_id_b,
+                created_by,
+                source,
+                e,
+            )
+            return None
+
+
 # Create a global instance of the super ID service client
 super_id_service_client = SuperIdServiceClient()

@@ -20,6 +20,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.adapters.base import DataCaptureRequest
+from data_capture_service.clients.super_id_service_client import (
+    super_id_service_client,
+)
 from data_capture_service.db import get_db
 from data_capture_service.models.fetcher_run import FetcherRunKind, FetcherRunStatus
 from data_capture_service.schemas.v2_schemas import (
@@ -85,6 +88,28 @@ async def run_ai_fetcher(
     super_id_str = str(request.super_id) if request.super_id else None
     domain = extract_domain(request.url)
     in_loop = parent_run_id is not None or loop_start
+
+    # SuperID Metadata: record this use of the SuperID by the AI fetcher.
+    # Non-blocking — failures are logged but don't kill the request
+    # (chunk 3 / docs/superid_data_capture_design.md section 3.3).
+    if request.super_id:
+        # When `in_loop` is True the workflow is WF DC B2 AIF (iterative);
+        # otherwise it is WF DC B AIF (single-shot).
+        source = (
+            "wf_dc_b2_aif/service_invocation"
+            if in_loop
+            else "wf_dc_b_aif/service_invocation"
+        )
+        await super_id_service_client.record_activity(
+            super_id=request.super_id,
+            used_by="ai_fetcher_service",
+            source=source,
+            metadata={
+                "adapter": adapter,
+                "domain": domain,
+                "attempt_number": attempt_number,
+            },
+        )
 
     try:
         raw = await impl.fetch_raw(

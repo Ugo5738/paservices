@@ -16,6 +16,7 @@ from fastapi import (
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+from ..clients.super_id_service_client import super_id_service_client
 from ..config import settings
 from ..db import get_db
 from ..models import FpPropertyData
@@ -110,6 +111,20 @@ async def analyze_floorplans(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="super_id is required for floorplan analysis.",
         )
+
+    # SuperID Metadata: record this use of the SuperID by floorplan analysis.
+    # Non-blocking — failures are logged but don't kill the request
+    # (chunk 3 / docs/superid_data_capture_design.md section 3.3).
+    await super_id_service_client.record_activity(
+        super_id=request_data.super_id,
+        used_by="floorplan_service",
+        source="floorplan_analysis/analyze_endpoint_invoked",
+        metadata={
+            "property_id": (
+                str(request_data.property_id) if request_data.property_id else None
+            ),
+        },
+    )
 
     background_tasks.add_task(
         trigger_floorplan_analysis,
