@@ -226,8 +226,17 @@ async def trigger_orchestrator_via_n8n(
     }
     if service_params:
         payload["service_params"] = service_params
-    # Prefer v2 orchestrator (handles sequential dependencies); fall back to v1
-    orchestrator_url = settings.N8N_ORCHESTRATOR_V2_URL or settings.N8N_ORCHESTRATOR_URL
+    # Chunk 10: prefer Orchestrator V3 (the V2-architecture-aligned entry point
+    # — routes to WF DC 1 Main). Fall back to V2 (deprecated; routes to V1
+    # paths) then V1 (legacy parallel-only). The V2 file itself is being
+    # deleted as part of chunk 10 — once removed from the n8n instance the
+    # PA_MCP_N8N_ORCHESTRATOR_V2_URL config + this fallback are unused
+    # leftovers and can be dropped in a follow-up.
+    orchestrator_url = (
+        settings.N8N_ORCHESTRATOR_V3_URL
+        or settings.N8N_ORCHESTRATOR_V2_URL
+        or settings.N8N_ORCHESTRATOR_URL
+    )
     return await _trigger_n8n_service_workflow(
         client=client,
         webhook_url=orchestrator_url,

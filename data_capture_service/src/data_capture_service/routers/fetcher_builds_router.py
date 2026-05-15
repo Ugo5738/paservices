@@ -411,8 +411,6 @@ async def score_build(
         matched_fields=result.diff.matched,
         candidate_priority_scores=result.candidate_priority_scores,
         baseline_priority_scores=result.baseline_priority_scores,
-        baseline_run_id=baseline_run.id,
-        candidate_run_id=candidate_run.id,
         baseline_fields=baseline_parsed.fields,
     )
 

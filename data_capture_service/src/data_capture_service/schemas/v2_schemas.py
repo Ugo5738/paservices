@@ -409,8 +409,12 @@ class MotieBuildScoreResponse(BaseModel):
     matched_fields: List[str] = Field(default_factory=list)
     candidate_priority_scores: Dict[int, float] = Field(default_factory=dict)
     baseline_priority_scores: Dict[int, float] = Field(default_factory=dict)
-    baseline_run_id: Optional[UUID] = None
-    candidate_run_id: Optional[UUID] = None
+    # `baseline_run_id` / `candidate_run_id` are intentionally absent.
+    # They previously exposed `fetcher_runs.id` (the internal PK), which
+    # would create a parallel external ID system. Per principles section 1
+    # callers reference rows by SuperID only — both the baseline and
+    # candidate fetcher_runs rows share the same super_id (the build's),
+    # so the build_id + super_id pair is sufficient to find them.
     baseline_fields: Optional[Dict[str, Any]] = None
 
 
