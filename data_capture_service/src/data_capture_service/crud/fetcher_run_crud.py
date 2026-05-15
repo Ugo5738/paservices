@@ -19,7 +19,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from data_capture_service.models.fetcher_run import FetcherRun, FetcherRunKind
+from data_capture_service.models.fetcher_run import FetcherRun, FetcherType
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 async def record(
     db: AsyncSession,
     *,
-    kind: str,
+    fetcher_type: str,
     vendor: str,
     url: str,
     domain: str,
@@ -59,7 +59,7 @@ async def record(
     """
     row = FetcherRun(
         super_id=super_id,
-        kind=kind,
+        fetcher_type=fetcher_type,
         vendor=vendor,
         fetcher_id=fetcher_id,
         ai_fetcher_id=ai_fetcher_id,

@@ -25,7 +25,7 @@ from data_capture_service.clients.super_id_service_client import (
 )
 from data_capture_service.crud import fetcher_crud
 from data_capture_service.db import get_db
-from data_capture_service.models.fetcher_run import FetcherRunKind
+from data_capture_service.models.fetcher_run import FetcherType
 from data_capture_service.schemas.v2_schemas import (
     FetcherInfo,
     FetcherListResponse,
@@ -167,7 +167,7 @@ async def run_fetcher_endpoint(
     try:
         run = await fetcher_audit.record_run(
             db,
-            kind=FetcherRunKind.CODED.value,
+            fetcher_type=FetcherType.CODED.value,
             vendor=fetcher.source_type,
             url=request.url,
             domain=fetcher.domain,

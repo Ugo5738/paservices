@@ -33,7 +33,7 @@ from data_capture_service.crud import (
     motie_project_crud,
 )
 from data_capture_service.db import get_db
-from data_capture_service.models.fetcher_run import FetcherRunKind
+from data_capture_service.models.fetcher_run import FetcherType
 from data_capture_service.models.motie_build import (
     MotieBuildPromptKind,
     MotieBuildState,
@@ -297,9 +297,9 @@ async def score_build(
         else str(baseline_raw.status)
     )
 
-    baseline_run = await fetcher_audit.record_single_shot_run(
+    baseline_run = await fetcher_audit.record_run(
         db,
-        kind=FetcherRunKind.BUILD_BENCHMARK.value,
+        fetcher_type=FetcherType.BUILD_BENCHMARK.value,
         vendor=ai_row.name,
         url=build.url,
         domain=build.domain,
@@ -366,9 +366,9 @@ async def score_build(
         baseline_fields=baseline_parsed.fields or {},
     )
 
-    candidate_run = await fetcher_audit.record_single_shot_run(
+    candidate_run = await fetcher_audit.record_run(
         db,
-        kind=FetcherRunKind.BUILD_BENCHMARK.value,
+        fetcher_type=FetcherType.BUILD_BENCHMARK.value,
         vendor="motie",
         url=build.url,
         domain=build.domain,

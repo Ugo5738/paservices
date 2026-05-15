@@ -20,7 +20,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.crud import fetcher_run_crud
-from data_capture_service.models.fetcher_run import FetcherRun, FetcherRunKind
+from data_capture_service.models.fetcher_run import FetcherRun, FetcherType
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def record_run(
     db: AsyncSession,
     *,
-    kind: str,
+    fetcher_type: str,
     vendor: str,
     url: str,
     domain: str,
@@ -59,7 +59,7 @@ async def record_run(
         error_message = "fetcher run reported failure with no detail"
     return await fetcher_run_crud.record(
         db,
-        kind=kind,
+        fetcher_type=fetcher_type,
         vendor=vendor,
         url=url,
         domain=domain,
@@ -78,7 +78,3 @@ async def record_run(
     )
 
 
-# Backwards-compatible alias for callers still using the chunk-3-era name.
-# Slated for removal once those callers (none remaining at chunk 5 commit
-# time within this repo) are updated.
-record_single_shot_run = record_run

@@ -14,8 +14,8 @@ example and docs/superid_principles.md sections 5 and 9 for the
 rationale ("Mistake: encoding ordering or sequence in a field on the
 SuperID").
 
-`kind` distinguishes which V2 path produced the row so downstream
-scoring / drift queries can filter cleanly:
+`fetcher_type` distinguishes which V2 path produced the row so
+downstream scoring / drift queries can filter cleanly:
 
   'coded'           — coded-fetcher path (WF DC A CF, /fetchers/run)
   'ai'              — AI-fetcher path (WF DC B AIF, /ai-fetchers/{name}/run)
@@ -23,8 +23,8 @@ scoring / drift queries can filter cleanly:
                       Motie scraper to compare against the AI-fetcher
                       baseline for scoring.
 
-NOTE: chunk 5 will be re-named to `fetcher_type` in chunk 6 alongside
-the broader vocabulary cleanup.
+(Renamed from `kind` in chunk 6 per Rolf's naming feedback —
+"Kind is terrible. It makes no sense on its own.")
 """
 
 import enum
@@ -48,10 +48,17 @@ from sqlalchemy.dialects.postgresql import JSONB, UUID
 from data_capture_service.models.base import Base
 
 
-class FetcherRunKind(str, enum.Enum):
+class FetcherType(str, enum.Enum):
+    """Discriminator for which V2 path produced a fetcher_runs row."""
+
     CODED = "coded"
     AI = "ai"
     BUILD_BENCHMARK = "build_benchmark"
+
+
+# Backwards-compatible alias for callers still using the chunk-5 name.
+# Slated for removal in a follow-up cleanup pass.
+FetcherRunKind = FetcherType
 
 
 class FetcherRun(Base):
@@ -61,7 +68,7 @@ class FetcherRun(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     super_id = Column(UUID(as_uuid=True), nullable=True)
-    kind = Column(String(16), nullable=False)
+    fetcher_type = Column(String(16), nullable=False)
     vendor = Column(String(64), nullable=False)
     fetcher_id = Column(
         UUID(as_uuid=True),
@@ -107,8 +114,8 @@ class FetcherRun(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "kind IN ('coded', 'ai', 'build_benchmark')",
-            name="ck_fetcher_runs_kind",
+            "fetcher_type IN ('coded', 'ai', 'build_benchmark')",
+            name="ck_fetcher_runs_fetcher_type",
         ),
         # Per-service single-use check (chunk 4 — docs/superid_principles.md
         # section 4). NULL super_ids continue to be permitted; Postgres treats
@@ -128,6 +135,7 @@ class FetcherRun(Base):
     def __repr__(self) -> str:
         outcome = "success" if self.succeeded else "failed"
         return (
-            f"<FetcherRun(kind='{self.kind}', vendor='{self.vendor}', "
-            f"outcome='{outcome}', score={self.completeness_score})>"
+            f"<FetcherRun(fetcher_type='{self.fetcher_type}', "
+            f"vendor='{self.vendor}', outcome='{outcome}', "
+            f"score={self.completeness_score})>"
         )

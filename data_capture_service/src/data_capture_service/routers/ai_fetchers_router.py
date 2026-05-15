@@ -33,7 +33,7 @@ from data_capture_service.clients.super_id_service_client import (
     super_id_service_client,
 )
 from data_capture_service.db import get_db
-from data_capture_service.models.fetcher_run import FetcherRunKind
+from data_capture_service.models.fetcher_run import FetcherType
 from data_capture_service.schemas.v2_schemas import (
     AIFetcherRunRequest,
     AIFetcherRunResponse,
@@ -110,7 +110,7 @@ async def run_ai_fetcher(
         try:
             run = await fetcher_audit.record_run(
                 db,
-                kind=FetcherRunKind.AI.value,
+                fetcher_type=FetcherType.AI.value,
                 vendor=adapter,
                 url=request.url,
                 domain=domain,
@@ -149,7 +149,7 @@ async def run_ai_fetcher(
     try:
         run = await fetcher_audit.record_run(
             db,
-            kind=FetcherRunKind.AI.value,
+            fetcher_type=FetcherType.AI.value,
             vendor=adapter,
             url=request.url,
             domain=domain,

@@ -25,7 +25,8 @@ from data_capture_service.models.data_capture_usage import DataCaptureUsage
 from data_capture_service.models.fetcher import Fetcher
 from data_capture_service.models.fetcher_run import (
     FetcherRun,
-    FetcherRunKind,
+    FetcherRunKind,  # deprecated alias for FetcherType (chunk 6 — kept for back-compat)
+    FetcherType,
 )
 from data_capture_service.models.motie_build import (
     MotieBuild,
@@ -51,7 +52,8 @@ __all__ = [
     "StepStatus",
     "Fetcher",
     "FetcherRun",
-    "FetcherRunKind",
+    "FetcherType",
+    "FetcherRunKind",  # deprecated — alias for FetcherType, will be removed
     "MotieBuild",
     "MotieBuildPromptKind",
     "MotieBuildState",
