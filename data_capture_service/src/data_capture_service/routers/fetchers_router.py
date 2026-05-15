@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.clients.super_id_service_client import (
@@ -163,24 +164,38 @@ async def run_fetcher_endpoint(
     )
 
     succeeded = result.status == "success"
-    run = await fetcher_audit.record_single_shot_run(
-        db,
-        kind=FetcherRunKind.CODED.value,
-        vendor=fetcher.source_type,
-        url=request.url,
-        domain=fetcher.domain,
-        super_id=request.super_id,
-        fetcher_id=fetcher.id,
-        payload_json=result.payload if isinstance(result.payload, dict) else None,
-        error_message=result.error_message,
-        duration_ms=result.duration_ms,
-        succeeded=succeeded,
-        metadata_json={
-            "http_status_code": result.http_status_code,
-            "is_metered": result.is_metered,
-        },
-    )
-    await db.commit()
+    try:
+        run = await fetcher_audit.record_run(
+            db,
+            kind=FetcherRunKind.CODED.value,
+            vendor=fetcher.source_type,
+            url=request.url,
+            domain=fetcher.domain,
+            super_id=request.super_id,
+            fetcher_id=fetcher.id,
+            payload_json=result.payload if isinstance(result.payload, dict) else None,
+            error_message=result.error_message,
+            duration_ms=result.duration_ms,
+            succeeded=succeeded,
+            metadata_json={
+                "http_status_code": result.http_status_code,
+                "is_metered": result.is_metered,
+            },
+        )
+        await db.commit()
+    except IntegrityError as ie:
+        await db.rollback()
+        logger.warning(
+            "Coded fetcher run reject: super_id already used by this service",
+            extra={"super_id": str(request.super_id) if request.super_id else None},
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "super_id has already been used by the coded fetcher service. "
+                "Mint a new super_id and retry (principles section 4)."
+            ),
+        ) from ie
 
     return FetcherRunResponse(
         fetcher_id=fetcher.id,

@@ -150,29 +150,13 @@ class AIFetcherRunResponse(BaseModel):
     completeness_score: Optional[float] = None
     duration_ms: Optional[int] = None
     error_message: Optional[str] = None
-    # V2 audit-trail handles for the parent (e.g. WF B) to promote/supersede.
     run_id: Optional[UUID] = Field(
         default=None,
-        description="fetcher_runs row written for this attempt.",
+        description="fetcher_runs row written for this invocation.",
     )
-    parent_run_id: Optional[UUID] = Field(
-        default=None,
-        description="parent_run_id grouping multishot iterations for promotion.",
-    )
-    attempt_number: int = 1
-
-
-class AIFetcherPromoteRequest(BaseModel):
-    """Promote one draft attempt to final and supersede the rest in its group."""
-
-    parent_run_id: UUID
-    winner_run_id: UUID
-
-
-class AIFetcherPromoteResponse(BaseModel):
-    parent_run_id: UUID
-    winner_run_id: UUID
-    superseded_count: int
+    # `parent_run_id` and `attempt_number` are intentionally absent (chunk 5).
+    # Iteration / supersession is expressed via new SuperIDs + link records in
+    # the SuperID Metadata store — see docs/data_capture_v2_id_and_data_flow.md.
 
 
 # ─────────────────────────────────────────────────────────────────────────────

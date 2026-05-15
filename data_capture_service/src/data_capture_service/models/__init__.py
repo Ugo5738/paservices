@@ -26,7 +26,6 @@ from data_capture_service.models.fetcher import Fetcher
 from data_capture_service.models.fetcher_run import (
     FetcherRun,
     FetcherRunKind,
-    FetcherRunStatus,
 )
 from data_capture_service.models.motie_build import (
     MotieBuild,
@@ -53,7 +52,6 @@ __all__ = [
     "Fetcher",
     "FetcherRun",
     "FetcherRunKind",
-    "FetcherRunStatus",
     "MotieBuild",
     "MotieBuildPromptKind",
     "MotieBuildState",

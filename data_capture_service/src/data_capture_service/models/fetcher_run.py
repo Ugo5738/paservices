@@ -1,28 +1,30 @@
 """
-FetcherRun model — per-attempt audit trail for V2 primitive fetcher runs.
+FetcherRun model — per-use audit row for V2 primitive fetcher runs.
 
-Every call to /fetchers/run and /ai-fetchers/{name}/run writes a row.
-Status lifecycle (Rolf's rule 5: interim vs final state must be visible):
+Every call to /fetchers/run, /ai-fetchers/{name}/run, and the
+Fetcher Build benchmark path writes exactly one row. After chunk 5 of
+the V2 SuperID rollout, rows are immutable: once inserted they are never
+mutated and never deleted. Success / failure is signalled by
+`error_message IS NULL` — a derived predicate, never a mutated column.
 
-  draft       — freshly recorded; this is what gets written by every run.
-                A multishot loop (e.g. WF B) creates many draft rows.
-  final       — the canonical winning attempt for this attempt-group.
-                Promoted by the parent workflow (or an explicit primitive)
-                once it decides which attempt is the verified result.
-  superseded  — a draft that was eclipsed by a later attempt.
-  failed      — run did not produce usable data.
+Iteration / supersession / fallback chains live in the SuperID Metadata
+store (activity records + link records on super_id_service), NOT in this
+table. See docs/data_capture_v2_id_and_data_flow.md for the worked
+example and docs/superid_principles.md sections 5 and 9 for the
+rationale ("Mistake: encoding ordering or sequence in a field on the
+SuperID").
 
-`parent_run_id` groups iterations together (e.g. all of WF B's attempts for
-one URL share a parent so the eventual winner can be promoted and the rest
-marked superseded). Single-shot runs (WF1) leave parent_run_id NULL and
-get promoted to 'final' immediately.
+`kind` distinguishes which V2 path produced the row so downstream
+scoring / drift queries can filter cleanly:
 
-`kind` distinguishes which V2 path produced the row, so future scoring /
-drift queries can filter cleanly:
-  'coded'           — coded-fetcher path (W1, /fetchers/run)
-  'ai'              — AI-fetcher path (W2, /ai-fetchers/{name}/run)
-  'build_benchmark' — W3 internal: ran the freshly-built Motie scraper to
-                      compare against the AI-fetcher baseline for scoring.
+  'coded'           — coded-fetcher path (WF DC A CF, /fetchers/run)
+  'ai'              — AI-fetcher path (WF DC B AIF, /ai-fetchers/{name}/run)
+  'build_benchmark' — WF DC 2 Build CF internal: ran the freshly-built
+                      Motie scraper to compare against the AI-fetcher
+                      baseline for scoring.
+
+NOTE: chunk 5 will be re-named to `fetcher_type` in chunk 6 alongside
+the broader vocabulary cleanup.
 """
 
 import enum
@@ -52,28 +54,12 @@ class FetcherRunKind(str, enum.Enum):
     BUILD_BENCHMARK = "build_benchmark"
 
 
-class FetcherRunStatus(str, enum.Enum):
-    DRAFT = "draft"
-    FINAL = "final"
-    SUPERSEDED = "superseded"
-    FAILED = "failed"
-
-
 class FetcherRun(Base):
-    """Per-attempt audit row for V2 primitive fetcher runs."""
+    """Per-use audit row for V2 primitive fetcher runs. Immutable, append-only."""
 
     __tablename__ = "fetcher_runs"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    parent_run_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey(
-            "data_capture.fetcher_runs.id",
-            name="fk_fetcher_runs_parent_run_id",
-            ondelete="SET NULL",
-        ),
-        nullable=True,
-    )
     super_id = Column(UUID(as_uuid=True), nullable=True)
     kind = Column(String(16), nullable=False)
     vendor = Column(String(64), nullable=False)
@@ -106,8 +92,6 @@ class FetcherRun(Base):
     )
     url = Column(String(2048), nullable=False)
     domain = Column(String(512), nullable=False)
-    attempt_number = Column(Integer, nullable=False, default=1)
-    status = Column(String(16), nullable=False, default=FetcherRunStatus.DRAFT.value)
     completeness_score = Column(Float, nullable=True)
     payload_json = Column(JSONB, nullable=True)
     fields_json = Column(JSONB, nullable=True)
@@ -126,26 +110,24 @@ class FetcherRun(Base):
             "kind IN ('coded', 'ai', 'build_benchmark')",
             name="ck_fetcher_runs_kind",
         ),
-        CheckConstraint(
-            "status IN ('draft', 'final', 'superseded', 'failed')",
-            name="ck_fetcher_runs_status",
-        ),
         # Per-service single-use check (chunk 4 — docs/superid_principles.md
-        # section 4). NULL super_ids continue to be permitted while chunk 5
-        # backfills and tightens the column. PostgreSQL treats multiple NULLs
-        # as distinct in UNIQUE constraints, so existing NULL rows coexist.
+        # section 4). NULL super_ids continue to be permitted; Postgres treats
+        # multiple NULLs as distinct in UNIQUE constraints.
         UniqueConstraint("super_id", name="uq_fetcher_runs_super_id"),
         Index("ix_fetcher_runs_url", "url"),
         Index("ix_fetcher_runs_domain", "domain"),
-        Index("ix_fetcher_runs_parent_run_id", "parent_run_id"),
-        Index("ix_fetcher_runs_status_started", "status", "started_at"),
         Index("ix_fetcher_runs_motie_build_id", "motie_build_id"),
         {"schema": "data_capture"},
     )
 
+    @property
+    def succeeded(self) -> bool:
+        """Derived: a fetcher run is successful when no error was recorded."""
+        return self.error_message is None
+
     def __repr__(self) -> str:
+        outcome = "success" if self.succeeded else "failed"
         return (
             f"<FetcherRun(kind='{self.kind}', vendor='{self.vendor}', "
-            f"attempt={self.attempt_number}, status='{self.status}', "
-            f"score={self.completeness_score})>"
+            f"outcome='{outcome}', score={self.completeness_score})>"
         )
