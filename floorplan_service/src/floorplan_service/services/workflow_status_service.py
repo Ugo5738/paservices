@@ -48,3 +48,25 @@ async def record_workflow_status(
                 },
             )
             raise exc
+
+    # Chunk 4.5: record each status transition as an activity event on
+    # the SuperID Metadata store. The fp_workflow_status row carries
+    # latest state (upserted above); the activity record is the
+    # immutable per-transition audit trail. Non-blocking.
+    from floorplan_service.clients.super_id_service_client import (
+        super_id_service_client,
+    )
+
+    await super_id_service_client.record_activity(
+        super_id=UUID(str(super_id)),
+        used_by="floorplan_service",
+        source=f"floorplan/workflow_status/{context}/{status}",
+        metadata={
+            "context": context,
+            "status": status,
+            "stage": stage,
+            "progress": progress,
+            "property_id": property_id,
+            "has_error": last_error is not None,
+        },
+    )

@@ -120,6 +120,29 @@ async def receive_analysis_callback(
         update_data.pop("status", None)
 
     stored = await upsert_analysis_result(db, payload.super_id, update_data)
+
+    # Chunk 4.5: record the callback as an activity event on the SuperID
+    # Metadata store. The analysis_results row (just upserted above)
+    # captures latest state; this activity record captures the immutable
+    # event history of every callback that contributed to it.
+    # Non-blocking — failure here must not affect the callback response.
+    from .tools.super_id_service_tools import record_activity
+
+    await record_activity(
+        super_id=str(payload.super_id),
+        used_by="pa_mcp",
+        source=(
+            f"pa_mcp/callback_received/{stored.status}"
+            if stored.status
+            else "pa_mcp/callback_received"
+        ),
+        metadata={
+            "fields_present": sorted(update_data.keys()),
+            "has_final_result": "final_result" in update_data
+            and update_data.get("final_result") is not None,
+        },
+    )
+
     logger.info(
         "Stored workflow callback",
         extra={"super_id": payload.super_id, "status": stored.status},

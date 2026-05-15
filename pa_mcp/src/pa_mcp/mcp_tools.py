@@ -645,6 +645,20 @@ async def create_super_id_tool() -> str:
             await session.rollback()
             logger.error("Failed to seed analysis result: %s", exc, exc_info=True)
 
+    # Chunk 4.5: record the initial mint as an activity event on the
+    # SuperID Metadata store. This is the first event in the SuperID's
+    # life — every downstream service's activity record will reference
+    # the same super_id, giving a complete audit trail in one place.
+    # Non-blocking — failure here doesn't undo the mint.
+    from .tools.super_id_service_tools import record_activity
+
+    await record_activity(
+        super_id=super_id,
+        used_by="pa_mcp",
+        source="pa_mcp/super_id_created",
+        metadata={"tool": "create_super_id_tool"},
+    )
+
     return json.dumps({"super_id": super_id, "status": "created"})
 
 
