@@ -38,6 +38,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -129,6 +130,11 @@ class FetcherRun(Base):
             "status IN ('draft', 'final', 'superseded', 'failed')",
             name="ck_fetcher_runs_status",
         ),
+        # Per-service single-use check (chunk 4 — docs/superid_principles.md
+        # section 4). NULL super_ids continue to be permitted while chunk 5
+        # backfills and tightens the column. PostgreSQL treats multiple NULLs
+        # as distinct in UNIQUE constraints, so existing NULL rows coexist.
+        UniqueConstraint("super_id", name="uq_fetcher_runs_super_id"),
         Index("ix_fetcher_runs_url", "url"),
         Index("ix_fetcher_runs_domain", "domain"),
         Index("ix_fetcher_runs_parent_run_id", "parent_run_id"),

@@ -10,7 +10,24 @@ from ..models.analysis_result import AnalysisResult
 async def upsert_analysis_result(
     db: AsyncSession, super_id: str, payload: Dict[str, Any]
 ) -> AnalysisResult:
-    """Upsert an analysis result row keyed by super_id."""
+    """
+    Upsert an analysis result row keyed by super_id.
+
+    Note on principles compliance (chunk 4 review, 2026-05-15): this upsert
+    is NOT a violation of the per-service single-use check
+    (docs/superid_principles.md section 4). It exists because the
+    analysis_results table aggregates partial callbacks from multiple
+    downstream services (data_capture, floorplan_analysis,
+    image_condition_analysis) that each contribute a slice of the
+    consumer-facing result for ONE analysis run. The upsert represents
+    progressive state of pa_mcp's single use of the super_id, not
+    multiple uses.
+
+    Fuller principles hygiene would convert this table to append-only
+    event sourcing: each callback writes a new (super_id, context, ...)
+    row and a view aggregates the latest values per context. That refactor
+    is deferred — see docs/data_capture_v2_architecture.md section 8.
+    """
     values = {"super_id": super_id, **payload}
     stmt = insert(AnalysisResult).values(values)
 
