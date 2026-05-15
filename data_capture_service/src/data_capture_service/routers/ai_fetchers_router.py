@@ -160,7 +160,6 @@ async def run_ai_fetcher(
             url=request.url,
             status="failed",
             error_message=str(e),
-            run_id=run.id,
             super_id=request.super_id,
             reference_super_id=reference_super_id,
         )
@@ -219,7 +218,6 @@ async def run_ai_fetcher(
         completeness_score=score.overall,
         duration_ms=raw.duration_ms,
         error_message=raw.error_message or parsed.error_message,
-        run_id=run.id,
         super_id=request.super_id,
         reference_super_id=reference_super_id,
     )

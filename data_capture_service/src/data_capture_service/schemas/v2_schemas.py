@@ -88,13 +88,13 @@ class FetcherRunResponse(BaseModel):
     error_message: Optional[str] = None
     duration_ms: int = 0
     is_metered: bool = False
-    run_id: Optional[UUID] = Field(
-        default=None,
-        description="fetcher_runs row written for this attempt.",
-    )
     super_id: Optional[UUID] = Field(
         default=None,
-        description="Operating SuperID the row was written under.",
+        description=(
+            "Operating SuperID the row was written under. This is the public "
+            "handle for the run; callers reference rows by SuperID, never by "
+            "an internal row PK (docs/superid_principles.md section 1)."
+        ),
     )
     reference_super_id: Optional[UUID] = Field(
         default=None,
@@ -190,21 +190,60 @@ class AIFetcherRunResponse(BaseModel):
     completeness_score: Optional[float] = None
     duration_ms: Optional[int] = None
     error_message: Optional[str] = None
-    run_id: Optional[UUID] = Field(
-        default=None,
-        description="fetcher_runs row written for this invocation.",
-    )
     super_id: Optional[UUID] = Field(
         default=None,
-        description="Operating SuperID the row was written under.",
+        description=(
+            "Operating SuperID the row was written under. This is the public "
+            "handle for the run; callers reference rows by SuperID, never by "
+            "an internal row PK (docs/superid_principles.md section 1)."
+        ),
     )
     reference_super_id: Optional[UUID] = Field(
         default=None,
         description="Reference SuperID for the scope this row belongs to.",
     )
-    # `parent_run_id` and `attempt_number` are intentionally absent (chunk 5).
-    # Iteration / supersession is expressed via new SuperIDs + link records in
-    # the SuperID Metadata store — see docs/data_capture_v2_id_and_data_flow.md.
+    # `parent_run_id`, `attempt_number`, and `run_id` are intentionally absent.
+    # `parent_run_id`/`attempt_number` dropped in chunk 5 (iteration moved to
+    # link records). `run_id` (the internal fetcher_runs PK) dropped in
+    # chunk 8 — exposing it would create a parallel ID system; callers
+    # reference rows by `super_id`.
+
+
+class PromoteToCanonicalRequest(BaseModel):
+    """Body for POST /fetchers/promote-to-canonical (chunk 8)."""
+
+    super_id: UUID = Field(
+        ...,
+        description=(
+            "Operating SuperID of the fetcher_runs row to promote. Must be a "
+            "row this service has already written (chunk 4 UNIQUE on "
+            "fetcher_runs.super_id guarantees one row per SuperID)."
+        ),
+    )
+
+
+class PromoteToCanonicalResponse(BaseModel):
+    """Response for POST /fetchers/promote-to-canonical (chunk 8)."""
+
+    super_id: UUID
+    source_url: str
+    source_adapter: str
+    completeness_score: Optional[float] = None
+    columns_written: int = Field(
+        ...,
+        description=(
+            "Number of Priority 0-3 fields written as real columns on the "
+            "canonical_property_snapshots row."
+        ),
+    )
+    extras_count: int = Field(
+        ...,
+        description="Number of Priority 4+ fields stored in extras_json.",
+    )
+    media_count: int = Field(
+        ...,
+        description="Number of canonical_media rows written.",
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

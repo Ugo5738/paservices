@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from data_capture_service.clients.super_id_service_client import (
     super_id_service_client,
 )
-from data_capture_service.crud import fetcher_crud
+from data_capture_service.crud import canonical_crud, fetcher_crud, fetcher_run_crud
 from data_capture_service.db import get_db
 from data_capture_service.models.fetcher_run import FetcherType
 from data_capture_service.schemas.v2_schemas import (
@@ -38,10 +38,14 @@ from data_capture_service.schemas.v2_schemas import (
     FetcherValidateRequest,
     FetcherValidateResponse,
     MotiePublishedFetcher,
+    PromoteToCanonicalRequest,
+    PromoteToCanonicalResponse,
 )
 from data_capture_service.services import fetcher_audit, parser_registry
 from data_capture_service.services.fetcher_runner import run_fetcher
 from data_capture_service.services.field_registry import (
+    CANONICAL_COLUMN_FIELDS,
+    EXTRAS_FIELDS,
     compute_completeness_score,
     compute_field_presence,
     get_missing_critical_fields,
@@ -49,6 +53,28 @@ from data_capture_service.services.field_registry import (
 from data_capture_service.services.thresholds import VALIDATE_PASS_THRESHOLD
 from data_capture_service.utils.security import validate_token
 from data_capture_service.utils.url_utils import extract_domain
+
+# Field name → CanonicalPropertySnapshot column. Mirrors mappers/canonical_mapper.py's
+# FIELD_TO_COLUMN but kept local so the V2 promote endpoint has a self-contained
+# mapping path (V1's mapper takes a ParsedDataCaptureResult which we don't have
+# in the V2 path — we have raw fields_json from fetcher_runs).
+_FIELD_TO_COLUMN: dict = {
+    "address_road": "address_road",
+    "price": "price",
+    "price_text": "price_text",
+    "address_town": "address_town",
+    "bedrooms": "bedrooms",
+    "estate_agent_name": "estate_agent_name",
+    "agent_address": "agent_address",
+    "transaction_type": "transaction_type",
+    "bathrooms": "bathrooms",
+    "property_type": "property_type",
+    "full_address": "full_address",
+    "postcode": "postcode",
+    "description": "description",
+    "rightmove_url": "rightmove_url",
+}
+_MEDIA_FIELDS = {"image_urls", "floorplan_urls", "video_urls"}
 
 logger = logging.getLogger(__name__)
 
@@ -219,7 +245,6 @@ async def run_fetcher_endpoint(
         error_message=result.error_message,
         duration_ms=result.duration_ms,
         is_metered=result.is_metered,
-        run_id=run.id,
         super_id=request.super_id,
         reference_super_id=reference_super_id,
     )
@@ -364,3 +389,193 @@ async def register_fetcher(
 
     await db.commit()
     return FetcherRegisterResponse(fetchers=published)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# /fetchers/promote-to-canonical (chunk 8 — V2 gate-promote primitive)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _map_fields_to_canonical(
+    fields: dict,
+) -> tuple[dict, dict, list[dict]]:
+    """
+    Split a raw fields dict (from fetcher_runs.fields_json) into the three
+    canonical shapes:
+
+      - column_fields: Priority 0-3 fields written as real columns
+      - extras_json:   Priority 4+ fields stored in extras_json
+      - media_items:   image / floorplan / video URLs lifted into
+                       canonical_media rows
+
+    Mirrors mappers/canonical_mapper.py for the V1 path, but takes a plain
+    dict (V2 has fields_json from the audit row, not a ParsedDataCaptureResult).
+    """
+    column_fields: dict = {}
+    for field_name in CANONICAL_COLUMN_FIELDS:
+        if field_name in _MEDIA_FIELDS:
+            continue
+        column_name = _FIELD_TO_COLUMN.get(field_name, field_name)
+        value = fields.get(field_name)
+        if value is not None:
+            column_fields[column_name] = value
+
+    extras_json: dict = {}
+    for field_name in EXTRAS_FIELDS:
+        if field_name in _MEDIA_FIELDS:
+            continue
+        value = fields.get(field_name)
+        if value is not None:
+            extras_json[field_name] = value
+
+    media_items: list[dict] = []
+    for url in fields.get("image_urls", []) or []:
+        if not url:
+            continue
+        media_items.append({"media_type": "photo", "url": url})
+    for url in fields.get("floorplan_urls", []) or []:
+        if not url:
+            continue
+        media_items.append({"media_type": "floorplan", "url": url})
+    for url in fields.get("video_urls", []) or []:
+        if not url:
+            continue
+        media_items.append({"media_type": "video", "url": url})
+
+    return column_fields, extras_json, media_items
+
+
+@router.post("/promote-to-canonical", response_model=PromoteToCanonicalResponse)
+async def promote_to_canonical(
+    request: PromoteToCanonicalRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Promote one gate-passing fetcher_runs row to canonical_property_snapshots.
+
+    Append-only: a second promote of the same SuperID is rejected with 409
+    (chunk 8 UNIQUE(super_id) on canonical_property_snapshots). To re-run an
+    analysis, mint a fresh SuperID and run the capture again under it
+    (docs/superid_principles.md section 4).
+
+    Inputs:
+      - super_id: the operating SuperID of the fetcher_runs row to promote.
+
+    The endpoint:
+      1. Looks up the fetcher_runs row by super_id (chunk 4 UNIQUE makes this
+         unambiguous).
+      2. Verifies the row passed the gate:
+           - error_message IS NULL,
+           - completeness_score >= VALIDATE_PASS_THRESHOLD,
+           - no critical fields missing (from field_presence_json).
+      3. Maps fields_json into canonical column_fields + extras_json + media.
+      4. Inserts canonical_property_snapshot (run_id = NULL for V2 path) and
+         canonical_media rows in one transaction.
+      5. Writes an activity record on the SuperID for the promote action
+         (non-blocking).
+    """
+    run = await fetcher_run_crud.get_by_super_id(db, request.super_id)
+    if not run:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No fetcher_runs row found for super_id={request.super_id}. "
+                "The promote endpoint can only be called for SuperIDs this "
+                "service has already used (run /fetchers/run or "
+                "/ai-fetchers/{adapter}/run first)."
+            ),
+        )
+
+    # Gate check (defensive — the n8n workflow normally only calls promote
+    # after a separate /fetchers/validate pass, but the service enforces it
+    # too so a stray direct call can't write a sub-threshold canonical row).
+    if run.error_message is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "fetcher_runs row recorded an error_message; promotion is "
+                "not permitted. Mint a fresh SuperID and retry the capture."
+            ),
+        )
+    score = run.completeness_score or 0.0
+    if score < VALIDATE_PASS_THRESHOLD:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"completeness_score {score:.3f} is below "
+                f"VALIDATE_PASS_THRESHOLD {VALIDATE_PASS_THRESHOLD}; "
+                "promotion is not permitted."
+            ),
+        )
+    missing_critical = get_missing_critical_fields(run.field_presence_json or {})
+    if missing_critical:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Critical fields are missing from the parsed result: "
+                f"{missing_critical}. Promotion is not permitted."
+            ),
+        )
+
+    fields = run.fields_json or {}
+    column_fields, extras_json, media_items = _map_fields_to_canonical(fields)
+
+    try:
+        snapshot = await canonical_crud.create_snapshot(
+            db=db,
+            run_id=None,  # V2 path has no parent data_capture_runs row
+            super_id=run.super_id,
+            source_adapter=run.vendor,
+            source_url=run.url,
+            completeness_score=run.completeness_score,
+            column_fields=column_fields,
+            extras_json=extras_json if extras_json else None,
+        )
+        if media_items:
+            await canonical_crud.create_media_records(
+                db=db,
+                snapshot_id=snapshot.id,
+                super_id=run.super_id,
+                media_items=media_items,
+            )
+        await db.commit()
+    except IntegrityError as ie:
+        await db.rollback()
+        logger.warning(
+            "Promote-to-canonical reject: super_id already promoted",
+            extra={"super_id": str(request.super_id)},
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "super_id has already been promoted to canonical. Mint a "
+                "fresh SuperID and retry the capture if you need a new "
+                "canonical row (principles section 4)."
+            ),
+        ) from ie
+
+    # SuperID Metadata: record the promote action for traceability.
+    # Non-blocking — failures are logged but don't undo the canonical write.
+    await super_id_service_client.record_activity(
+        super_id=run.super_id,
+        used_by="data_capture_service",
+        source="data_capture_service/promoted_to_canonical",
+        metadata={
+            "fetcher_type": run.fetcher_type,
+            "vendor": run.vendor,
+            "completeness_score": run.completeness_score,
+            "columns_written": len(column_fields),
+            "extras_count": len(extras_json),
+            "media_count": len(media_items),
+        },
+    )
+
+    return PromoteToCanonicalResponse(
+        super_id=run.super_id,
+        source_url=run.url,
+        source_adapter=run.vendor,
+        completeness_score=run.completeness_score,
+        columns_written=len(column_fields),
+        extras_count=len(extras_json),
+        media_count=len(media_items),
+    )
