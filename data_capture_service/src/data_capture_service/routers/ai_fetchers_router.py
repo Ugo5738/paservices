@@ -80,15 +80,32 @@ async def run_ai_fetcher(
     super_id_str = str(request.super_id) if request.super_id else None
     domain = extract_domain(request.url)
 
+    # Reference SuperID convention (chunk 7): default reference to operating
+    # if the caller didn't specify one (the common, simple case). In
+    # iterative WF DC B2 AIF flows, the caller passes a fresh operating
+    # super_id per pass and the original reference_super_id stays stable.
+    reference_super_id = request.reference_super_id or request.super_id
+    iterating_under_scope = (
+        request.reference_super_id is not None
+        and request.reference_super_id != request.super_id
+    )
+
     # SuperID Metadata: record this use of the SuperID by the AI fetcher.
     # Non-blocking — failures are logged but don't kill the request
     # (chunk 3 / docs/superid_data_capture_design.md section 3.3).
     if request.super_id:
+        activity_metadata = {"adapter": adapter, "domain": domain}
+        if iterating_under_scope:
+            activity_metadata["reference_super_id"] = str(reference_super_id)
         await super_id_service_client.record_activity(
             super_id=request.super_id,
             used_by="ai_fetcher_service",
-            source="wf_dc_b_aif/service_invocation",
-            metadata={"adapter": adapter, "domain": domain},
+            source=(
+                "wf_dc_b2_aif/service_invocation/iterative_pass"
+                if iterating_under_scope
+                else "wf_dc_b_aif/service_invocation"
+            ),
+            metadata=activity_metadata,
         )
 
     try:
@@ -118,6 +135,11 @@ async def run_ai_fetcher(
                 ai_fetcher_id=ai_row.id,
                 error_message=str(e),
                 succeeded=False,
+                metadata_json={
+                    "reference_super_id": (
+                        str(reference_super_id) if reference_super_id else None
+                    ),
+                },
             )
             await db.commit()
         except IntegrityError as ie:
@@ -139,6 +161,8 @@ async def run_ai_fetcher(
             status="failed",
             error_message=str(e),
             run_id=run.id,
+            super_id=request.super_id,
+            reference_super_id=reference_super_id,
         )
 
     parsed = await impl.parse(raw)
@@ -163,6 +187,11 @@ async def run_ai_fetcher(
             error_message=raw.error_message or parsed.error_message,
             duration_ms=raw.duration_ms,
             succeeded=succeeded,
+            metadata_json={
+                "reference_super_id": (
+                    str(reference_super_id) if reference_super_id else None
+                ),
+            },
         )
         await db.commit()
     except IntegrityError as ie:
@@ -191,4 +220,6 @@ async def run_ai_fetcher(
         duration_ms=raw.duration_ms,
         error_message=raw.error_message or parsed.error_message,
         run_id=run.id,
+        super_id=request.super_id,
+        reference_super_id=reference_super_id,
     )

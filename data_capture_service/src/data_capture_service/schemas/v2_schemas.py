@@ -56,9 +56,24 @@ class FetcherRunRequest(BaseModel):
     url: str
     super_id: Optional[UUID] = Field(
         default=None,
-        description="Required for source_type='proxy' fetchers (paservices internal "
-        "services expect a fresh super_id per call). Ignored for source_type='motie' "
-        "since deployed Motie endpoints do not understand the concept.",
+        description=(
+            "Operating SuperID — what this service uses for its single-use "
+            "check, activity record and fetcher_runs row. Required for "
+            "source_type='proxy' fetchers; ignored for source_type='motie' "
+            "since deployed Motie endpoints do not understand the concept. "
+            "See docs/superid_reference_convention.md."
+        ),
+    )
+    reference_super_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Reference SuperID — the scope's identity. In simple flows it "
+            "equals super_id. Diverges when something needs to run again "
+            "within a scope: the operating super_id is fresh, the reference "
+            "stays stable for the scope's life. Carried as metadata only; "
+            "no new field on SuperID records themselves. If omitted, "
+            "defaults to super_id."
+        ),
     )
     extra_params: Optional[Dict[str, Any]] = None
     timeout: float = Field(default=60.0, gt=0)
@@ -76,6 +91,14 @@ class FetcherRunResponse(BaseModel):
     run_id: Optional[UUID] = Field(
         default=None,
         description="fetcher_runs row written for this attempt.",
+    )
+    super_id: Optional[UUID] = Field(
+        default=None,
+        description="Operating SuperID the row was written under.",
+    )
+    reference_super_id: Optional[UUID] = Field(
+        default=None,
+        description="Reference SuperID for the scope this row belongs to.",
     )
 
 
@@ -128,7 +151,24 @@ class FetcherValidateResponse(BaseModel):
 
 class AIFetcherRunRequest(BaseModel):
     url: str
-    super_id: Optional[UUID] = None
+    super_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Operating SuperID — what this service uses for its single-use "
+            "check, activity record and fetcher_runs row. "
+            "See docs/superid_reference_convention.md."
+        ),
+    )
+    reference_super_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            "Reference SuperID — the scope's identity. In simple flows it "
+            "equals super_id. Diverges across iterative AI fetcher passes "
+            "(WF DC B2 AIF): each pass mints a fresh super_id while the "
+            "reference stays stable for the iteration scope's life. "
+            "Carried as metadata only. If omitted, defaults to super_id."
+        ),
+    )
     prompt: Optional[str] = Field(
         default=None,
         description="Optional prompt override. Adapters may ignore if not supported.",
@@ -153,6 +193,14 @@ class AIFetcherRunResponse(BaseModel):
     run_id: Optional[UUID] = Field(
         default=None,
         description="fetcher_runs row written for this invocation.",
+    )
+    super_id: Optional[UUID] = Field(
+        default=None,
+        description="Operating SuperID the row was written under.",
+    )
+    reference_super_id: Optional[UUID] = Field(
+        default=None,
+        description="Reference SuperID for the scope this row belongs to.",
     )
     # `parent_run_id` and `attempt_number` are intentionally absent (chunk 5).
     # Iteration / supersession is expressed via new SuperIDs + link records in

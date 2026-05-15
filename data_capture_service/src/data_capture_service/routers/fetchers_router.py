@@ -143,15 +143,25 @@ async def run_fetcher_endpoint(
             409, f"Fetcher {fetcher.id} is {fetcher.status}, not active"
         )
 
+    # Reference SuperID convention (chunk 7): default reference to operating
+    # if the caller didn't specify one (the common, simple case).
+    reference_super_id = request.reference_super_id or request.super_id
+
     # SuperID Metadata: record this use of the SuperID by the coded fetcher.
     # Non-blocking — failures are logged but don't kill the request
     # (chunk 3 / docs/superid_data_capture_design.md section 3.3).
     if request.super_id:
+        activity_metadata = {
+            "fetcher_id": str(fetcher.id),
+            "domain": fetcher.domain,
+        }
+        if reference_super_id and reference_super_id != request.super_id:
+            activity_metadata["reference_super_id"] = str(reference_super_id)
         await super_id_service_client.record_activity(
             super_id=request.super_id,
             used_by="coded_fetcher_service",
             source="wf_dc_a_cf/service_invocation",
-            metadata={"fetcher_id": str(fetcher.id), "domain": fetcher.domain},
+            metadata=activity_metadata,
         )
 
     result = await run_fetcher(
@@ -180,6 +190,9 @@ async def run_fetcher_endpoint(
             metadata_json={
                 "http_status_code": result.http_status_code,
                 "is_metered": result.is_metered,
+                "reference_super_id": (
+                    str(reference_super_id) if reference_super_id else None
+                ),
             },
         )
         await db.commit()
@@ -207,6 +220,8 @@ async def run_fetcher_endpoint(
         duration_ms=result.duration_ms,
         is_metered=result.is_metered,
         run_id=run.id,
+        super_id=request.super_id,
+        reference_super_id=reference_super_id,
     )
 
 
