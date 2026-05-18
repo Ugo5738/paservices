@@ -209,6 +209,41 @@ class AIFetcherRunResponse(BaseModel):
     # reference rows by `super_id`.
 
 
+class RecordFromSnapshotRequest(BaseModel):
+    """
+    Body for POST /fetchers/record-from-snapshot (chunk 8.7).
+
+    Async/proxy coded fetchers (e.g. the legacy Rightmove bridge) return
+    202 from /fetchers/run and the real data lands later in a snapshot.
+    /fetchers/run no longer writes a fetcher_runs row for the 202 ack
+    (it would burn the single UNIQUE(super_id) row on empty data). After
+    the workflow polls + fetches the completed snapshot, it calls this
+    endpoint with the snapshot as `raw_payload`; the server parses +
+    scores it (never trusting a caller-supplied score) and writes the
+    one immutable fetcher_runs row promote-to-canonical reads.
+    """
+
+    super_id: UUID = Field(
+        ..., description="Operating SuperID of the completed capture."
+    )
+    fetcher_id: UUID = Field(
+        ..., description="The coded fetcher that produced the snapshot."
+    )
+    url: str = Field(..., description="The property URL that was captured.")
+    raw_payload: Dict[str, Any] = Field(
+        ...,
+        description=(
+            "The completed snapshot payload (full envelope). Parsed "
+            "server-side via the same parser resolution as /fetchers/run "
+            "and /fetchers/validate."
+        ),
+    )
+    reference_super_id: Optional[UUID] = Field(
+        default=None,
+        description="Reference SuperID for the scope (defaults to super_id).",
+    )
+
+
 class PromoteToCanonicalRequest(BaseModel):
     """Body for POST /fetchers/promote-to-canonical (chunk 8)."""
 

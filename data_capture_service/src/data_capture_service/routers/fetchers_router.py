@@ -40,6 +40,7 @@ from data_capture_service.schemas.v2_schemas import (
     MotiePublishedFetcher,
     PromoteToCanonicalRequest,
     PromoteToCanonicalResponse,
+    RecordFromSnapshotRequest,
 )
 from data_capture_service.services import fetcher_audit, parser_registry
 from data_capture_service.services.fetcher_runner import run_fetcher
@@ -147,6 +148,60 @@ async def lookup_fetcher(
     return FetcherLookupResponse(domain=domain, found=True, fetcher=info)
 
 
+def _parse_and_score(fetcher, payload, url, *, when: bool = True):
+    """
+    chunk 8.6/8.7: parse `payload` via the fetcher's parser and compute
+    field presence + completeness, so the fetcher_runs row is a complete,
+    immutable, gate-checkable record (parity with the AI path).
+
+    Parser resolution mirrors /fetchers/validate:
+    fetcher.metadata_json["parser_name"] → 'motie' when
+    source_type=='motie' → 'motie' fallback.
+
+    MUST NOT raise — any failure (no parser, parse exception, empty
+    payload, or `when` False) returns all-None so the caller records a
+    raw-only row, exactly as the pre-8.6 behaviour.
+
+    Returns: (parsed_fields, field_presence, completeness, missing_fields).
+    """
+    if not when or not isinstance(payload, dict) or not payload:
+        return None, None, None, None
+    try:
+        meta = fetcher.metadata_json or {}
+        parser_name = (
+            (meta.get("parser_name") or "").lower()
+            or ("motie" if fetcher.source_type == "motie" else "")
+            or "motie"
+        )
+        parser = parser_registry.get(parser_name)
+        if parser is None:
+            logger.warning(
+                "_parse_and_score: no parser '%s' for fetcher %s; "
+                "recording raw-only row",
+                parser_name,
+                fetcher.id,
+            )
+            return None, None, None, None
+        pf, image_urls, floorplan_urls = parser(payload, url)
+        pf = pf or {}
+        if image_urls and "image_urls" not in pf:
+            pf["image_urls"] = image_urls
+        if floorplan_urls and "floorplan_urls" not in pf:
+            pf["floorplan_urls"] = floorplan_urls
+        presence = compute_field_presence(pf)
+        sc = compute_completeness_score(presence)
+        missing = [f for f, p in presence.items() if not p]
+        return pf, presence, sc.overall, missing
+    except Exception as e:  # noqa: BLE001 — must never break run recording
+        logger.warning(
+            "_parse_and_score: parse/score failed for fetcher %s (%s); "
+            "recording raw-only row",
+            fetcher.id,
+            e,
+        )
+        return None, None, None, None
+
+
 @router.post("/run", response_model=FetcherRunResponse)
 async def run_fetcher_endpoint(
     request: FetcherRunRequest,
@@ -199,59 +254,47 @@ async def run_fetcher_endpoint(
         timeout=request.timeout,
     )
 
+    # chunk 8.7: async/proxy fetchers (e.g. the legacy Rightmove bridge)
+    # return HTTP 202 "Accepted" with no data — the real capture lands
+    # later in a snapshot. Do NOT write a fetcher_runs row here: chunk-4
+    # UNIQUE(super_id) allows only ONE row per super_id, and burning it on
+    # the empty 202 ack means promote-to-canonical can never see the real
+    # capture. The workflow polls + fetches the completed snapshot, then
+    # calls /fetchers/record-from-snapshot to write the one real row.
+    # The activity record above still stands — the service WAS invoked.
+    if result.http_status_code == 202:
+        logger.info(
+            "Async fetcher accepted (202); deferring fetcher_runs row to "
+            "/fetchers/record-from-snapshot",
+            extra={
+                "super_id": (
+                    str(request.super_id) if request.super_id else None
+                ),
+                "fetcher_id": str(fetcher.id),
+            },
+        )
+        return FetcherRunResponse(
+            fetcher_id=fetcher.id,
+            url=result.url,
+            status="accepted",
+            http_status_code=result.http_status_code,
+            payload=result.payload if isinstance(result.payload, dict) else None,
+            error_message=result.error_message,
+            duration_ms=result.duration_ms,
+            is_metered=result.is_metered,
+            super_id=request.super_id,
+            reference_super_id=reference_super_id,
+        )
+
     succeeded = result.status == "success"
 
-    # chunk 8.6: parse + score INLINE so the fetcher_runs row is a complete,
-    # immutable record carrying completeness_score / field_presence_json /
-    # fields_json. Without this the coded path wrote a raw-only row and
-    # /fetchers/promote-to-canonical (which re-checks the gate off the row)
-    # could never promote a coded capture — see
-    # docs/data_capture_v2_architecture.md §3. Brings the coded path to
-    # parity with /ai-fetchers/{adapter}/run, which already parses+scores
-    # inline. Parsing/scoring MUST NOT break run recording: any failure
-    # falls back to a raw-only row (score=None), exactly as before 8.6.
-    parsed_fields = None
-    field_presence = None
-    completeness = None
-    missing_fields = None
-    if succeeded and isinstance(result.payload, dict) and result.payload:
-        try:
-            meta = fetcher.metadata_json or {}
-            parser_name = (
-                (meta.get("parser_name") or "").lower()
-                or ("motie" if fetcher.source_type == "motie" else "")
-                or "motie"
-            )
-            parser = parser_registry.get(parser_name)
-            if parser is None:
-                logger.warning(
-                    "chunk8.6: no parser '%s' for fetcher %s; recording "
-                    "raw-only row",
-                    parser_name,
-                    fetcher.id,
-                )
-            else:
-                pf, image_urls, floorplan_urls = parser(
-                    result.payload, request.url
-                )
-                pf = pf or {}
-                if image_urls and "image_urls" not in pf:
-                    pf["image_urls"] = image_urls
-                if floorplan_urls and "floorplan_urls" not in pf:
-                    pf["floorplan_urls"] = floorplan_urls
-                presence = compute_field_presence(pf)
-                sc = compute_completeness_score(presence)
-                parsed_fields = pf
-                field_presence = presence
-                completeness = sc.overall
-                missing_fields = [f for f, p in presence.items() if not p]
-        except Exception as e:  # noqa: BLE001 — must never break run recording
-            logger.warning(
-                "chunk8.6: parse/score failed for fetcher %s (%s); "
-                "recording raw-only row",
-                fetcher.id,
-                e,
-            )
+    # chunk 8.6: parse + score INLINE so the (synchronous) fetcher_runs row
+    # is a complete, immutable, gate-checkable record — parity with the AI
+    # path. Async captures take the /fetchers/record-from-snapshot route
+    # above instead.
+    parsed_fields, field_presence, completeness, missing_fields = (
+        _parse_and_score(fetcher, result.payload, request.url, when=succeeded)
+    )
 
     try:
         run = await fetcher_audit.record_run(
@@ -302,6 +345,108 @@ async def run_fetcher_endpoint(
         error_message=result.error_message,
         duration_ms=result.duration_ms,
         is_metered=result.is_metered,
+        super_id=request.super_id,
+        reference_super_id=reference_super_id,
+    )
+
+
+@router.post("/record-from-snapshot", response_model=FetcherRunResponse)
+async def record_run_from_snapshot(
+    request: RecordFromSnapshotRequest,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    chunk 8.7: write the single immutable fetcher_runs row for an
+    async/proxy capture from its completed snapshot.
+
+    /fetchers/run returns 202 for async fetchers WITHOUT writing a row
+    (it would burn the chunk-4 UNIQUE(super_id) row on empty data). After
+    WF DC A CF polls workflow-status and fetches the completed snapshot,
+    it calls this with the snapshot as `raw_payload`. The server parses +
+    scores it here (never trusting a caller-supplied score — same
+    defensive stance as promote-to-canonical, chunk 8.5) and writes the
+    one row that promote-to-canonical then re-checks the gate against.
+    """
+    fetcher = await fetcher_crud.get_by_id(db, request.fetcher_id)
+    if not fetcher:
+        raise HTTPException(404, f"Fetcher {request.fetcher_id} not found")
+
+    reference_super_id = request.reference_super_id or request.super_id
+
+    # SuperID Metadata: record this use (the completed snapshot recording).
+    # Non-blocking (chunk 3 / docs/superid_data_capture_design.md §3.3).
+    if request.super_id:
+        activity_metadata = {
+            "fetcher_id": str(fetcher.id),
+            "domain": fetcher.domain,
+        }
+        if reference_super_id and reference_super_id != request.super_id:
+            activity_metadata["reference_super_id"] = str(reference_super_id)
+        await super_id_service_client.record_activity(
+            super_id=request.super_id,
+            used_by="coded_fetcher_service",
+            source="wf_dc_a_cf/record_from_snapshot",
+            metadata=activity_metadata,
+        )
+
+    parsed_fields, field_presence, completeness, missing_fields = (
+        _parse_and_score(fetcher, request.raw_payload, request.url, when=True)
+    )
+    succeeded = parsed_fields is not None
+    err = None if succeeded else "snapshot parse produced no fields"
+
+    try:
+        await fetcher_audit.record_run(
+            db,
+            fetcher_type=FetcherType.CODED.value,
+            vendor=fetcher.source_type,
+            url=request.url,
+            domain=fetcher.domain,
+            super_id=request.super_id,
+            fetcher_id=fetcher.id,
+            completeness_score=completeness,
+            payload_json=request.raw_payload,
+            fields_json=parsed_fields,
+            field_presence_json=field_presence,
+            missing_fields_json=missing_fields,
+            error_message=err,
+            duration_ms=0,
+            succeeded=succeeded,
+            metadata_json={
+                "recorded_from": "snapshot",
+                "reference_super_id": (
+                    str(reference_super_id) if reference_super_id else None
+                ),
+            },
+        )
+        await db.commit()
+    except IntegrityError as ie:
+        await db.rollback()
+        logger.warning(
+            "record-from-snapshot reject: super_id already used by this service",
+            extra={
+                "super_id": (
+                    str(request.super_id) if request.super_id else None
+                )
+            },
+        )
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "super_id has already been used by the coded fetcher service. "
+                "Mint a new super_id and retry (principles section 4)."
+            ),
+        ) from ie
+
+    return FetcherRunResponse(
+        fetcher_id=fetcher.id,
+        url=request.url,
+        status="success" if succeeded else "failed",
+        http_status_code=200,
+        payload=request.raw_payload,
+        error_message=err,
+        duration_ms=0,
+        is_metered=False,
         super_id=request.super_id,
         reference_super_id=reference_super_id,
     )
