@@ -200,6 +200,59 @@ async def run_fetcher_endpoint(
     )
 
     succeeded = result.status == "success"
+
+    # chunk 8.6: parse + score INLINE so the fetcher_runs row is a complete,
+    # immutable record carrying completeness_score / field_presence_json /
+    # fields_json. Without this the coded path wrote a raw-only row and
+    # /fetchers/promote-to-canonical (which re-checks the gate off the row)
+    # could never promote a coded capture — see
+    # docs/data_capture_v2_architecture.md §3. Brings the coded path to
+    # parity with /ai-fetchers/{adapter}/run, which already parses+scores
+    # inline. Parsing/scoring MUST NOT break run recording: any failure
+    # falls back to a raw-only row (score=None), exactly as before 8.6.
+    parsed_fields = None
+    field_presence = None
+    completeness = None
+    missing_fields = None
+    if succeeded and isinstance(result.payload, dict) and result.payload:
+        try:
+            meta = fetcher.metadata_json or {}
+            parser_name = (
+                (meta.get("parser_name") or "").lower()
+                or ("motie" if fetcher.source_type == "motie" else "")
+                or "motie"
+            )
+            parser = parser_registry.get(parser_name)
+            if parser is None:
+                logger.warning(
+                    "chunk8.6: no parser '%s' for fetcher %s; recording "
+                    "raw-only row",
+                    parser_name,
+                    fetcher.id,
+                )
+            else:
+                pf, image_urls, floorplan_urls = parser(
+                    result.payload, request.url
+                )
+                pf = pf or {}
+                if image_urls and "image_urls" not in pf:
+                    pf["image_urls"] = image_urls
+                if floorplan_urls and "floorplan_urls" not in pf:
+                    pf["floorplan_urls"] = floorplan_urls
+                presence = compute_field_presence(pf)
+                sc = compute_completeness_score(presence)
+                parsed_fields = pf
+                field_presence = presence
+                completeness = sc.overall
+                missing_fields = [f for f, p in presence.items() if not p]
+        except Exception as e:  # noqa: BLE001 — must never break run recording
+            logger.warning(
+                "chunk8.6: parse/score failed for fetcher %s (%s); "
+                "recording raw-only row",
+                fetcher.id,
+                e,
+            )
+
     try:
         run = await fetcher_audit.record_run(
             db,
@@ -209,7 +262,11 @@ async def run_fetcher_endpoint(
             domain=fetcher.domain,
             super_id=request.super_id,
             fetcher_id=fetcher.id,
+            completeness_score=completeness,
             payload_json=result.payload if isinstance(result.payload, dict) else None,
+            fields_json=parsed_fields,
+            field_presence_json=field_presence,
+            missing_fields_json=missing_fields,
             error_message=result.error_message,
             duration_ms=result.duration_ms,
             succeeded=succeeded,
