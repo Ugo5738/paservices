@@ -25,6 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from data_capture_service.adapters.base import DataCaptureRequest
 from data_capture_service.adapters.motie.motie_client import motie_client
+from data_capture_service.clients.super_id_service_client import (
+    super_id_service_client,
+)
 from data_capture_service.config import settings
 from data_capture_service.crud import (
     ai_fetcher_crud,
@@ -366,21 +369,73 @@ async def score_build(
         baseline_fields=baseline_parsed.fields or {},
     )
 
+    # Chunk 8.5 — reference SuperID convention for the build benchmark.
+    # The build is the scope; request.super_id is its REFERENCE SuperID.
+    # The baseline run above already consumed request.super_id in
+    # fetcher_runs, and chunk 4's UNIQUE(super_id) means the candidate run
+    # cannot reuse it. So the candidate gets its OWN operating super_id,
+    # linked back to the build's reference super_id via a link record —
+    # exactly the pattern WF DC B2 AIF uses for its two passes
+    # (docs/superid_reference_convention.md; docs/superid_principles.md §4).
+    #
+    # If minting fails we fall back to super_id=None: the audit row is
+    # still written (NULLs are allowed and don't collide on the UNIQUE),
+    # we just lose the operating-super_id linkage for that one row.
+    candidate_super_id = None
+    if request.super_id is not None:
+        try:
+            candidate_super_id = await super_id_service_client.create_super_id(
+                metadata={
+                    "minted_by": "fetcher_build_service",
+                    "purpose": "build_candidate_benchmark_run",
+                    "reference_super_id": str(request.super_id),
+                    "motie_build_id": str(build.id),
+                },
+                source_service="data_capture_service",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Build candidate super_id mint failed; recording candidate "
+                "run with NULL super_id (build_id=%s): %s",
+                build.id,
+                exc,
+            )
+
     candidate_run = await fetcher_audit.record_run(
         db,
         fetcher_type=FetcherType.BUILD_BENCHMARK.value,
         vendor="motie",
         url=build.url,
         domain=build.domain,
-        super_id=request.super_id,
+        super_id=candidate_super_id,
         motie_build_id=build.id,
         completeness_score=result.candidate_score,
         payload_json=candidate_payload or None,
         fields_json=candidate_fields or None,
         succeeded=bool(candidate_fields) and candidate_error is None,
         error_message=candidate_error,
-        metadata_json={"role": "build_candidate"},
+        metadata_json={
+            "role": "build_candidate",
+            "reference_super_id": (
+                str(request.super_id) if request.super_id else None
+            ),
+        },
     )
+
+    # Link the candidate's operating super_id to the build's reference
+    # super_id. Non-blocking — observability metadata, must not break the
+    # build score (chunk 3 / docs/superid_data_capture_design.md §3.3).
+    if candidate_super_id is not None and request.super_id is not None:
+        await super_id_service_client.record_link(
+            super_id_a=candidate_super_id,
+            super_id_b=request.super_id,
+            created_by="fetcher_build_service",
+            source="fetcher_build/candidate_benchmark_run",
+            metadata={
+                "motie_build_id": str(build.id),
+                "baseline_super_id": str(request.super_id),
+            },
+        )
 
     diff_payload = {
         "missing_in_candidate": result.diff.missing_in_candidate,
