@@ -102,11 +102,16 @@ def _extract_price(data: Dict[str, Any]) -> Any:
     prices = data.get("prices") or data.get("price")
     if isinstance(prices, dict):
         return (
-            prices.get("displayPrice")
+            # Current Rightmove detail shape: {"primary": "£795,000",
+            # "secondary": null}. `primary` is the canonical display price;
+            # `secondary` is a fallback (e.g. "£X per week" for lettings).
+            prices.get("primary")
+            or prices.get("displayPrice")
             or prices.get("primaryPrice")
             or prices.get("price")
             or prices.get("amount")
             or prices.get("priceQualifier")
+            or prices.get("secondary")
         )
     if isinstance(prices, str):
         return prices
