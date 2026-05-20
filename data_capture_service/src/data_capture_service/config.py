@@ -120,13 +120,16 @@ class Settings(BaseSettings):
         ),
     )
     FIRECRAWL_AGENT_TIMEOUT_SECONDS: int = Field(
-        300,
+        600,
         alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_TIMEOUT_SECONDS",
         description=(
             "Max seconds the SDK will wait for an /v2/agent run to reach a "
             "terminal status before returning the in-flight AgentResponse "
-            "(then surfaced as PARTIAL). 180s was too tight for Zoopla — "
-            "Spark 1 Mini takes ~3 minutes on complex listing portals."
+            "(then surfaced as PARTIAL). 10 minutes — Spark 1 Mini on "
+            "complex listing portals (Zoopla, etc.) can run 3-5 min; the "
+            "ceiling gives headroom. The n8n callers (Run AI Fetcher in "
+            "WF DC B AIF, Call WF2 in WF DC 1 Main) must allow at least "
+            "this long."
         ),
     )
 
