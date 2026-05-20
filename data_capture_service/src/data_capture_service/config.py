@@ -120,12 +120,13 @@ class Settings(BaseSettings):
         ),
     )
     FIRECRAWL_AGENT_TIMEOUT_SECONDS: int = Field(
-        180,
+        300,
         alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_TIMEOUT_SECONDS",
         description=(
             "Max seconds the SDK will wait for an /v2/agent run to reach a "
             "terminal status before returning the in-flight AgentResponse "
-            "(then surfaced as PARTIAL)."
+            "(then surfaced as PARTIAL). 180s was too tight for Zoopla — "
+            "Spark 1 Mini takes ~3 minutes on complex listing portals."
         ),
     )
 

@@ -262,10 +262,15 @@ class FirecrawlAdapter:
 
         # result is an AgentResponse pydantic model:
         #   .id, .status (processing|completed|failed), .data (Any),
-        #   .error (str|None), .credits_used (int|None)
-        # Normalise to a dict for logging / payload preservation.
+        #   .error (str|None), .credits_used (int|None),
+        #   .expires_at (datetime|None)
+        # Normalise to a dict for logging / payload preservation. Use
+        # mode='json' so datetime/UUID are serialised to strings — the
+        # payload ends up in fetcher_runs.payload_json (jsonb) and a bare
+        # datetime breaks the FastAPI/SQLAlchemy json serialiser with an
+        # uncaught TypeError on the PARTIAL/FAILED branches below.
         if hasattr(result, "model_dump"):
-            payload_obj: Dict[str, Any] = result.model_dump()
+            payload_obj: Dict[str, Any] = result.model_dump(mode="json")
         elif isinstance(result, dict):
             payload_obj = result
         else:
