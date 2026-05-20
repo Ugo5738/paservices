@@ -1,20 +1,27 @@
 """
-Firecrawl AI Fetcher Adapter — Firecrawl Agent (FIRE-1) edition.
+Firecrawl AI Fetcher Adapter — Firecrawl /v2/agent (Spark) edition.
 
-Replaces the previous Scrape-API-plus-regex implementation with Firecrawl's
-agentic extraction (FIRE-1). The agent navigates the page (handling JS,
-pagination, modal dialogs, etc.) and returns structured field VALUES against
-a JSON schema we provide — not just presence booleans.
+Uses Firecrawl's v2 Agent endpoint (Spark 1 Mini / Spark 1 Pro) for
+agentic structured extraction. The agent navigates the page (handling
+JS, pagination, modal dialogs, etc.) and returns structured field VALUES
+against the JSON schema we provide — not just presence booleans.
 
-What changed vs the old adapter:
-  Old: scrape_url(url, {formats: ["markdown"]}) → regex on markdown for
-       canonical-field PRESENCE → fields are bool|None.
-  New: scrape_url(url, {formats: ["json"], agent: {model: "FIRE-1"}, ...})
-       → fields are real string/number/list values matching the schema.
+History:
+  v0 (FirecrawlApp.scrape_url, formats:["markdown"]) — regex over markdown
+     for canonical-field PRESENCE; fields were bool|None.
+  v1 (FirecrawlApp.scrape_url, formats:["json"], agent:{model:"FIRE-1"}) —
+     legacy Scrape API + FIRE-1 model. FireCrawl froze this surface under
+     `firecrawl.v1.*` and the FIRE-1 path now returns metadata-only on
+     many portals (no structured json) — surfaced as
+     "Firecrawl agent returned no structured json" with completeness ~0.06.
+  v2 (THIS — Firecrawl.agent(...)) — Firecrawl's new /v2/agent endpoint
+     with Spark 1 Mini. Blocking call (SDK polls internally until status
+     ∈ {completed, failed, cancelled}). Returns an AgentResponse pydantic
+     model whose `.data` is the structured dict matching our schema.
 
-The completeness score now reflects actual data quality (does the field
-have a value?), not regex hit-rate. Same DataCaptureAdapter Protocol so
-the registry/orchestrator code didn't change.
+The completeness score reflects actual data quality (does the field have
+a value?), not regex hit-rate. Same DataCaptureAdapter Protocol so the
+registry/orchestrator code didn't change.
 """
 
 import hashlib
@@ -187,19 +194,21 @@ class FirecrawlAdapter:
     supported_domains: List[str] = ["*"]
 
     def _get_app(self):
-        """Lazy-init the Firecrawl SDK client."""
+        """Lazy-init the Firecrawl v2 SDK client."""
         if not settings.firecrawl_enabled():
             raise RuntimeError("Firecrawl is disabled (no API key configured)")
-        from firecrawl import FirecrawlApp
+        from firecrawl import Firecrawl
 
-        return FirecrawlApp(api_key=settings.FIRECRAWL_API_KEY)
+        return Firecrawl(api_key=settings.FIRECRAWL_API_KEY)
 
     async def fetch_raw(self, request: DataCaptureRequest) -> RawDataCaptureResult:
         """
-        Run a Firecrawl Agent (FIRE-1) extraction against the URL.
+        Run a Firecrawl /v2/agent (Spark 1 Mini) extraction against the URL.
 
         The agent navigates the page using natural-language reasoning + the
-        prompt + schema, returning a structured `json` field on the response.
+        prompt + schema, returning structured fields in `AgentResponse.data`.
+        The SDK call is blocking (internally polls until the agent reaches
+        completed / failed / cancelled).
         """
         start_time = time.time()
 
@@ -217,27 +226,28 @@ class FirecrawlAdapter:
         # default attempt missed).
         prompt = request.prompt or _AGENT_PROMPT
 
-        params: Dict[str, Any] = {
-            "formats": ["json"],
-            "agent": {
-                "model": "FIRE-1",
-                "prompt": prompt,
-            },
-            "jsonOptions": {
-                "schema": PROPERTY_EXTRACTION_SCHEMA,
-                "prompt": prompt,
-            },
-            "onlyMainContent": True,
-        }
-
         try:
             import asyncio
 
             app = self._get_app()
-            result = await asyncio.to_thread(app.scrape_url, request.url, params)
+            # Firecrawl.agent() is blocking — internally polls every
+            # poll_interval seconds until status ∈ {completed, failed,
+            # cancelled} or `timeout` (seconds) elapses. Run in a thread
+            # so the asyncio loop isn't blocked.
+            result = await asyncio.to_thread(
+                app.agent,
+                [request.url],
+                prompt=prompt,
+                schema=PROPERTY_EXTRACTION_SCHEMA,
+                model="spark-1-mini",
+                max_credits=settings.FIRECRAWL_AGENT_MAX_CREDITS,
+                strict_constrain_to_urls=True,
+                timeout=settings.FIRECRAWL_AGENT_TIMEOUT_SECONDS,
+                poll_interval=2,
+            )
         except Exception as e:
             logger.error(
-                f"Firecrawl FIRE-1 fetch_raw failed for {request.url}: {e}",
+                f"Firecrawl /v2/agent fetch_raw failed for {request.url}: {e}",
                 exc_info=True,
             )
             return RawDataCaptureResult(
@@ -250,37 +260,45 @@ class FirecrawlAdapter:
 
         duration_ms = int((time.time() - start_time) * 1000)
 
-        # The SDK returns either a dict or a pydantic model — normalise to dict.
+        # result is an AgentResponse pydantic model:
+        #   .id, .status (processing|completed|failed), .data (Any),
+        #   .error (str|None), .credits_used (int|None)
+        # Normalise to a dict for logging / payload preservation.
         if hasattr(result, "model_dump"):
-            payload_obj = result.model_dump()
+            payload_obj: Dict[str, Any] = result.model_dump()
         elif isinstance(result, dict):
             payload_obj = result
         else:
             payload_obj = {"raw": str(result)}
 
-        json_data = (
-            payload_obj.get("json")
-            or payload_obj.get("data", {}).get("json")
-            if isinstance(payload_obj.get("data"), dict)
-            else payload_obj.get("json")
-        )
-        if json_data is None:
-            # Some response shapes nest under data.extract; check both
-            data = payload_obj.get("data") or {}
-            if isinstance(data, dict):
-                json_data = data.get("extract") or data.get("json")
+        status = payload_obj.get("status")
+        json_data = payload_obj.get("data")
 
-        if not isinstance(json_data, dict):
+        # The agent may report `processing` if the SDK's internal poll
+        # timed out before completion. Treat that as PARTIAL — no usable
+        # data yet, but not a hard error.
+        if status != "completed" or not isinstance(json_data, dict):
+            err = (
+                payload_obj.get("error")
+                or (
+                    "Firecrawl /v2/agent did not return structured data "
+                    f"(status={status!r})"
+                )
+            )
             logger.warning(
-                f"Firecrawl FIRE-1 returned no structured json for {request.url}; "
-                f"top-level keys={list(payload_obj)[:10]}"
+                f"Firecrawl /v2/agent partial for {request.url}: "
+                f"status={status!r} keys={list(payload_obj)[:10]} "
+                f"credits_used={payload_obj.get('credits_used')}"
             )
             return RawDataCaptureResult(
                 adapter_name=self.name,
                 url=request.url,
-                status=AdapterStatus.PARTIAL,
+                status=(
+                    AdapterStatus.FAILED if status == "failed"
+                    else AdapterStatus.PARTIAL
+                ),
                 payload=payload_obj,
-                error_message="Firecrawl agent returned no structured json",
+                error_message=err,
                 duration_ms=duration_ms,
             )
 
@@ -292,22 +310,18 @@ class FirecrawlAdapter:
         except Exception:
             content_hash = None
 
-        # Stash the structured fields under `payload.fields` so .parse below
-        # can read them without re-parsing the raw envelope.
+        # Preserve the structured fields under `payload["json"]` so .parse()
+        # below can read them without re-parsing — same contract the
+        # previous FIRE-1 adapter exposed.
         return RawDataCaptureResult(
             adapter_name=self.name,
             url=request.url,
             status=AdapterStatus.SUCCESS,
             payload={
                 "json": json_data,
-                # Preserve markdown if Firecrawl included it (FIRE-1 sometimes
-                # also returns markdown alongside the agent's structured json).
-                "markdown": payload_obj.get("markdown")
-                or (
-                    payload_obj.get("data", {}).get("markdown")
-                    if isinstance(payload_obj.get("data"), dict)
-                    else None
-                ),
+                "agent_id": payload_obj.get("id"),
+                "credits_used": payload_obj.get("credits_used"),
+                "model": payload_obj.get("model"),
             },
             content_hash=content_hash,
             duration_ms=duration_ms,

@@ -110,6 +110,24 @@ class Settings(BaseSettings):
         alias="DATA_CAPTURE_SERVICE_FIRECRAWL_API_KEY",
         description="Firecrawl API key. If not set, baseline provider is disabled.",
     )
+    FIRECRAWL_AGENT_MAX_CREDITS: int = Field(
+        500,
+        alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_MAX_CREDITS",
+        description=(
+            "Cap on credits a single /v2/agent run may spend. The SDK's "
+            "default is 2500; we cap lower since each property listing is "
+            "a single page extraction."
+        ),
+    )
+    FIRECRAWL_AGENT_TIMEOUT_SECONDS: int = Field(
+        180,
+        alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_TIMEOUT_SECONDS",
+        description=(
+            "Max seconds the SDK will wait for an /v2/agent run to reach a "
+            "terminal status before returning the in-flight AgentResponse "
+            "(then surfaced as PARTIAL)."
+        ),
+    )
 
     # --- Motie Adapter ---
     MOTIE_BASE_URL: str = Field(

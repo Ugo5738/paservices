@@ -131,12 +131,12 @@ class FirecrawlBaselineProvider:
         self._app = None
 
     def _get_app(self):
-        """Lazy-initialize Firecrawl SDK client."""
+        """Lazy-initialize Firecrawl v2 SDK client."""
         if self._app is None:
             try:
-                from firecrawl import FirecrawlApp
+                from firecrawl import Firecrawl
 
-                self._app = FirecrawlApp(api_key=settings.FIRECRAWL_API_KEY)
+                self._app = Firecrawl(api_key=settings.FIRECRAWL_API_KEY)
             except ImportError:
                 logger.error("firecrawl-py package not installed")
                 raise
@@ -164,26 +164,27 @@ class FirecrawlBaselineProvider:
         try:
             app = self._get_app()
 
-            # Firecrawl scrape is synchronous — run in thread pool to avoid blocking
+            # Firecrawl v2 scrape is synchronous — run in thread pool to
+            # avoid blocking. Returns a Document pydantic model with
+            # `.markdown` populated when formats=["markdown"].
             import asyncio
 
             result = await asyncio.to_thread(
-                app.scrape_url,
+                app.scrape,
                 url,
-                params={
-                    "formats": ["markdown"],
-                    "onlyMainContent": True,
-                },
+                formats=["markdown"],
+                only_main_content=True,
             )
 
             duration_ms = int((time.time() - start_time) * 1000)
 
-            # Extract markdown from result
+            # v2 SDK returns a Document — markdown is an attribute. Fall
+            # back to dict access if a future SDK release changes that.
             markdown = None
-            if isinstance(result, dict):
-                markdown = result.get("markdown", "")
-            elif hasattr(result, "markdown"):
+            if hasattr(result, "markdown"):
                 markdown = result.markdown
+            elif isinstance(result, dict):
+                markdown = result.get("markdown", "")
             elif hasattr(result, "model_dump"):
                 data = result.model_dump()
                 markdown = data.get("markdown", "")
