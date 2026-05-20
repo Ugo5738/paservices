@@ -111,12 +111,15 @@ class Settings(BaseSettings):
         description="Firecrawl API key. If not set, baseline provider is disabled.",
     )
     FIRECRAWL_AGENT_MAX_CREDITS: int = Field(
-        500,
+        2500,
         alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_MAX_CREDITS",
         description=(
-            "Cap on credits a single /v2/agent run may spend. The SDK's "
-            "default is 2500; we cap lower since each property listing is "
-            "a single page extraction."
+            "Cap on credits a single /v2/agent run may spend. Set to the "
+            "SDK default of 2500 — 500 was too tight for Zoopla (the agent "
+            "hit the cap mid-run with 'Refusal: Error: Agent reached max "
+            "credits'). Single-page listing extraction is bounded by the "
+            "schema and prompt; the timeout (FIRECRAWL_AGENT_TIMEOUT_"
+            "SECONDS) is the harder ceiling."
         ),
     )
     FIRECRAWL_AGENT_TIMEOUT_SECONDS: int = Field(
