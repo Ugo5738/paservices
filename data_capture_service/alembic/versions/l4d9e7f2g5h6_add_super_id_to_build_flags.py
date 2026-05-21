@@ -1,7 +1,7 @@
 """Add super_id to build_flags so Fetcher Build can run under the originating capture's SuperID.
 
 Revision ID: l4d9e7f2g5h6
-Revises: k3c8d6e1f4g5
+Revises: b75647262ca4
 Create Date: 2026-05-21
 
 Why
@@ -38,7 +38,7 @@ from alembic import op
 
 # revision identifiers, used by Alembic.
 revision: str = "l4d9e7f2g5h6"
-down_revision: Union[str, None] = "k3c8d6e1f4g5"
+down_revision: Union[str, None] = "b75647262ca4"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
