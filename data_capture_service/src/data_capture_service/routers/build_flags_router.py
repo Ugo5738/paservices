@@ -52,6 +52,7 @@ def _to_info(flag: BuildFlag) -> BuildFlagInfo:
         url=flag.url,
         domain=flag.domain,
         reason=flag.reason,
+        super_id=flag.super_id,
         status=flag.status,
         attempts=flag.attempts,
         error=flag.error,
@@ -76,7 +77,11 @@ async def create_flag(
         raise HTTPException(400, "Could not derive domain from url")
 
     flag = await build_flag_crud.create(
-        db=db, url=request.url, domain=domain, reason=request.reason
+        db=db,
+        url=request.url,
+        domain=domain,
+        super_id=request.super_id,
+        reason=request.reason,
     )
     await db.commit()
     return _to_info(flag)

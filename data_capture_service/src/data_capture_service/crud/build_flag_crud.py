@@ -23,14 +23,30 @@ async def create(
     db: AsyncSession,
     url: str,
     domain: str,
+    super_id: UUID,
     reason: Optional[str] = None,
 ) -> BuildFlag:
-    """Write a new pending build flag."""
-    flag = BuildFlag(url=url, domain=domain, reason=reason, status="pending")
+    """
+    Write a new pending build flag.
+
+    `super_id` is the originating Data Capture run's SuperID — the Trigger
+    workflow reads it back at pick-time and the Fetcher Build runs under
+    that same SuperID (docs/superid_data_capture_design.md §3.1).
+    """
+    flag = BuildFlag(
+        url=url,
+        domain=domain,
+        reason=reason,
+        super_id=super_id,
+        status="pending",
+    )
     db.add(flag)
     await db.flush()
     await db.refresh(flag)
-    logger.info(f"Created build_flag: domain={domain}, url={url}, id={flag.id}")
+    logger.info(
+        f"Created build_flag: domain={domain}, url={url}, "
+        f"super_id={super_id}, id={flag.id}"
+    )
     return flag
 
 

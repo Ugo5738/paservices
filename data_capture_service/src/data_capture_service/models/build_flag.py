@@ -36,6 +36,14 @@ class BuildFlag(Base):
     url = Column(String(2048), nullable=False)
     domain = Column(String(512), nullable=False)
     reason = Column(String(512), nullable=True)
+    # SuperID of the originating Data Capture run that queued this flag.
+    # Per docs/superid_data_capture_design.md §3.1 + docs/data_capture_v2_id_and_data_flow.md
+    # Step 8 the Fetcher Build workflow uses the SAME SuperID as Data Capture
+    # ("Fetcher Build is simply another consumer of S-001"); this column is
+    # how the queued flag carries that SuperID across the async handoff.
+    # Nullable so legacy rows (pre-migration l4d9e7f2g5h6) aren't broken; new
+    # flags written by WF DC 1 Main are required to set it.
+    super_id = Column(UUID(as_uuid=True), nullable=True)
     status = Column(
         String(32), nullable=False, default="pending"
     )  # 'pending' | 'in_progress' | 'done' | 'failed'
@@ -50,6 +58,7 @@ class BuildFlag(Base):
     __table_args__ = (
         Index("ix_build_flags_domain", "domain"),
         Index("ix_build_flags_status_created", "status", "created_at"),
+        Index("ix_build_flags_super_id", "super_id"),
         CheckConstraint(
             "status IN ('pending', 'in_progress', 'done', 'failed')",
             name="ck_build_flags_status",

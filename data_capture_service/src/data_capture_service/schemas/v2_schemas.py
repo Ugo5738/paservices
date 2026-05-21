@@ -530,6 +530,17 @@ class BuildFlagCreateRequest(BaseModel):
     url: str
     domain: Optional[str] = None
     reason: Optional[str] = None
+    super_id: UUID = Field(
+        ...,
+        description=(
+            "SuperID of the originating Data Capture run. The Fetcher Build "
+            "workflow uses this same SuperID for the build itself — per "
+            "docs/superid_data_capture_design.md §3.1: 'Fetcher Build is "
+            "simply another consumer of S-001.' Required so the asynchronous "
+            "Trigger workflow can pass it to Auth + Super ID (which no "
+            "longer mints after chunk 9)."
+        ),
+    )
 
 
 class BuildFlagInfo(BaseModel):
@@ -537,6 +548,7 @@ class BuildFlagInfo(BaseModel):
     url: str
     domain: str
     reason: Optional[str] = None
+    super_id: Optional[UUID] = None
     status: str
     attempts: int
     error: Optional[str] = None
