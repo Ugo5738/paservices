@@ -33,6 +33,7 @@ from data_capture_service.schemas.v2_schemas import (
     FetcherLookupResponse,
     FetcherRegisterRequest,
     FetcherRegisterResponse,
+    FetcherRunBySuperIdResponse,
     FetcherRunRequest,
     FetcherRunResponse,
     FetcherValidateRequest,
@@ -146,6 +147,56 @@ async def lookup_fetcher(
 
     info = await _build_info(db, fetcher)
     return FetcherLookupResponse(domain=domain, found=True, fetcher=info)
+
+
+@router.get(
+    "/runs/by-super-id/{super_id}",
+    response_model=FetcherRunBySuperIdResponse,
+)
+async def get_fetcher_run_by_super_id(
+    super_id: UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Read the immutable fetcher_runs row recorded under this SuperID.
+
+    Per `docs/data_capture_v2_id_and_data_flow.md` Step 8, the Motie Build
+    workflow uses the *already-captured* AI output as the benchmark for the
+    fetcher it generates ("Motie generates a fetcher using the URL + the
+    FireCrawl benchmark fields"). Rather than re-invoking the AI fetcher
+    service (which would violate single-use — `ai_fetcher_service` has
+    already consumed this SuperID during Data Capture's AI fallback), the
+    Build workflow reads the cached row here.
+
+    Reading does NOT count as a new use of the SuperID — single-use is a
+    write/invocation rule, not a read rule. The Fetcher Build workflow
+    remains "one use of one SuperID for the entire long-running execution"
+    per docs §3.1.
+
+    Returns 404 if no row exists for the given SuperID.
+    """
+    run = await fetcher_run_crud.get_by_super_id(db, super_id)
+    if not run:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No fetcher_runs row recorded under super_id={super_id}. "
+                "Has Data Capture actually run for this SuperID?"
+            ),
+        )
+    return FetcherRunBySuperIdResponse(
+        super_id=run.super_id,
+        url=run.url,
+        fetcher_type=run.fetcher_type,
+        vendor=run.vendor,
+        succeeded=run.succeeded,
+        completeness_score=run.completeness_score,
+        fields=run.fields_json,
+        field_presence=run.field_presence_json,
+        missing_fields=run.missing_fields_json,
+        error_message=run.error_message,
+        created_at=run.created_at,
+    )
 
 
 def _parse_and_score(fetcher, payload, url, *, when: bool = True):

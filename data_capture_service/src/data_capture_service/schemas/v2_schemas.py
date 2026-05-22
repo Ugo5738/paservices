@@ -102,6 +102,42 @@ class FetcherRunResponse(BaseModel):
     )
 
 
+class FetcherRunBySuperIdResponse(BaseModel):
+    """
+    Response body for GET /fetchers/runs/by-super-id/{super_id}.
+
+    Read-only projection of the immutable fetcher_runs row for a SuperID.
+    Used by WF DC 2 Build CF (Motie Build) to read the already-captured AI
+    output as the Motie agent's benchmark, per
+    docs/data_capture_v2_id_and_data_flow.md Step 8:
+
+      "Motie generates a fetcher using the URL + the FireCrawl benchmark
+       fields."
+
+    Reading here does NOT count as a new use of the SuperID — single-use is
+    a write/invocation rule, not a read rule. Fetcher Build remains "one
+    use of one SuperID for the entire long-running execution" (docs §3.1).
+    """
+
+    super_id: UUID
+    url: str
+    fetcher_type: str  # 'coded' | 'ai' | 'build_benchmark'
+    vendor: str
+    succeeded: bool
+    completeness_score: Optional[float] = None
+    fields: Optional[Dict[str, Any]] = Field(
+        default=None,
+        description=(
+            "Parsed canonical fields from the run — what the Motie agent "
+            "consumes as its benchmark."
+        ),
+    )
+    field_presence: Optional[Dict[str, bool]] = None
+    missing_fields: Optional[List[str]] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # /fetchers/validate
 # ─────────────────────────────────────────────────────────────────────────────
