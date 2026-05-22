@@ -9,7 +9,35 @@ data_capture_service.adapters.motie.motie_adapter — that prompt has historical
 produced working FastAPI scrapers (e.g. the deployed purplebricks scraper). We
 deliberately do not say "FastAPI scraper" in the opening line because the V1
 "Build a scraper" wording is what's been working in production.
+
+Runtime constraint (added 2026-05-22): the V2-era Motie agent sometimes
+generates pipeline-style code that writes intermediate artifacts to
+`/root/pipeline/artifacts/...`. The deployed environment (AWS Lambda / API
+Gateway) has a read-only root filesystem, so those writes crash every request
+with `Permission denied`. We now explicitly tell the agent the env is
+stateless + read-only so it produces in-memory-only scrapers.
 """
+
+# Runtime constraint section reused by both build_initial_prompt and
+# build_repair_prompt — kept as a module-level constant so the wording stays
+# identical across initial builds and repairs (otherwise the agent may "fix"
+# the filesystem error in a repair by switching to a different writable path
+# like /var/log, which also fails).
+_DEPLOYMENT_ENV_CONSTRAINTS = (
+    "Deployment environment constraints (very important — the deployed "
+    "scraper WILL CRASH on every request if violated):\n"
+    "- The deployed runtime is a READ-ONLY filesystem (AWS Lambda / API "
+    "Gateway-style container). Your scraper code MUST NOT write any files to "
+    "disk during a request. No caching to disk, no artifact directories, no "
+    "`/root/pipeline/artifacts/...`, no `/var/...`, no logging to files.\n"
+    "- The scraper must be STATELESS: receive the URL, fetch the page in "
+    "memory, parse in memory, return JSON. Each request is independent — do "
+    "not persist intermediate state between requests.\n"
+    "- If you absolutely need scratch space, only `/tmp` is writable, but "
+    "in-memory processing (e.g. `io.BytesIO`, BeautifulSoup on a string) is "
+    "strongly preferred and matches the reference scrapers (openrent, "
+    "connells, purplebricks) that work in production."
+)
 
 from typing import Any, Dict, Optional
 
@@ -47,6 +75,8 @@ def build_initial_prompt(
         "Build a scraper for this property listing website. "
         "The scraper should accept a listing_url query parameter and extract "
         "all property details from the page at that URL.",
+        "",
+        _DEPLOYMENT_ENV_CONSTRAINTS,
         "",
         "Extract these fields and return them as a JSON object. "
         "If a detail isn't present on the page, put null as the value:",
@@ -101,6 +131,8 @@ def build_repair_prompt(
         "",
         "The scraper should accept a listing_url query parameter and extract "
         "all property details from the page at that URL.",
+        "",
+        _DEPLOYMENT_ENV_CONSTRAINTS,
     ]
 
     if missing_critical_fields:
