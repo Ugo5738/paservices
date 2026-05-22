@@ -63,41 +63,69 @@ def build_initial_prompt(
     extra_context: Optional[str] = None,
 ) -> str:
     """
-    Prompt for an initial build. Matches V1's DEFAULT_MOTIE_PROMPT body verbatim
-    so we ride the same agent behaviour that produced today's working scrapers,
-    with the target URL prepended so the agent has a concrete page to reason
-    against. benchmark_fields, when supplied, are AI-fetcher (e.g. Firecrawl)
-    results that confirm specific fields exist on this URL.
+    Prompt for an initial build.
+
+    Mirrors VERBATIM the hand-crafted prompt that produced a working,
+    deployable primelocation scraper on 2026-05-20 via direct Motie API
+    invocation (see /tmp/motie_build_test.sh from that session). That
+    deployment hit POST /fetch with a property URL and returned real
+    structured data — proving the chain-independent baseline.
+
+    Previous prompt iterations (V1 "Build a scraper" wording + the
+    listing_url query-param + 36-field PROPERTY_FIELDS reference) produced
+    scrapers that either hung Motie indefinitely or deployed but wrote
+    artifacts to a read-only filesystem (`/root/pipeline/artifacts/...`)
+    and 500'd on every request. Both failure modes were caused by the
+    prompt giving the Motie agent too much freedom in architecture
+    choice. This verbatim copy of the known-working prompt removes that
+    freedom: explicit "Python FastAPI scraper", explicit POST /fetch
+    endpoint contract, focused field list with type hints.
+
+    `benchmark_fields` (optional) — passed through as a hint about which
+    fields the AI fetcher confirmed are on the page.
+    `extra_context` (optional) — appended verbatim.
     """
-    sections = [
-        f"Target URL: {url}",
-        "",
-        "Build a scraper for this property listing website. "
-        "The scraper should accept a listing_url query parameter and extract "
-        "all property details from the page at that URL.",
-        "",
-        _DEPLOYMENT_ENV_CONSTRAINTS,
-        "",
-        "Extract these fields and return them as a JSON object. "
-        "If a detail isn't present on the page, put null as the value:",
-        "",
-        PROPERTY_FIELDS,
-    ]
+    # Domain extraction (cheap inline — no urlparse import needed for one call)
+    domain = url.split('://', 1)[-1].split('/', 1)[0]
+    if domain.startswith('www.'):
+        domain = domain[4:]
+
+    prompt = (
+        f"Build a Python FastAPI scraper that takes a {domain} property "
+        "listing URL and returns a JSON object with these fields (use null "
+        "when a field is not on the page):\n"
+        "\n"
+        '  - price: string with currency symbol (e.g. "£500,000" or "£1,200 pcm")\n'
+        "  - bedrooms: integer\n"
+        "  - bathrooms: integer\n"
+        "  - full_address: full address string\n"
+        "  - postcode: UK postcode\n"
+        "  - property_type: flat | terraced | detached | semi-detached | etc.\n"
+        '  - transaction_type: "for sale" | "to rent"\n'
+        "  - description: full listing description text\n"
+        "  - image_urls: array of full-resolution photo URLs\n"
+        "  - floorplan_urls: array of floorplan image URLs\n"
+        "  - estate_agent_name\n"
+        "\n"
+        f"Sample URL pattern: {url}\n"
+        "\n"
+        'The endpoint should be POST /fetch with body {"url": "..."} and '
+        "return the JSON above."
+    )
 
     if benchmark_fields:
         present = [k for k, v in benchmark_fields.items() if v]
         if present:
-            sections.append("")
-            sections.append(
-                "Reference data: an independent extractor confirmed these fields ARE "
-                f"present on this URL: {present}. Your scraper must extract all of them."
+            prompt += (
+                "\n\nReference data: an independent extractor confirmed these "
+                f"fields ARE present on this URL: {present}. Your scraper must "
+                "extract all of them."
             )
 
     if extra_context:
-        sections.append("")
-        sections.append(extra_context)
+        prompt += "\n\n" + extra_context
 
-    return "\n".join(sections)
+    return prompt
 
 
 def build_repair_prompt(
@@ -119,8 +147,12 @@ def build_repair_prompt(
     list, because that's the diff that actually moves the score for the
     next build attempt.
     """
+    domain = url.split('://', 1)[-1].split('/', 1)[0]
+    if domain.startswith('www.'):
+        domain = domain[4:]
+
     sections = [
-        "The deployed scraper for this property listing website is failing or "
+        f"The deployed Python FastAPI scraper for {domain} is failing or "
         "returning errors.",
         "",
         f"Failing URL: {url}",
@@ -129,10 +161,21 @@ def build_repair_prompt(
         "Please review the existing scraper code in this project, identify what "
         "is broken, and fix it so this URL extracts cleanly.",
         "",
-        "The scraper should accept a listing_url query parameter and extract "
-        "all property details from the page at that URL.",
+        'The endpoint must remain POST /fetch with body {"url": "..."}, '
+        "returning a JSON object with these fields (use null when a field "
+        "is not on the page):",
         "",
-        _DEPLOYMENT_ENV_CONSTRAINTS,
+        '  - price: string with currency symbol (e.g. "£500,000" or "£1,200 pcm")',
+        "  - bedrooms: integer",
+        "  - bathrooms: integer",
+        "  - full_address: full address string",
+        "  - postcode: UK postcode",
+        "  - property_type: flat | terraced | detached | semi-detached | etc.",
+        '  - transaction_type: "for sale" | "to rent"',
+        "  - description: full listing description text",
+        "  - image_urls: array of full-resolution photo URLs",
+        "  - floorplan_urls: array of floorplan image URLs",
+        "  - estate_agent_name",
     ]
 
     if missing_critical_fields:
@@ -142,16 +185,6 @@ def build_repair_prompt(
             f"fields, which the AI fetcher confirmed ARE on this page: "
             f"{list(missing_critical_fields)}. Fix extraction for these first."
         )
-
-    sections.extend(
-        [
-            "",
-            "Extract these fields and return them as a JSON object. If a detail "
-            "isn't present on the page, put null as the value:",
-            "",
-            PROPERTY_FIELDS,
-        ]
-    )
 
     if missing_fields:
         sections.append("")
