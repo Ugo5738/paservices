@@ -44,7 +44,12 @@ from data_capture_service.schemas.v2_schemas import (
     PromoteToCanonicalResponse,
     RecordFromSnapshotRequest,
 )
+from data_capture_service.adapters.base import AdapterStatus
+from data_capture_service.config import settings
 from data_capture_service.services import fetcher_audit, parser_registry
+from data_capture_service.services.baseline_provider import (
+    firecrawl_baseline_provider,
+)
 from data_capture_service.services.fetcher_runner import run_fetcher
 from data_capture_service.services.field_registry import (
     CANONICAL_COLUMN_FIELDS,
@@ -763,13 +768,73 @@ async def promote_to_canonical(
         )
     missing_critical = get_missing_critical_fields(run.field_presence_json or {})
     if missing_critical:
-        raise HTTPException(
-            status_code=409,
-            detail=(
-                "Critical fields are missing from the parsed result: "
-                f"{missing_critical}. Promotion is not permitted."
-            ),
-        )
+        # Cross-check against the FireCrawl baseline before rejecting.
+        # A field that's missing from the parsed output BUT genuinely
+        # absent from the page (e.g. a listing with no floorplan) should
+        # NOT block promotion. Only enforce critical fields the baseline
+        # confirms ARE present on the page.
+        #
+        # This is the V2 realisation of Rolf's "FireCrawl baseline gives
+        # the validation gate ground truth" pattern (docs/superid_data_
+        # capture_design.md): the baseline tells us what's actually on
+        # the page; the gate only fires for fields the scraper genuinely
+        # missed, not for fields that aren't there at all.
+        baseline_confirmed_missing = list(missing_critical)
+        if settings.firecrawl_enabled():
+            try:
+                baseline = await firecrawl_baseline_provider.fetch_baseline(
+                    run.url
+                )
+                if (
+                    baseline.status
+                    in (AdapterStatus.SUCCESS, AdapterStatus.PARTIAL)
+                    and baseline.field_presence
+                ):
+                    # Keep only fields the baseline confirms ARE on the
+                    # page (default True = if baseline doesn't cover the
+                    # field, be strict and require it).
+                    baseline_confirmed_missing = [
+                        f
+                        for f in missing_critical
+                        if baseline.field_presence.get(f, True)
+                    ]
+                    logger.info(
+                        "Promote gate baseline cross-check: parsed-missing=%s "
+                        "baseline-confirmed-on-page=%s (genuinely absent on "
+                        "this page → allowed: %s)",
+                        missing_critical,
+                        baseline_confirmed_missing,
+                        sorted(
+                            set(missing_critical) - set(baseline_confirmed_missing)
+                        ),
+                    )
+                else:
+                    logger.warning(
+                        "Promote gate: FireCrawl baseline returned no usable "
+                        "data (status=%s); falling back to strict "
+                        "missing-critical check.",
+                        baseline.status,
+                    )
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "Promote gate: baseline cross-check failed (%s); "
+                    "falling back to strict missing-critical check.",
+                    exc,
+                )
+
+        if baseline_confirmed_missing:
+            # Strict-gate explanation lives here so we can name the fields
+            # actually missed (per baseline) vs the union of all P0/P1
+            # absent in the parsed output.
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Critical fields present on the page (per baseline) but "
+                    f"missing from the parsed result: "
+                    f"{baseline_confirmed_missing}. Promotion is not "
+                    "permitted."
+                ),
+            )
 
     fields = run.fields_json or {}
     column_fields, extras_json, media_items = _map_fields_to_canonical(fields)
