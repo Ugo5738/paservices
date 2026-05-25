@@ -30,7 +30,7 @@ async def get_by_id(db: AsyncSession, ai_fetcher_id: UUID) -> Optional[AIFetcher
 
 
 async def list_enabled(db: AsyncSession) -> List[AIFetcher]:
-    """Return all enabled AI fetchers ordered by priority (lowest first)."""
+    """Return all enabled AI fetchers ordered by priority (lowest first)"""
     result = await db.execute(
         select(AIFetcher)
         .where(AIFetcher.enabled.is_(True))
