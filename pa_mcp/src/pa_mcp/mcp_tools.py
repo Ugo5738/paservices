@@ -369,43 +369,43 @@ async def run_property_analysis_tool(
     return json.dumps(result)
 
 
-@mcp.tool()
-async def analyze_new_domain_property_tool(
-    property_url: str = "",
-    super_id: str = "",
-    callback_url: str = "",
-) -> str:
-    """Analyse a property on a domain that doesn't have a coded fetcher yet.
+# @mcp.tool()
+# async def analyze_new_domain_property_tool(
+#     property_url: str = "",
+#     super_id: str = "",
+#     callback_url: str = "",
+# ) -> str:
+#     """Analyse a property on a domain that doesn't have a coded fetcher yet.
 
-    Skips the registry lookup and goes straight to multishot AI extraction
-    so you get usable data right now. As a side-effect, queues a build
-    request so the system can autogenerate a coded fetcher for this domain
-    in the background — next time the same domain is analysed, the cheaper
-    coded path will already exist.
+#     Skips the registry lookup and goes straight to multishot AI extraction
+#     so you get usable data right now. As a side-effect, queues a build
+#     request so the system can autogenerate a coded fetcher for this domain
+#     in the background — next time the same domain is analysed, the cheaper
+#     coded path will already exist.
 
-    Use this when you know the domain is new (e.g. a portal we haven't
-    onboarded), or when you specifically want AI-quality extraction over
-    a quick coded-fetcher result.
+#     Use this when you know the domain is new (e.g. a portal we haven't
+#     onboarded), or when you specifically want AI-quality extraction over
+#     a quick coded-fetcher result.
 
-    Returns the AI extraction result immediately, plus `build_queued: true`
-    confirming the coded-fetcher build was queued.
-    """
-    if not property_url:
-        return "❌ Error: property_url is required"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.full_analysis_fallback(
-                client,
-                property_url=property_url,
-                super_id=super_id or None,
-                callback_url=callback_url or None,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "analyze_new_domain_property_tool failed: %s", exc, exc_info=True
-            )
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+#     Returns the AI extraction result immediately, plus `build_queued: true`
+#     confirming the coded-fetcher build was queued.
+#     """
+#     if not property_url:
+#         return "❌ Error: property_url is required"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.full_analysis_fallback(
+#                 client,
+#                 property_url=property_url,
+#                 super_id=super_id or None,
+#                 callback_url=callback_url or None,
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error(
+#                 "analyze_new_domain_property_tool failed: %s", exc, exc_info=True
+#             )
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
