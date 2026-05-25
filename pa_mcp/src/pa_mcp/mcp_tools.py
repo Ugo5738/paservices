@@ -69,115 +69,115 @@ mcp = FastMCP(name=settings.PROJECT_NAME)
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
-async def firecrawl_fetch_tool(
-    url: str = "",
-    super_id: str = "",
-    prompt: str = "",
-) -> str:
-    """Single-shot Firecrawl AI extraction for a property URL.
+# @mcp.tool()
+# async def firecrawl_fetch_tool(
+#     url: str = "",
+#     super_id: str = "",
+#     prompt: str = "",
+# ) -> str:
+#     """Single-shot Firecrawl AI extraction for a property URL.
 
-    Calls the Firecrawl FIRE-1 agent directly — no domain registry lookup,
-    no multishot, no fallback to other vendors. Returns parsed property
-    fields, a presence map, a completeness score, and a `run_id` for the
-    audit trail.
+#     Calls the Firecrawl FIRE-1 agent directly — no domain registry lookup,
+#     no multishot, no fallback to other vendors. Returns parsed property
+#     fields, a presence map, a completeness score, and a `run_id` for the
+#     audit trail.
 
-    Optional `prompt` overrides the default extraction prompt.
+#     Optional `prompt` overrides the default extraction prompt.
 
-    Single attempt only — for higher-quality multishot extraction (two
-    attempts with focused retry, picks the better result), use
-    `fetch_with_ai_tool`.
-    """
-    if not url:
-        return "❌ Error: url is required"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.firecrawl_fetch(
-                client,
-                url=url,
-                super_id=super_id or None,
-                prompt=prompt or None,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("firecrawl_fetch_tool failed: %s", exc, exc_info=True)
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
-
-
-@mcp.tool()
-async def motie_fetch_tool(
-    url: str = "",
-    super_id: str = "",
-) -> str:
-    """Run the deployed Motie-built fetcher for this URL's domain.
-
-    Motie is the AI-coding-agent vendor we use to autogenerate property
-    fetchers. If a Motie fetcher has already been built and registered
-    for this domain, this runs it and returns the captured fields.
-
-    Returns `error: no_fetcher_for_domain` if there is no Motie fetcher
-    registered for the domain — in that case use `build_fetcher_tool`
-    (end-to-end build) or `fetch_with_ai_tool` (one-shot AI extraction).
-    """
-    if not url:
-        return "❌ Error: url is required"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.motie_fetch(
-                client, url=url, super_id=super_id or None
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("motie_fetch_tool failed: %s", exc, exc_info=True)
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+#     Single attempt only — for higher-quality multishot extraction (two
+#     attempts with focused retry, picks the better result), use
+#     `fetch_with_ai_tool`.
+#     """
+#     if not url:
+#         return "❌ Error: url is required"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.firecrawl_fetch(
+#                 client,
+#                 url=url,
+#                 super_id=super_id or None,
+#                 prompt=prompt or None,
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("firecrawl_fetch_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
-@mcp.tool()
-async def motie_build_tool(
-    url: str = "",
-    prompt_kind: str = "build",
-    failing_error: str = "",
-    benchmark_fields_json: str = "",
-) -> str:
-    """Kick off a Motie agent run to build a new fetcher for this URL's domain.
+# @mcp.tool()
+# async def motie_fetch_tool(
+#     url: str = "",
+#     super_id: str = "",
+# ) -> str:
+#     """Run the deployed Motie-built fetcher for this URL's domain.
 
-    Returns immediately with `build_id` and `state: session_running`. Poll
-    progress with `get_fetcher_build_status_tool(build_id)` until terminal
-    (`deployed` | `session_failed` | `deployment_failed`).
+#     Motie is the AI-coding-agent vendor we use to autogenerate property
+#     fetchers. If a Motie fetcher has already been built and registered
+#     for this domain, this runs it and returns the captured fields.
 
-    For a one-call end-to-end build that scores, publishes, and registers
-    the result automatically, use `build_fetcher_tool` instead.
+#     Returns `error: no_fetcher_for_domain` if there is no Motie fetcher
+#     registered for the domain — in that case use `build_fetcher_tool`
+#     (end-to-end build) or `fetch_with_ai_tool` (one-shot AI extraction).
+#     """
+#     if not url:
+#         return "❌ Error: url is required"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.motie_fetch(
+#                 client, url=url, super_id=super_id or None
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("motie_fetch_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
-    `prompt_kind`:
-      - `build` (default) — initial build for a brand-new domain.
-      - `repair` — fix an existing fetcher that's failing; requires
-        `failing_error` describing what went wrong.
 
-    `benchmark_fields_json` (optional) is a JSON dict of reference fields
-    extracted by the AI fetcher — Motie uses these to verify the fetcher
-    it builds actually returns the right shape.
-    """
-    if not url:
-        return "❌ Error: url is required"
-    benchmark_fields = None
-    if benchmark_fields_json:
-        try:
-            benchmark_fields = json.loads(benchmark_fields_json)
-        except json.JSONDecodeError:
-            return "❌ Error: benchmark_fields_json is not valid JSON"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.motie_build_start(
-                client,
-                url=url,
-                prompt_kind=prompt_kind or "build",
-                failing_error=failing_error or None,
-                benchmark_fields=benchmark_fields,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("motie_build_tool failed: %s", exc, exc_info=True)
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+# @mcp.tool()
+# async def motie_build_tool(
+#     url: str = "",
+#     prompt_kind: str = "build",
+#     failing_error: str = "",
+#     benchmark_fields_json: str = "",
+# ) -> str:
+#     """Kick off a Motie agent run to build a new fetcher for this URL's domain.
+
+#     Returns immediately with `build_id` and `state: session_running`. Poll
+#     progress with `get_fetcher_build_status_tool(build_id)` until terminal
+#     (`deployed` | `session_failed` | `deployment_failed`).
+
+#     For a one-call end-to-end build that scores, publishes, and registers
+#     the result automatically, use `build_fetcher_tool` instead.
+
+#     `prompt_kind`:
+#       - `build` (default) — initial build for a brand-new domain.
+#       - `repair` — fix an existing fetcher that's failing; requires
+#         `failing_error` describing what went wrong.
+
+#     `benchmark_fields_json` (optional) is a JSON dict of reference fields
+#     extracted by the AI fetcher — Motie uses these to verify the fetcher
+#     it builds actually returns the right shape.
+#     """
+#     if not url:
+#         return "❌ Error: url is required"
+#     benchmark_fields = None
+#     if benchmark_fields_json:
+#         try:
+#             benchmark_fields = json.loads(benchmark_fields_json)
+#         except json.JSONDecodeError:
+#             return "❌ Error: benchmark_fields_json is not valid JSON"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.motie_build_start(
+#                 client,
+#                 url=url,
+#                 prompt_kind=prompt_kind or "build",
+#                 failing_error=failing_error or None,
+#                 benchmark_fields=benchmark_fields,
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("motie_build_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
@@ -185,108 +185,108 @@ async def motie_build_tool(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
-async def fetch_with_registered_fetcher_tool(
-    url: str = "",
-    super_id: str = "",
-) -> str:
-    """Capture property data using whichever coded fetcher is registered for
-    this URL's domain.
+# @mcp.tool()
+# async def fetch_with_registered_fetcher_tool(
+#     url: str = "",
+#     super_id: str = "",
+# ) -> str:
+#     """Capture property data using whichever coded fetcher is registered for
+#     this URL's domain.
 
-    Vendor-agnostic — the system picks which fetcher to run based on the
-    URL's domain. Returns:
-      - `status: "no_fetcher"` — no fetcher registered for this domain
-        (try `analyze_new_domain_property_tool` or `build_fetcher_tool`)
-      - `status: "pass"` — captured data met the quality threshold
-      - `status: "fail"` — fetcher ran but the captured data was below
-        threshold (consider AI extraction via `fetch_with_ai_tool`)
-    """
-    if not url:
-        return "❌ Error: url is required"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.fetch_with_pre_built(
-                client, url=url, super_id=super_id or None
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "fetch_with_registered_fetcher_tool failed: %s", exc, exc_info=True
-            )
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
-
-
-@mcp.tool()
-async def fetch_with_ai_tool(
-    url: str = "",
-    super_id: str = "",
-) -> str:
-    """Capture property data with AI multishot extraction.
-
-    Two-attempt strategy: runs the default extraction prompt first; if the
-    output doesn't meet the quality threshold, runs a second focused prompt
-    naming the missing fields, then returns whichever attempt scored higher.
-    Response includes both `data` (the winner) and `attempts: [...]` so the
-    caller can inspect both runs for diagnostics.
-
-    Use when you want AI-extraction quality directly — e.g. the domain has
-    no registered fetcher yet, or a registered fetcher returned weak data.
-    """
-    if not url:
-        return "❌ Error: url is required"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.fetch_with_ai(
-                client, url=url, super_id=super_id or None
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("fetch_with_ai_tool failed: %s", exc, exc_info=True)
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+#     Vendor-agnostic — the system picks which fetcher to run based on the
+#     URL's domain. Returns:
+#       - `status: "no_fetcher"` — no fetcher registered for this domain
+#         (try `analyze_new_domain_property_tool` or `build_fetcher_tool`)
+#       - `status: "pass"` — captured data met the quality threshold
+#       - `status: "fail"` — fetcher ran but the captured data was below
+#         threshold (consider AI extraction via `fetch_with_ai_tool`)
+#     """
+#     if not url:
+#         return "❌ Error: url is required"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.fetch_with_pre_built(
+#                 client, url=url, super_id=super_id or None
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error(
+#                 "fetch_with_registered_fetcher_tool failed: %s", exc, exc_info=True
+#             )
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
-@mcp.tool()
-async def build_fetcher_tool(
-    url: str = "",
-    super_id: str = "",
-    poll_interval: str = "15",
-    poll_timeout: str = "1800",
-) -> str:
-    """End-to-end coded-fetcher build for a brand-new domain.
+# @mcp.tool()
+# async def fetch_with_ai_tool(
+#     url: str = "",
+#     super_id: str = "",
+# ) -> str:
+#     """Capture property data with AI multishot extraction.
 
-    One call kicks off the build, polls until terminal, scores the deployed
-    fetcher against an AI baseline, publishes the artefact, and registers
-    the resulting routes. After it completes successfully the domain is
-    listed by `list_registered_fetchers_tool` and runnable via
-    `fetch_with_registered_fetcher_tool`.
+#     Two-attempt strategy: runs the default extraction prompt first; if the
+#     output doesn't meet the quality threshold, runs a second focused prompt
+#     naming the missing fields, then returns whichever attempt scored higher.
+#     Response includes both `data` (the winner) and `attempts: [...]` so the
+#     caller can inspect both runs for diagnostics.
 
-    `poll_interval` (sec, default 15) — between status checks.
-    `poll_timeout` (sec, default 1800 = 30min) — total wait before giving up.
+#     Use when you want AI-extraction quality directly — e.g. the domain has
+#     no registered fetcher yet, or a registered fetcher returned weak data.
+#     """
+#     if not url:
+#         return "❌ Error: url is required"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.fetch_with_ai(
+#                 client, url=url, super_id=super_id or None
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("fetch_with_ai_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
-    Long-running (typical 5–15 min, sometimes longer). If you'd rather drive
-    polling yourself, use `motie_build_tool` + `get_fetcher_build_status_tool`
-    instead.
-    """
-    if not url:
-        return "❌ Error: url is required"
-    try:
-        interval = float(poll_interval) if poll_interval else 15.0
-        timeout = float(poll_timeout) if poll_timeout else 1800.0
-    except ValueError:
-        return "❌ Error: poll_interval and poll_timeout must be numbers"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.build_fetcher(
-                client,
-                url=url,
-                super_id=super_id or None,
-                poll_interval=interval,
-                poll_timeout=timeout,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error("build_fetcher_tool failed: %s", exc, exc_info=True)
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+
+# @mcp.tool()
+# async def build_fetcher_tool(
+#     url: str = "",
+#     super_id: str = "",
+#     poll_interval: str = "15",
+#     poll_timeout: str = "1800",
+# ) -> str:
+#     """End-to-end coded-fetcher build for a brand-new domain.
+
+#     One call kicks off the build, polls until terminal, scores the deployed
+#     fetcher against an AI baseline, publishes the artefact, and registers
+#     the resulting routes. After it completes successfully the domain is
+#     listed by `list_registered_fetchers_tool` and runnable via
+#     `fetch_with_registered_fetcher_tool`.
+
+#     `poll_interval` (sec, default 15) — between status checks.
+#     `poll_timeout` (sec, default 1800 = 30min) — total wait before giving up.
+
+#     Long-running (typical 5–15 min, sometimes longer). If you'd rather drive
+#     polling yourself, use `motie_build_tool` + `get_fetcher_build_status_tool`
+#     instead.
+#     """
+#     if not url:
+#         return "❌ Error: url is required"
+#     try:
+#         interval = float(poll_interval) if poll_interval else 15.0
+#         timeout = float(poll_timeout) if poll_timeout else 1800.0
+#     except ValueError:
+#         return "❌ Error: poll_interval and poll_timeout must be numbers"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.build_fetcher(
+#                 client,
+#                 url=url,
+#                 super_id=super_id or None,
+#                 poll_interval=interval,
+#                 poll_timeout=timeout,
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("build_fetcher_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
 # ---------------------------------------------------------------------------
@@ -364,9 +364,7 @@ async def run_property_analysis_tool(
                 service_params=service_params,
             )
         except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "run_property_analysis_tool failed: %s", exc, exc_info=True
-            )
+            logger.error("run_property_analysis_tool failed: %s", exc, exc_info=True)
             return f"❌ Error: {exc}"
     return json.dumps(result)
 
@@ -415,66 +413,62 @@ async def analyze_new_domain_property_tool(
 # ---------------------------------------------------------------------------
 
 
-@mcp.tool()
-async def list_registered_fetchers_tool(
-    domain: str = "",
-    source_type: str = "",
-    status: str = "",
-) -> str:
-    """List the coded fetchers currently registered in the system.
+# @mcp.tool()
+# async def list_registered_fetchers_tool(
+#     domain: str = "",
+#     source_type: str = "",
+#     status: str = "",
+# ) -> str:
+#     """List the coded fetchers currently registered in the system.
 
-    Lets an agent discover which property domains we already support before
-    deciding whether to call `fetch_with_registered_fetcher_tool`,
-    `analyze_new_domain_property_tool`, or `build_fetcher_tool`.
+#     Lets an agent discover which property domains we already support before
+#     deciding whether to call `fetch_with_registered_fetcher_tool`,
+#     `analyze_new_domain_property_tool`, or `build_fetcher_tool`.
 
-    Filters (all optional):
-      - `domain` — exact match on the fetcher's domain (case-insensitive).
-      - `source_type` — `motie` (Motie-built code) or `proxy` (a domain
-        proxy service like the Rightmove API wrapper).
-      - `status` — `active` or `disabled`. Defaults to all.
+#     Filters (all optional):
+#       - `domain` — exact match on the fetcher's domain (case-insensitive).
+#       - `source_type` — `motie` (Motie-built code) or `proxy` (a domain
+#         proxy service like the Rightmove API wrapper).
+#       - `status` — `active` or `disabled`. Defaults to all.
 
-    Returns each fetcher's id, domain, source_type, route_path, http_method,
-    api_url, param_schema, and status.
-    """
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.list_fetchers(
-                client,
-                domain=domain or None,
-                source_type=source_type or None,
-                status=status or None,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "list_registered_fetchers_tool failed: %s", exc, exc_info=True
-            )
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+#     Returns each fetcher's id, domain, source_type, route_path, http_method,
+#     api_url, param_schema, and status.
+#     """
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.list_fetchers(
+#                 client,
+#                 domain=domain or None,
+#                 source_type=source_type or None,
+#                 status=status or None,
+#             )
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("list_registered_fetchers_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
-@mcp.tool()
-async def get_fetcher_build_status_tool(build_id: str = "") -> str:
-    """Poll the status of an in-progress fetcher build.
+# @mcp.tool()
+# async def get_fetcher_build_status_tool(build_id: str = "") -> str:
+#     """Poll the status of an in-progress fetcher build.
 
-    Returns `build_id`, `state`, `session_id`, `deployment_id`, `api_url`
-    (once deployed), `benchmark_score` (once scored), `error_message`,
-    `is_terminal`.
+#     Returns `build_id`, `state`, `session_id`, `deployment_id`, `api_url`
+#     (once deployed), `benchmark_score` (once scored), `error_message`,
+#     `is_terminal`.
 
-    Use this after `motie_build_tool` returns a `build_id`, or to inspect
-    historical build attempts. Terminal states: `deployed`, `session_failed`,
-    `deployment_failed`.
-    """
-    if not build_id:
-        return "❌ Error: build_id is required"
-    async with httpx.AsyncClient() as client:
-        try:
-            result = await v2_tools.get_motie_build_status(client, build_id)
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "get_fetcher_build_status_tool failed: %s", exc, exc_info=True
-            )
-            return f"❌ Error: {exc}"
-    return json.dumps(result)
+#     Use this after `motie_build_tool` returns a `build_id`, or to inspect
+#     historical build attempts. Terminal states: `deployed`, `session_failed`,
+#     `deployment_failed`.
+#     """
+#     if not build_id:
+#         return "❌ Error: build_id is required"
+#     async with httpx.AsyncClient() as client:
+#         try:
+#             result = await v2_tools.get_motie_build_status(client, build_id)
+#         except Exception as exc:  # noqa: BLE001
+#             logger.error("get_fetcher_build_status_tool failed: %s", exc, exc_info=True)
+#             return f"❌ Error: {exc}"
+#     return json.dumps(result)
 
 
 @mcp.tool()
