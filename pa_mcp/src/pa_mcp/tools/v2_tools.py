@@ -442,19 +442,34 @@ async def full_analysis_fallback(
     # Fire-and-forget: enqueue a build_flag so WF C builds a coded fetcher
     # for this domain in the background. We swallow errors here because the
     # AI result is what the caller actually needs right now.
+    build_flag = None
+    build_queue_error = None
+    build_super_id = super_id or ai_result.get("super_id")
     try:
-        await dc_post(
-            client,
-            "/build-flags",
-            {"url": property_url, "reason": "fallback"},
-            timeout=15.0,
-        )
+        if build_super_id:
+            build_flag = await dc_post(
+                client,
+                "/build-flags",
+                {
+                    "url": property_url,
+                    "reason": "fallback",
+                    "super_id": build_super_id,
+                },
+                timeout=15.0,
+            )
+        else:
+            build_queue_error = (
+                "AI fallback returned no super_id, so no build_flag could be queued"
+            )
     except Exception as exc:  # noqa: BLE001
+        build_queue_error = str(exc)
         logger.warning(
             "fallback: failed to enqueue build_flag for %s: %s", property_url, exc
         )
 
     return {
         "ai_result": ai_result,
-        "build_queued": True,
+        "build_queued": build_flag is not None,
+        "build_flag": build_flag,
+        "build_queue_error": build_queue_error,
     }

@@ -155,6 +155,7 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
                 ts = upd.event_timestamp or upd.received_at
                 # first occurrence is the most recent because list_analysis_updates orders desc
                 if ctx not in latest:
+                    raw_payload = upd.raw_payload or {}
                     entry: Dict[str, Any] = {
                         "status": upd.status,
                         "updated_at": _ts(ts),
@@ -165,7 +166,36 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
                         entry["final_result"] = upd.final_result
                     if upd.summary:
                         entry["summary"] = upd.summary
-                    raw_payload = upd.raw_payload or {}
+                    if upd.error:
+                        entry["error"] = upd.error
+                    elif raw_payload.get("error"):
+                        entry["error"] = raw_payload["error"]
+                    elif raw_payload.get("error_message"):
+                        entry["error"] = {"message": raw_payload["error_message"]}
+                    elif upd.status in {"failed", "error"}:
+                        score = raw_payload.get("completeness_score")
+                        fields = raw_payload.get("fields")
+                        if score == 0 and not fields:
+                            entry["error"] = {
+                                "message": (
+                                    "Capture failed: the AI fetcher returned no usable "
+                                    "fields (completeness_score 0)."
+                                )
+                            }
+                    for field in (
+                        "source",
+                        "adapter",
+                        "fetcher_id",
+                        "build_flag_id",
+                        "completeness_score",
+                        "missing_fields",
+                        "promoted",
+                        "canonical_columns_written",
+                        "canonical_media_count",
+                        "promote_detail",
+                    ):
+                        if raw_payload.get(field) is not None:
+                            entry[field] = raw_payload[field]
                     raw_data = raw_payload.get("data")
                     if raw_data and not entry.get("final_result"):
                         entry["data"] = raw_data
@@ -205,6 +235,10 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
                     base["final_result"] = data_capture["final_result"]
                 elif data_capture.get("data"):
                     base["final_result"] = data_capture["data"]
+        if not base.get("error"):
+            data_capture = (base.get("latest_status_by_context") or {}).get("data_capture")
+            if data_capture and data_capture.get("error"):
+                base["error"] = data_capture["error"]
 
         # Derive overall status from per-context statuses.
         # The DB-stored status can be wrong (e.g. "completed" when only data_capture

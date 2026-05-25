@@ -77,6 +77,8 @@ async def receive_analysis_callback(
 ):
     """Endpoint for n8n/services to post workflow updates (including final results)."""
     raw_payload = payload.model_dump(exclude_none=True)
+    if raw_payload.get("error") is None and raw_payload.get("error_message"):
+        raw_payload["error"] = {"message": raw_payload["error_message"]}
     # logger.info("Received analysis callback payload: %s", raw_payload)
 
     try:
