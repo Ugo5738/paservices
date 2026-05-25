@@ -165,6 +165,12 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
                         entry["final_result"] = upd.final_result
                     if upd.summary:
                         entry["summary"] = upd.summary
+                    raw_payload = upd.raw_payload or {}
+                    raw_data = raw_payload.get("data")
+                    if raw_data and not entry.get("final_result"):
+                        entry["data"] = raw_data
+                    elif raw_payload.get("fields") and not entry.get("final_result"):
+                        entry["data"] = raw_payload["fields"]
                     latest[ctx] = entry
             if latest:
                 base["latest_status_by_context"] = latest
@@ -190,18 +196,37 @@ async def get_property_analysis_result(super_id: str) -> Dict[str, Any]:
             except Exception:
                 pass
 
+        # Fallback: expose the latest successful data-capture payload as the
+        # top-level result when the workflow never wrote a merged final_result.
+        if not base.get("final_result"):
+            data_capture = (base.get("latest_status_by_context") or {}).get("data_capture")
+            if data_capture:
+                if data_capture.get("final_result"):
+                    base["final_result"] = data_capture["final_result"]
+                elif data_capture.get("data"):
+                    base["final_result"] = data_capture["data"]
+
         # Derive overall status from per-context statuses.
         # The DB-stored status can be wrong (e.g. "completed" when only data_capture
         # finished, or "pending" when all contexts actually completed).
         ctx_statuses = base.get("latest_status_by_context", {})
         if ctx_statuses:
             all_statuses = [e.get("status") for e in ctx_statuses.values()]
-            terminal = {"completed", "failed", "error", "completed_with_warnings"}
+            successful = {"success", "completed", "completed_with_warnings"}
+            terminal = successful | {"failed", "error"}
             if all(s in terminal for s in all_statuses):
                 if any(s in {"failed", "error"} for s in all_statuses):
                     base["status"] = "failed"
-                else:
+                elif base.get("n8n_triggered") is False:
                     base["status"] = "completed"
+                else:
+                    # For orchestrated workflows, a lone successful callback
+                    # (typically data_capture) can still mean downstream
+                    # services are pending, so keep it in progress until the
+                    # workflow writes a merged final_result or more contexts arrive.
+                    base["status"] = (
+                        "completed" if base.get("final_result") else "in_progress"
+                    )
             elif any(s in terminal for s in all_statuses):
                 base["status"] = "in_progress"
             # else leave as-is (pending)
