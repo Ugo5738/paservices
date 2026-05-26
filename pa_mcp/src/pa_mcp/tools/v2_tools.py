@@ -23,7 +23,7 @@ import httpx
 from sqlalchemy.exc import SQLAlchemyError
 
 from ..config import settings
-from ..crud import upsert_analysis_result
+from ..crud import create_analysis_update, upsert_analysis_result
 from ..db import AsyncSessionLocal
 from ..utils.logging_config import logger
 from .auth_helper import get_m2m_token
@@ -437,6 +437,20 @@ async def full_analysis_primary(
                         "property_url": property_url,
                         "workflow_callback_url": body["callback_url"],
                         "n8n_triggered": True,
+                    },
+                )
+                await create_analysis_update(
+                    session,
+                    {
+                        "super_id": final_super_id,
+                        "status": remote_status,
+                        "context": "orchestrator",
+                        "property_url": property_url,
+                        "workflow_callback_url": body["callback_url"],
+                        "requested_services": services,
+                        "service_params": service_params or {},
+                        "n8n_triggered": True,
+                        "n8n_response": result,
                     },
                 )
                 await session.commit()
