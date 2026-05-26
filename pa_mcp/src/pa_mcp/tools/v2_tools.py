@@ -20,8 +20,11 @@ parsing so the @mcp.tool() functions in mcp_tools.py stay short and readable.
 from typing import Any, Dict, List, Optional
 
 import httpx
+from sqlalchemy.exc import SQLAlchemyError
 
 from ..config import settings
+from ..crud import upsert_analysis_result
+from ..db import AsyncSessionLocal
 from ..utils.logging_config import logger
 from .auth_helper import get_m2m_token
 
@@ -408,9 +411,45 @@ async def full_analysis_primary(
         body["callback_url"] = settings.WORKFLOW_CALLBACK_URL
     if service_params:
         body["service_params"] = service_params
-    return await n8n_post(
+    result = await n8n_post(
         client, settings.N8N_ORCHESTRATOR_V3_URL, body, timeout=60.0
     )
+    response_super_id = (
+        result.get("super_id")
+        if isinstance(result, dict)
+        else None
+    )
+    final_super_id = response_super_id or super_id
+    if final_super_id:
+        remote_status = (
+            result.get("status", "accepted")
+            if isinstance(result, dict)
+            else "accepted"
+        )
+        async with AsyncSessionLocal() as session:
+            try:
+                await upsert_analysis_result(
+                    session,
+                    final_super_id,
+                    {
+                        "status": "pending",
+                        "remote_status": remote_status,
+                        "property_url": property_url,
+                        "workflow_callback_url": body["callback_url"],
+                        "n8n_triggered": True,
+                    },
+                )
+                await session.commit()
+            except SQLAlchemyError as exc:
+                await session.rollback()
+                logger.error(
+                    "Failed to seed Orchestrator V3 analysis result row: %s",
+                    exc,
+                    exc_info=True,
+                    extra={"super_id": final_super_id},
+                )
+                raise
+    return result
 
 
 async def full_analysis_fallback(
