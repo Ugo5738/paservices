@@ -15,7 +15,7 @@ History:
      many portals (no structured json) — surfaced as
      "Firecrawl agent returned no structured json" with completeness ~0.06.
   v2 (THIS — Firecrawl.agent(...)) — Firecrawl's new /v2/agent endpoint
-     with Spark 1 Mini. Blocking call (SDK polls internally until status
+     with Spark 1. Blocking call (SDK polls internally until status
      ∈ {completed, failed, cancelled}). Returns an AgentResponse pydantic
      model whose `.data` is the structured dict matching our schema.
 
@@ -203,7 +203,7 @@ class FirecrawlAdapter:
 
     async def fetch_raw(self, request: DataCaptureRequest) -> RawDataCaptureResult:
         """
-        Run a Firecrawl /v2/agent (Spark 1 Mini) extraction against the URL.
+        Run a Firecrawl /v2/agent extraction against the URL.
 
         The agent navigates the page using natural-language reasoning + the
         prompt + schema, returning structured fields in `AgentResponse.data`.
@@ -239,7 +239,7 @@ class FirecrawlAdapter:
                 [request.url],
                 prompt=prompt,
                 schema=PROPERTY_EXTRACTION_SCHEMA,
-                model="spark-1-mini",
+                model=settings.FIRECRAWL_AGENT_MODEL,
                 max_credits=settings.FIRECRAWL_AGENT_MAX_CREDITS,
                 strict_constrain_to_urls=True,
                 timeout=settings.FIRECRAWL_AGENT_TIMEOUT_SECONDS,
@@ -326,7 +326,7 @@ class FirecrawlAdapter:
                 "json": json_data,
                 "agent_id": payload_obj.get("id"),
                 "credits_used": payload_obj.get("credits_used"),
-                "model": payload_obj.get("model"),
+                "model": payload_obj.get("model") or settings.FIRECRAWL_AGENT_MODEL,
             },
             content_hash=content_hash,
             duration_ms=duration_ms,

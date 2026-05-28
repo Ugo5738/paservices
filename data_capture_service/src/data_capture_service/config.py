@@ -122,17 +122,24 @@ class Settings(BaseSettings):
             "SECONDS) is the harder ceiling."
         ),
     )
+    FIRECRAWL_AGENT_MODEL: str = Field(
+        "spark-1-pro",
+        alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_MODEL",
+        description=(
+            "Firecrawl /v2/agent model. Use spark-1-pro for higher recall on "
+            "critical property extraction; spark-1-mini is cheaper but missed "
+            "floorplans/images in testing."
+        ),
+    )
     FIRECRAWL_AGENT_TIMEOUT_SECONDS: int = Field(
-        600,
+        1800,
         alias="DATA_CAPTURE_SERVICE_FIRECRAWL_AGENT_TIMEOUT_SECONDS",
         description=(
             "Max seconds the SDK will wait for an /v2/agent run to reach a "
             "terminal status before returning the in-flight AgentResponse "
-            "(then surfaced as PARTIAL). 10 minutes — Spark 1 Mini on "
-            "complex listing portals (Zoopla, etc.) can run 3-5 min; the "
-            "ceiling gives headroom. The n8n callers (Run AI Fetcher in "
-            "WF DC B AIF, Call WF2 in WF DC 1 Main) must allow at least "
-            "this long."
+            "(then surfaced as PARTIAL). 30 minutes gives Spark 1 Pro enough "
+            "room on complex listing portals and avoids duplicate agent runs "
+            "from n8n retrying around a shorter HTTP timeout."
         ),
     )
 
