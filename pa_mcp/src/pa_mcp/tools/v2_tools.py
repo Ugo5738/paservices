@@ -399,40 +399,6 @@ async def full_analysis_primary(
     downstream services. Returns 202 immediately with a super_id; the final
     result reaches `callback_url` asynchronously.
     """
-    # Guarantee a super_id up front. If we leave it to the orchestrator to mint
-    # one (by omitting super_id from the body), a no-super_id call comes back as
-    # an empty {} response: the caller gets no id to poll and may re-trigger
-    # duplicate extraction (bug observed 2026-05-30). Minting here — same path
-    # as create_super_id_tool — makes this tool ALWAYS return a super_id and
-    # always seed a pollable result row, regardless of orchestrator behaviour.
-    if not super_id:
-        try:
-            token = await get_m2m_token(client)
-            resp = await client.post(
-                f"{settings.SUPER_ID_SERVICE_URL}/super_ids",
-                json={"count": 1, "metadata": {}},
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=10,
-            )
-            resp.raise_for_status()
-            super_id = str(resp.json().get("super_id", "")) or None
-        except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "full_analysis_primary: failed to mint super_id: %s",
-                exc,
-                exc_info=True,
-            )
-            return {
-                "status": "error",
-                "error": f"failed to create super_id: {exc}",
-                "super_id": None,
-            }
-        if not super_id:
-            return {
-                "status": "error",
-                "error": "super id service returned no super_id",
-                "super_id": None,
-            }
     body: Dict[str, Any] = {
         "property_url": property_url,
         "services": services,
@@ -497,10 +463,6 @@ async def full_analysis_primary(
                     extra={"super_id": final_super_id},
                 )
                 raise
-    # Bulletproof the tool contract: always surface the super_id to the caller,
-    # even if the orchestrator response omitted it.
-    if isinstance(result, dict) and not result.get("super_id") and final_super_id:
-        result = {**result, "super_id": final_super_id}
     return result
 
 
